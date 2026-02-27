@@ -26,8 +26,9 @@ document_query
 - The user wants to search, summarize, or ask questions about specific uploaded files, contracts, reports, or documents.These files are not the files inside the chat. Document files are uploaded by the user in the dashboard. Which are chunked and embedded in the vector database. If user asks for something related to such documents, choose this intent.
 
 spreadsheet_crud
-- The user explicitly wants to modify or manage spreadsheets:
+- The user explicitly wants to view or modify or manage spreadsheets:
   creating sheets, adding rows, updating cells, formatting, renaming tabs, etc.
+- any query related to google sheets should go to this intent.
 
 Important rules:
 - If the user asks for analysis or insights, choose financial_analysis even if spreadsheets or documents are mentioned.

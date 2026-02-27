@@ -19,6 +19,7 @@ BizAssist supports:
 - Reading, updating, and analyzing financial data
 - Logging invoices and expenses
 - Spreadsheet formulas and calculations (SUM, totals, averages, etc.)
+- Google Sheets operations like View/Acess sheet, update sheet, create sheet, delete sheet, rename sheet, etc.
 
 IMPORTANT:
 All spreadsheet-related tasks, including formulas, totals, calculations, and automation inside spreadsheets, are ALWAYS SAFE.
