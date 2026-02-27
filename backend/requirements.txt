@@ -1,0 +1,41 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic[email]
+
+# Database
+motor
+pymongo
+
+# Auth (Firebase)
+firebase-admin
+
+# AI / LangChain / LangGraph
+openai
+langchain
+langchain-openai
+langchain-community
+langgraph
+langchain-text-splitters
+
+# Vector Store
+chromadb
+
+# Document parsing
+pypdf
+python-docx
+pillow
+
+# Composio
+
+# Google OAuth / Sheets
+google-auth
+
+# Config
+pydantic-settings
+python-dotenv
+
+# Utilities
+httpx
+aiofiles
+tenacity
