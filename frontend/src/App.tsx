@@ -68,7 +68,13 @@ function App() {
             path="/app/*"
             element={
               <>
-                {loading ? null : user ? <Dashboard /> : <Navigate to="/login" replace />}
+                {loading ? null : user ? (
+                  <BackendWarmupGate>
+                    <Dashboard />
+                  </BackendWarmupGate>
+                ) : (
+                  <Navigate to="/login" replace />
+                )}
               </>
             }
           />
@@ -78,6 +84,84 @@ function App() {
         </Routes>
       </ThemeProvider>
     </BrowserRouter>
+  );
+}
+
+function BackendWarmupGate({ children }: { children: React.ReactNode }) {
+  const [ready, setReady] = React.useState(false);
+  const [attempt, setAttempt] = React.useState(0);
+  const [lastError, setLastError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const normalizeBase = (raw?: string) => {
+      const base = (raw || 'http://localhost:8000').replace(/\/+$/, '');
+      return base.endsWith('/api') ? base.slice(0, -4) : base;
+    };
+
+    const baseUrl = normalizeBase(import.meta.env.VITE_API_URL);
+
+    const checkOnce = async () => {
+      try {
+        const res = await fetch(`${baseUrl}/health`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const data = (await res.json().catch(() => null)) as { status?: string } | null;
+        if (data && data.status && data.status !== 'ok') {
+          throw new Error('Not ready');
+        }
+
+        if (!cancelled) {
+          setReady(true);
+          setLastError(null);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setAttempt((a) => a + 1);
+          setLastError(e instanceof Error ? e.message : 'Health check failed');
+        }
+      }
+    };
+
+    checkOnce();
+    const id = window.setInterval(checkOnce, 2000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, []);
+
+  if (ready) return <>{children}</>;
+
+  return (
+    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-6">
+      <div className="w-full max-w-xl rounded-3xl border border-border bg-card p-7 shadow-xl">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-2xl bg-primary/15 flex items-center justify-center">
+            <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+          </div>
+          <div>
+            <div className="text-lg font-bold">Starting backend…</div>
+            <div className="text-sm text-muted-foreground">Please wait while we get things ready.</div>
+          </div>
+        </div>
+
+        <div className="mt-5 flex items-center justify-between gap-4">
+          <div className="text-xs text-muted-foreground">
+            Attempts: {attempt}
+            {lastError ? ` • Last: ${lastError}` : ''}
+          </div>
+          <button
+            className="rounded-xl border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted transition-colors"
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
