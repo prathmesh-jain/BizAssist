@@ -5,12 +5,21 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse, FileResponse
 from bson import ObjectId
-
+from pydantic import BaseModel
+from typing import Literal,Optional,Any
 from app.dependencies import CurrentUser
 from app.database import chats_col, messages_col
 from app.models.chat import ChatCreate, ChatPublic
 from app.models.message import MessagePublic
-from app.services.chat_service import stream_agent_response, _build_attachments_prompt_context
+from app.services.chat_service import (
+    build_attachment_event_text,
+    extract_text_from_image_bytes,
+    stream_agent_response,
+)
+from app.services.user_settings_service import (
+    UserSettingsError,
+    require_user_openai_api_key,
+)
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 logger = logging.getLogger(__name__)
@@ -52,6 +61,135 @@ def _extract_text_from_pdf_bytes(raw: bytes) -> str:
     except Exception:
         logger.exception("chat.upload.pdf_text_extract_failed")
         return ""
+
+
+async def _ensure_chat_enabled(user_id: str) -> None:
+    try:
+        await require_user_openai_api_key(user_id)
+    except UserSettingsError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+async def _store_chat_attachments(
+    *,
+    chat_id: str,
+    user_id: str,
+    files: list[UploadFile],
+) -> list[dict]:
+    attachments: list[dict] = []
+    tmp_dir = _chat_tmp_dir(chat_id)
+
+    logger.info("chat.upload.start chat_id=%s user_id=%s files=%s", chat_id, user_id, len(files or []))
+
+    for f in files or []:
+        ctype = (f.content_type or "application/octet-stream").lower()
+        if ctype not in ALLOWED_CHAT_ATTACHMENT_TYPES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file type: {f.filename}. Only PDF, images, and TXT files are allowed.",
+            )
+        try:
+            raw = await f.read()
+        except Exception:
+            raw = b""
+
+        if not raw:
+            raise HTTPException(status_code=400, detail=f"Empty file upload: {f.filename}")
+        if len(raw) > MAX_CHAT_ATTACHMENT_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large: {f.filename}. Maximum size is 10MB.",
+            )
+
+        att_id = uuid4().hex
+        fname = _safe_filename(f.filename or "file")
+        original_content_type = ctype
+
+        extracted_text = ""
+        if ctype == "application/pdf":
+            extracted_text = _extract_text_from_pdf_bytes(raw)
+        elif ctype == "text/plain":
+            try:
+                extracted_text = raw.decode("utf-8", errors="replace")
+            except Exception:
+                extracted_text = ""
+        else:
+            extracted_text = await extract_text_from_image_bytes(raw, original_content_type, user_id)
+
+        stored_name = f"{att_id}.txt"
+        path = tmp_dir / stored_name
+        try:
+            path.write_text(extracted_text or "", encoding="utf-8", errors="replace")
+        except Exception as e:
+            logger.exception("Failed to persist extracted text for attachment %s for chat %s: %s", fname, chat_id, e)
+            continue
+
+        logger.info(
+            "chat.upload.saved chat_id=%s attachment_id=%s filename=%s content_type=text/plain chars=%s path=%s",
+            chat_id,
+            att_id,
+            fname,
+            len(extracted_text or ""),
+            str(path),
+        )
+
+        attachments.append(
+            {
+                "id": att_id,
+                "filename": fname,
+                "content_type": "text/plain",
+                "size": len(raw),
+                "original_content_type": original_content_type,
+                "url": f"/api/chat/{chat_id}/attachments/{att_id}",
+                "stored_path": str(path),
+            }
+        )
+
+    return attachments
+
+
+async def _persist_user_message(
+    *,
+    chat_id: str,
+    user_id: str,
+    content: str,
+    attachments: list[dict] | None = None,
+) -> datetime:
+    now = datetime.utcnow()
+    stored_content = content.strip()
+    if not stored_content and attachments:
+        stored_content = build_attachment_event_text(attachments)
+
+    await messages_col().insert_one({
+        "chat_id": chat_id,
+        "user_id": user_id,
+        "role": "user",
+        "content": stored_content,
+        "tool_calls": None,
+        "attachments": [
+            {
+                k: a[k]
+                for k in (
+                    "id",
+                    "filename",
+                    "content_type",
+                    "size",
+                    "url",
+                    "stored_path",
+                    "original_content_type",
+                )
+                if k in a
+            }
+            for a in (attachments or [])
+        ] or None,
+        "created_at": now,
+    })
+
+    await chats_col().update_one(
+        {"_id": ObjectId(chat_id)},
+        {"$set": {"updated_at": now}},
+    )
+    return now
 
 
 def _chat_doc_to_public(doc: dict) -> dict:
@@ -133,6 +271,8 @@ async def get_messages(
     # Reverse to return oldest first for the UI
     msgs = list(reversed(msgs))
 
+    # Filter: Only send 'pending' interrupts to the frontend
+    # If a message has an 'interrupt' field that is no longer pending, we skip it
     return {
         "messages": [
             MessagePublic(
@@ -141,9 +281,11 @@ async def get_messages(
                 content=m["content"],
                 tool_calls=m.get("tool_calls"),
                 attachments=m.get("attachments"),
+                interrupt=m.get("interrupt"),
                 created_at=m["created_at"],
             )
             for m in msgs
+            if m["role"] != "tool" and (not m.get("interrupt") or m.get("interrupt", {}).get("is_pending"))
         ],
         "has_more": has_more,
     }
@@ -163,22 +305,8 @@ async def send_message(chat_id: str, body: dict, user: CurrentUser):
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 
-    # Persist user message
-    now = datetime.utcnow()
-    user_msg = {
-        "chat_id": chat_id,
-        "user_id": user.id,
-        "role": "user",
-        "content": content,
-        "tool_calls": None,
-        "created_at": now,
-    }
-    await messages_col().insert_one(user_msg)
-    # Update chat timestamp
-    await chats_col().update_one(
-        {"_id": ObjectId(chat_id)},
-        {"$set": {"updated_at": now}},
-    )
+    await _ensure_chat_enabled(user.id)
+    await _persist_user_message(chat_id=chat_id, user_id=user.id, content=content)
 
     return StreamingResponse(
         stream_agent_response(content, chat_id, user.id),
@@ -203,135 +331,22 @@ async def send_message_with_files(
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 
-    attachments: list[dict] = []
-    tmp_dir = _chat_tmp_dir(chat_id)
-
-    logger.info("chat.upload.start chat_id=%s user_id=%s files=%s has_text=%s", chat_id, user.id, len(files or []), bool(content))
-
-    for f in files or []:
-        ctype = (f.content_type or "application/octet-stream").lower()
-        if ctype not in ALLOWED_CHAT_ATTACHMENT_TYPES:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unsupported file type: {f.filename}. Only PDF, images, and TXT files are allowed.",
-            )
-        try:
-            raw = await f.read()
-        except Exception:
-            raw = b""
-
-        if not raw:
-            raise HTTPException(status_code=400, detail=f"Empty file upload: {f.filename}")
-        if len(raw) > MAX_CHAT_ATTACHMENT_SIZE:
-            raise HTTPException(
-                status_code=400,
-                detail=f"File too large: {f.filename}. Maximum size is 10MB.",
-            )
-
-        att_id = uuid4().hex
-        fname = _safe_filename(f.filename or "file")
-        original_content_type = ctype
-
-        # Persist only extracted text artifacts in tmp.
-        extracted_text = ""
-        if ctype == "application/pdf":
-            extracted_text = _extract_text_from_pdf_bytes(raw)
-        elif ctype == "text/plain":
-            try:
-                extracted_text = raw.decode("utf-8", errors="replace")
-            except Exception:
-                extracted_text = ""
-        else:
-            # For images, run LLM extraction and store the extracted text artifact.
-            try:
-                from app.services.chat_service import extract_text_from_image_bytes
-                extracted_text = await extract_text_from_image_bytes(raw, original_content_type)
-            except Exception:
-                extracted_text = ""
-
-        stored_name = f"{att_id}.txt"
-        path = tmp_dir / stored_name
-        try:
-            path.write_text(extracted_text or "", encoding="utf-8", errors="replace")
-        except Exception as e:
-            logger.exception(f"Failed to persist extracted text for attachment {fname} for chat {chat_id}: {e}")
-            continue
-
-        # All persisted artifacts are text/plain.
-        ctype = "text/plain"
-
-        logger.info(
-            "chat.upload.saved chat_id=%s attachment_id=%s filename=%s content_type=%s bytes=%s path=%s",
-            chat_id,
-            att_id,
-            fname,
-            ctype,
-            len(extracted_text or ""),
-            str(path),
-        )
-
-        attachments.append(
-            {
-                "id": att_id,
-                "filename": fname,
-                "content_type": ctype,
-                "size": len(raw),
-                "original_content_type": original_content_type,
-                "url": f"/api/chat/{chat_id}/attachments/{att_id}",
-                "stored_path": str(path),
-            }
-        )
-
-    # Persist user message (attachments metadata only; no blobs)
-    now = datetime.utcnow()
-    user_msg = {
-        "chat_id": chat_id,
-        "user_id": user.id,
-        "role": "user",
-        "content": content,
-        "tool_calls": None,
-        "attachments": [
-            {
-                k: a[k]
-                for k in (
-                    "id",
-                    "filename",
-                    "content_type",
-                    "size",
-                    "url",
-                    "stored_path",
-                    "original_content_type",
-                )
-                if k in a
-            }
-            for a in attachments
-        ]
-        or None,
-        "created_at": now,
-    }
-    await messages_col().insert_one(user_msg)
-
-    # Update chat timestamp
-    await chats_col().update_one(
-        {"_id": ObjectId(chat_id)},
-        {"$set": {"updated_at": now}},
+    await _ensure_chat_enabled(user.id)
+    attachments = await _store_chat_attachments(chat_id=chat_id, user_id=user.id, files=files)
+    upload_note = build_attachment_event_text(attachments) if attachments else ""
+    await _persist_user_message(
+        chat_id=chat_id,
+        user_id=user.id,
+        content=content,
+        attachments=attachments,
     )
 
-    # Build attachment context ONCE (avoid duplicate extraction)
-    attachment_files = [
-        {k: a[k] for k in ("stored_path", "filename", "content_type") if k in a}
-        for a in attachments
-    ]
-    attachments_context, _samples = await _build_attachments_prompt_context(attachment_files)
-
-    # Stream agent response, reusing the prebuilt attachments context (avoid duplicate LLM calls)
     return StreamingResponse(
         stream_agent_response(
             content,
             chat_id,
             user.id,
-            attachment_files=attachment_files,
-            attachments_context_override=attachments_context,
+            user_message_context=upload_note if attachments else None,
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
@@ -397,10 +412,17 @@ async def delete_chat(chat_id: str, user: CurrentUser):
     return {"ok": True}
 
 
+class RenameChatRequest(BaseModel):
+    title: str
+
+class ResolveInterruptRequest(BaseModel):
+    action: Literal["accept", "reject"]
+    data: Optional[Any] = None
+
 @router.patch("/{chat_id}")
-async def rename_chat(chat_id: str, body: dict, user: CurrentUser):
+async def rename_chat(chat_id: str, body: RenameChatRequest, user: CurrentUser):
     """Rename a chat session."""
-    new_title = body.get("title", "").strip()
+    new_title = body.title.strip()
     if not new_title:
         raise HTTPException(status_code=400, detail="Title is required")
     
@@ -412,4 +434,132 @@ async def rename_chat(chat_id: str, body: dict, user: CurrentUser):
         raise HTTPException(status_code=404, detail="Chat not found")
     
     chat = await chats_col().find_one({"_id": ObjectId(chat_id)})
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat found but could not be retrieved")
     return ChatPublic(**_chat_doc_to_public(chat))
+
+@router.post("/{chat_id}/interrupt-resolve")
+async def resolve_chat_interrupt(chat_id: str, body: ResolveInterruptRequest, user: CurrentUser):
+    """
+    Resolve a pending interrupt and resume the graph.
+    """
+    action = body.action
+    data = body.data
+    
+    chat = await chats_col().find_one({"_id": ObjectId(chat_id), "user_id": user.id})
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    await _ensure_chat_enabled(user.id)
+    
+    # Mark any pending interrupt as resolved instead of deleting (Audit Log)
+    update_result = await messages_col().update_many(
+        {
+            "chat_id": chat_id,
+            "interrupt.is_pending": True
+        },
+        {
+            "$set": {
+                "interrupt.is_pending": False,
+                "interrupt.resolution": action,
+                "interrupt.resolved_at": datetime.utcnow()
+            }
+        }
+    )
+    logger.info(f"Marked {update_result.modified_count} interrupts as resolved (action: {action}) for chat {chat_id}")
+
+    if action == "reject":
+        now = datetime.utcnow()
+        await messages_col().insert_one({
+            "chat_id": chat_id,
+            "user_id": user.id,
+            "role": "user",
+            "content": f"[User rejected the action]: {data}",
+            "created_at": now,
+        })
+        resume_value = False
+    else:
+        if isinstance(data, str) and data.strip():
+            await _persist_user_message(chat_id=chat_id, user_id=user.id, content=data.strip())
+        resume_value = data if data is not None else True
+
+    return StreamingResponse(
+        stream_agent_response(
+            None, 
+            chat_id, 
+            user.id, 
+            is_resume=True, 
+            resume_value=resume_value
+        ),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.post("/{chat_id}/interrupt-resolve-with-files")
+async def resolve_chat_interrupt_with_files(
+    chat_id: str,
+    user: CurrentUser,
+    content: str = Form(""),
+    files: list[UploadFile] = File(default=[]),
+):
+    """Resolve a pending file-upload interrupt and resume the graph from the same checkpoint."""
+    content = (content or "").strip()
+    if not files:
+        raise HTTPException(status_code=400, detail="At least one file is required")
+
+    chat = await chats_col().find_one({"_id": ObjectId(chat_id), "user_id": user.id})
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    await _ensure_chat_enabled(user.id)
+
+    update_result = await messages_col().update_many(
+        {
+            "chat_id": chat_id,
+            "interrupt.is_pending": True
+        },
+        {
+            "$set": {
+                "interrupt.is_pending": False,
+                "interrupt.resolution": "accept",
+                "interrupt.resolved_at": datetime.utcnow()
+            }
+        }
+    )
+    logger.info("Marked %s interrupts as resolved via file upload for chat %s", update_result.modified_count, chat_id)
+
+    attachments = await _store_chat_attachments(chat_id=chat_id, user_id=user.id, files=files)
+    upload_note = build_attachment_event_text(attachments)
+    stored_content = content or upload_note
+    await _persist_user_message(
+        chat_id=chat_id,
+        user_id=user.id,
+        content=stored_content,
+        attachments=attachments,
+    )
+
+    resume_value = {
+        "message": stored_content,
+        "uploaded_attachments": [
+            {
+                "id": a["id"],
+                "filename": a["filename"],
+                "content_type": a["content_type"],
+            }
+            for a in attachments
+        ],
+        "instruction": "Use chat attachment tools to inspect uploaded files if needed.",
+    }
+
+    return StreamingResponse(
+        stream_agent_response(
+            None,
+            chat_id,
+            user.id,
+            is_resume=True,
+            resume_value=resume_value,
+        ),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

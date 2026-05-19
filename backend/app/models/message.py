@@ -20,10 +20,11 @@ class MessageInDB(BaseModel):
     id: Optional[str] = None
     chat_id: str
     user_id: str
-    role: Literal["user", "assistant", "system"]
+    role: Literal["user", "assistant", "system", "tool"]
     content: str
     tool_calls: Optional[list[dict]] = None   # tracks which tools were used
     attachments: Optional[list[AttachmentPublic]] = None
+    interrupt: Optional[dict] = None          # metadata for pending interrupts
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -33,4 +34,5 @@ class MessagePublic(BaseModel):
     content: str
     tool_calls: Optional[list[dict]] = None
     attachments: Optional[list[AttachmentPublic]] = None
+    interrupt: Optional[dict] = None
     created_at: datetime

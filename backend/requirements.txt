@@ -16,6 +16,7 @@ langchain
 langchain-openai
 langchain-community
 langgraph
+langgraph-checkpoint-mongodb
 langchain-text-splitters
 
 # Vector Store
