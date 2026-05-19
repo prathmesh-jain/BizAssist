@@ -1,14 +1,23 @@
 import React from 'react';
 import { CheckCircle2, XCircle, Loader2, Link2, ExternalLink } from 'lucide-react';
 import apiClient from '../../api/client';
+import useSettingsStore from '../../store/settingsStore';
 
 interface ConnectionStatus {
     connected: boolean;
     auth_url?: string;
 }
 
+const MODEL_OPTIONS = ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano'];
+
 export default function SettingsView() {
     const [sheetsStatus, setSheetsStatus] = React.useState<ConnectionStatus | null>(null);
+    const [apiKeyInput, setApiKeyInput] = React.useState('');
+    const [primaryModel, setPrimaryModel] = React.useState('gpt-4.1');
+    const [fastModel, setFastModel] = React.useState('gpt-4.1-mini');
+    const [nanoModel, setNanoModel] = React.useState('gpt-4.1-nano');
+    const [saveMessage, setSaveMessage] = React.useState('');
+    const { aiSettings, isLoading, error, fetchAISettings, updateAISettings } = useSettingsStore();
     const [isConnecting, setIsConnecting] = React.useState(false);
 
     React.useEffect(() => {
@@ -21,7 +30,15 @@ export default function SettingsView() {
             }
         };
         checkStatus();
-    }, []);
+        fetchAISettings();
+    }, [fetchAISettings]);
+
+    React.useEffect(() => {
+        if (!aiSettings) return;
+        setPrimaryModel(aiSettings.primary_model);
+        setFastModel(aiSettings.fast_model);
+        setNanoModel(aiSettings.nano_model);
+    }, [aiSettings]);
 
     const handleConnectGoogleSheets = async () => {
         setIsConnecting(true);
@@ -78,7 +95,32 @@ export default function SettingsView() {
         }
     };
 
-    // No longer needed — we use postMessage instead of URL params
+    const handleSaveAISettings = async () => {
+        setSaveMessage('');
+        try {
+            await updateAISettings({
+                ...(apiKeyInput.trim() ? { openai_api_key: apiKeyInput.trim() } : {}),
+                primary_model: primaryModel,
+                fast_model: fastModel,
+                nano_model: nanoModel,
+            });
+            setApiKeyInput('');
+            setSaveMessage('AI settings updated.');
+        } catch {
+            setSaveMessage('');
+        }
+    };
+
+    const handleClearApiKey = async () => {
+        setSaveMessage('');
+        try {
+            await updateAISettings({ clear_api_key: true });
+            setApiKeyInput('');
+            setSaveMessage('OpenAI API key removed.');
+        } catch {
+            setSaveMessage('');
+        }
+    };
 
     return (
         <div className="flex-1 overflow-y-auto bg-background p-6 lg:p-8">
@@ -168,20 +210,101 @@ export default function SettingsView() {
                     <div className="px-6 py-4 border-b border-border">
                         <h3 className="text-lg font-bold text-foreground">AI Configuration</h3>
                     </div>
-                    <div className="divide-y divide-border">
+                    <div className="space-y-5 px-6 py-5">
+                        <div className="rounded-xl border border-border bg-muted/40 p-4">
+                            <div className="flex items-center justify-between gap-4 flex-wrap">
+                                <div>
+                                    <p className="font-semibold text-foreground text-sm">OpenAI API Key</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                        Chat stays disabled until the user adds their own OpenAI key.
+                                    </p>
+                                </div>
+                                {aiSettings?.has_api_key ? (
+                                    <span className="flex items-center gap-1.5 px-2.5 py-1 bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 rounded-full text-[11px] font-bold uppercase">
+                                        <CheckCircle2 className="w-3.5 h-3.5" /> Key Added
+                                    </span>
+                                ) : (
+                                    <span className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-full text-[11px] font-bold uppercase">
+                                        <XCircle className="w-3.5 h-3.5" /> Required
+                                    </span>
+                                )}
+                            </div>
+                            <input
+                                type="password"
+                                value={apiKeyInput}
+                                onChange={(e) => setApiKeyInput(e.target.value)}
+                                placeholder={aiSettings?.has_api_key ? 'Enter a new OpenAI key to replace the saved one' : 'Enter your OpenAI API key'}
+                                className="mt-4 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                            />
+                            <div className="mt-3 flex flex-wrap gap-3">
+                                <button
+                                    onClick={handleSaveAISettings}
+                                    disabled={isLoading}
+                                    className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-60"
+                                >
+                                    {isLoading ? 'Saving...' : 'Save AI Settings'}
+                                </button>
+                                {aiSettings?.has_api_key && (
+                                    <button
+                                        onClick={handleClearApiKey}
+                                        disabled={isLoading}
+                                        className="px-4 py-2 rounded-xl border border-border text-sm font-semibold text-foreground hover:bg-muted disabled:opacity-60"
+                                    >
+                                        Remove API Key
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
                         {[
-                            { label: 'Primary Model', desc: 'Chat, analysis, invoice processing', badge: 'gpt-4.1' },
-                            { label: 'Fast Model', desc: 'Guardrails, summarization, classification', badge: 'gpt-4.1-mini' },
-                            { label: 'Embeddings', desc: 'Document indexing and RAG retrieval', badge: 'text-embedding-3-small' },
+                            {
+                                label: 'Primary Model',
+                                desc: 'Chat, specialist execution, analysis, and document extraction.',
+                                value: primaryModel,
+                                onChange: setPrimaryModel,
+                            },
+                            {
+                                label: 'Fast Model',
+                                desc: 'Planner, final response synthesis, summarization, and titles.',
+                                value: fastModel,
+                                onChange: setFastModel,
+                            },
+                            {
+                                label: 'Nano Model',
+                                desc: 'Guardrails and lightweight safety checks.',
+                                value: nanoModel,
+                                onChange: setNanoModel,
+                            },
                         ].map(item => (
-                            <div key={item.label} className="flex items-center justify-between px-6 py-4">
+                            <div key={item.label} className="flex items-center justify-between gap-4 flex-wrap">
                                 <div>
                                     <p className="font-semibold text-foreground text-sm">{item.label}</p>
                                     <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
                                 </div>
-                                <span className="px-3 py-1 bg-muted border border-border rounded-lg text-xs font-bold text-muted-foreground whitespace-nowrap ml-4">{item.badge}</span>
+                                <select
+                                    value={item.value}
+                                    onChange={(e) => item.onChange(e.target.value)}
+                                    className="min-w-[180px] rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                                >
+                                    {MODEL_OPTIONS.map(model => (
+                                        <option key={model} value={model}>{model}</option>
+                                    ))}
+                                </select>
                             </div>
                         ))}
+
+                        <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-background px-4 py-3">
+                            <div>
+                                <p className="font-semibold text-foreground text-sm">Embeddings</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">Document indexing and RAG retrieval currently use `text-embedding-3-small`.</p>
+                            </div>
+                            <span className="px-3 py-1 bg-muted border border-border rounded-lg text-xs font-bold text-muted-foreground whitespace-nowrap">text-embedding-3-small</span>
+                        </div>
+                        {(saveMessage || error) && (
+                            <div className={`rounded-xl px-4 py-3 text-sm font-medium ${error ? 'bg-destructive/10 text-destructive border border-destructive/20' : 'bg-green-500/10 text-green-700 dark:text-green-400 border border-green-500/20'}`}>
+                                {error || saveMessage}
+                            </div>
+                        )}
                     </div>
                 </div>
 

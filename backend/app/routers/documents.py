@@ -19,16 +19,25 @@ ALLOWED_TYPES = {
 @router.post("/upload")
 async def upload_document(user: CurrentUser, file: UploadFile = File(...)):
     """Upload a business document and ingest it into the RAG vector store."""
+    from app.services.user_settings_service import UserSettingsError
+
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(status_code=400, detail="Unsupported file type. Use PDF, DOCX, or TXT.")
 
     file_bytes = await file.read()
-    doc_record = await ingest_document(
-        file_bytes=file_bytes,
-        filename=file.filename,
-        file_type=file.content_type,
-        user_id=user.id,
-    )
+    try:
+        doc_record = await ingest_document(
+            file_bytes=file_bytes,
+            filename=file.filename,
+            file_type=file.content_type,
+            user_id=user.id,
+        )
+    except UserSettingsError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        logger.exception("Document ingestion failed")
+        raise HTTPException(status_code=500, detail="Internal server error during ingestion.")
+
     return {"doc_id": doc_record["id"], "filename": file.filename, "chunks": doc_record["chunk_count"]}
 
 

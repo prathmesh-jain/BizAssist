@@ -9,6 +9,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.config import get_settings
 from app.database import documents_col
+from app.services.user_settings_service import require_user_openai_api_key
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -63,9 +64,10 @@ async def ingest_document(
     splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)
     chunks = splitter.split_text(text)
 
+    api_key = await require_user_openai_api_key(user_id)
     embeddings_model = OpenAIEmbeddings(
         model="text-embedding-3-small",
-        openai_api_key=settings.openai_api_key,
+        openai_api_key=api_key,
     )
     embeddings = await embeddings_model.aembed_documents(chunks)
 
@@ -99,19 +101,37 @@ async def ingest_document(
     return {"id": str(result.inserted_id), "chunk_count": len(chunks)}
 
 
-async def retrieve(query: str, user_id: str, k: int = 5) -> str:
+async def list_user_documents(user_id: str) -> list[dict]:
+    """List all RAG-ingested documents for a user."""
+    cursor = documents_col().find({"user_id": user_id}, {"filename": 1, "_id": 1, "created_at": 1})
+    docs = await cursor.to_list(length=100)
+    return [{"id": str(d["_id"]), "filename": d["filename"], "created_at": d["created_at"]} for d in docs]
+
+
+def _build_where_clause(user_id: str, filename: Optional[str] = None) -> dict:
+    """Build a Chroma-compatible metadata filter."""
+    filters: list[dict] = [{"user_id": user_id}]
+    if filename:
+        filters.append({"filename": filename})
+    if len(filters) == 1:
+        return filters[0]
+    return {"$and": filters}
+
+
+async def retrieve(query: str, user_id: str, k: int = 5, filename: Optional[str] = None) -> str:
     """Semantic search over the user's documents. Returns concatenated passages."""
     collection = get_chroma_collection()
+    api_key = await require_user_openai_api_key(user_id)
     embeddings_model = OpenAIEmbeddings(
         model="text-embedding-3-small",
-        openai_api_key=settings.openai_api_key,
+        openai_api_key=api_key,
     )
     query_embedding = await embeddings_model.aembed_query(query)
 
     results = collection.query(
         query_embeddings=[query_embedding],
         n_results=k,
-        where={"user_id": user_id},
+        where=_build_where_clause(user_id=user_id, filename=filename),
         include=["documents", "metadatas"],
     )
 
@@ -133,9 +153,10 @@ async def retrieve_top_filenames(query: str, user_id: str, k: int = 5) -> list[s
     whether to use RAG retrieval first.
     """
     collection = get_chroma_collection()
+    api_key = await require_user_openai_api_key(user_id)
     embeddings_model = OpenAIEmbeddings(
         model="text-embedding-3-small",
-        openai_api_key=settings.openai_api_key,
+        openai_api_key=api_key,
     )
     query_embedding = await embeddings_model.aembed_query(query)
 

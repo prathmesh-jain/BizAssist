@@ -1,13 +1,15 @@
 import React from 'react';
-import { FileText, Trash2, Loader2, Building2 } from 'lucide-react';
+import { FileText, Trash2, Loader2, Building2, AlertCircle } from 'lucide-react';
 import apiClient from '../../api/client';
 import type { DocumentMetadata } from '../../types';
+import useSettingsStore from '../../store/settingsStore';
 
 export default function DocumentView() {
     const [file, setFile] = React.useState<File | null>(null);
     const [isUploading, setIsUploading] = React.useState(false);
     const [documents, setDocuments] = React.useState<DocumentMetadata[]>([]);
     const [isLoading, setIsLoading] = React.useState(true);
+    const { aiSettings, fetchAISettings } = useSettingsStore();
 
     const fetchDocuments = React.useCallback(async () => {
         try {
@@ -22,7 +24,10 @@ export default function DocumentView() {
 
     React.useEffect(() => {
         fetchDocuments();
-    }, [fetchDocuments]);
+        if (!aiSettings) fetchAISettings();
+    }, [fetchDocuments, aiSettings, fetchAISettings]);
+
+    const hasApiKey = aiSettings?.has_api_key;
 
     const handleUpload = async () => {
         if (!file) return;
@@ -101,12 +106,18 @@ export default function DocumentView() {
                                 </label>
                                 <button
                                     onClick={handleUpload}
-                                    disabled={!file || isUploading}
+                                    disabled={!file || isUploading || !hasApiKey}
                                     className="bg-primary hover:bg-primary/90 text-primary-foreground py-3.5 px-6 rounded-2xl transition-all font-bold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/20 flex items-center justify-center min-w-[120px] active:scale-[0.98]"
                                 >
                                     {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span>Upload</span>}
                                 </button>
                             </div>
+                            {!hasApiKey && (
+                                <div className="flex items-center gap-2 text-destructive text-xs font-bold bg-destructive/10 p-3 rounded-xl border border-destructive/20">
+                                    <AlertCircle className="w-4 h-4" />
+                                    <span>Please set your OpenAI API Key in Settings to enable document ingestion.</span>
+                                </div>
+                            )}
                             <div className="flex items-center justify-center space-x-4 text-[11px] text-muted-foreground font-bold uppercase tracking-wider">
                                 <span>PDF</span>
                                 <div className="w-1 h-1 rounded-full bg-border" />

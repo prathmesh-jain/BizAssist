@@ -6,6 +6,15 @@ export interface User {
     imageUrl?: string;
 }
 
+export interface AISettings {
+    provider: 'openai';
+    has_api_key: boolean;
+    chat_enabled: boolean;
+    primary_model: string;
+    fast_model: string;
+    nano_model: string;
+}
+
 export interface Chat {
     id: string;
     title: string;
@@ -30,12 +39,23 @@ export interface ToolCall {
     citations?: string[];
 }
 
+export type InterruptType = 'file_upload' | 'text_input' | 'yes_no_confirmation' | 'accept_decline';
+
+export interface Interrupt {
+    id: string;
+    question: string;
+    interrupt_type?: InterruptType;
+    action_required?: string;
+    data?: any;
+}
+
 export interface Message {
     id: string;
-    role: 'user' | 'assistant';
+    role: 'user' | 'assistant' | 'system';
     content: string;
     tool_calls?: ToolCall[];
     attachments?: Attachment[];
+    interrupt?: Interrupt;
     created_at: string;
 }
 

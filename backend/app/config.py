@@ -4,10 +4,10 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     # LLM — override any of these in .env to swap models
-    openai_api_key: str = ""
     primary_model: str = "gpt-4.1-mini"    # chat, analytics, invoice
     fast_model: str = "gpt-4.1-mini"        # title gen, summarization
     nano_model: str = "gpt-4.1-nano"        # safety check only (cheapest)
+    user_secrets_encryption_key: str = ""
 
     # Memory sliding-window — override in .env
     memory_window_size: int = 20    # total messages before summarization fires

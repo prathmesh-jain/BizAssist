@@ -49,6 +49,7 @@ def analyze_file_size(file_bytes: bytes, content_type: str) -> dict:
 
 async def _extract_invoice_chunked(
     *,
+    user_id: str,
     file_bytes: bytes,
     content_type: str,
     filename: str,
@@ -85,8 +86,9 @@ async def _extract_invoice_chunked(
     splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     chunks = splitter.split_text(text)[:max_chunks]
 
-    llm = get_llm(
-        model_name=settings.primary_model,
+    llm = await get_llm(
+        user_id=user_id,
+        purpose="primary",
         temperature=0,
         model_kwargs={"response_format": {"type": "json_object"}},
     )
@@ -123,6 +125,7 @@ async def _extract_invoice_chunked(
 
 async def _extract_receipt_or_statement(
     *,
+    user_id: str,
     file_bytes: bytes,
     content_type: str,
     doc_type: str,
@@ -142,8 +145,9 @@ async def _extract_receipt_or_statement(
     if doc_type not in {"receipt", "bank_statement"}:
         doc_type = "receipt"
 
-    llm = get_llm(
-        model_name=settings.primary_model,
+    llm = await get_llm(
+        user_id=user_id,
+        purpose="primary",
         temperature=0,
         model_kwargs={"response_format": {"type": "json_object"}},
     )
@@ -210,6 +214,7 @@ async def _extract_receipt_or_statement(
 
 async def _chunked_extract_text_fields(
     *,
+    user_id: str,
     file_bytes: bytes,
     content_type: str,
     doc_type: str,
@@ -252,8 +257,9 @@ async def _chunked_extract_text_fields(
     splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     chunks = splitter.split_text(text)[:max_chunks]
 
-    llm = get_llm(
-        model_name=settings.primary_model,
+    llm = await get_llm(
+        user_id=user_id,
+        purpose="primary",
         temperature=0,
         model_kwargs={"response_format": {"type": "json_object"}},
     )
@@ -359,6 +365,7 @@ async def process_uploaded_files(
         try:
             if doc_type in {"receipt", "bank_statement"} and is_small:
                 data = await _extract_receipt_or_statement(
+                    user_id=user_id,
                     file_bytes=raw,
                     content_type=ctype,
                     doc_type=doc_type,
@@ -367,6 +374,7 @@ async def process_uploaded_files(
             else:
                 # Large financial document or invoice/receipt/statement that is big
                 data = await _chunked_extract_text_fields(
+                    user_id=user_id,
                     file_bytes=raw,
                     content_type=ctype,
                     doc_type=doc_type,
@@ -374,6 +382,7 @@ async def process_uploaded_files(
                 )
                 if (not data) and doc_type in {"receipt", "bank_statement"}:
                     data = await _extract_receipt_or_statement(
+                        user_id=user_id,
                         file_bytes=raw,
                         content_type=ctype,
                         doc_type=doc_type,
