@@ -71,7 +71,7 @@ export default function Landing() {
                   Built for invoices, expenses & Google Sheets
                 </div>
 
-                <h1 className="mt-5 text-4xl sm:text-5xl font-extrabold tracking-tight">
+                <h1 className="mt-5 text-4xl sm:text-5xl font-bold tracking-tight">
                   Your AI assistant for business finance operations.
                 </h1>
 
@@ -138,7 +138,7 @@ export default function Landing() {
 
         <section id="features" className="mx-auto max-w-6xl px-4 sm:px-6 py-14">
           <div className="max-w-2xl">
-            <h2 className="text-3xl font-extrabold tracking-tight">Capabilities built for finance workflows</h2>
+            <h2 className="text-3xl font-bold tracking-tight">Capabilities built for finance workflows</h2>
             <p className="mt-3 text-muted-foreground">
               Everything is designed around real business operations—documents, spreadsheets, and actionable answers.
             </p>
@@ -156,7 +156,7 @@ export default function Landing() {
 
         <section id="how-it-works" className="border-t border-border bg-card/40">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 py-14">
-            <h2 className="text-3xl font-extrabold tracking-tight">How it works</h2>
+            <h2 className="text-3xl font-bold tracking-tight">How it works</h2>
             <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-5">
               <StepCard step="1" title="Sign in" description="Create an account and open your workspace." />
               <StepCard step="2" title="Connect data" description="Upload documents and optionally connect Google Sheets." />
@@ -207,7 +207,7 @@ function FeatureCard({
       <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
         {icon}
       </div>
-      <div className="mt-4 text-base font-extrabold">{title}</div>
+      <div className="mt-4 text-base font-bold">{title}</div>
       <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{description}</p>
     </div>
   );
@@ -216,10 +216,10 @@ function FeatureCard({
 function StepCard({ step, title, description }: { step: string; title: string; description: string }) {
   return (
     <div className="rounded-3xl border border-border bg-background p-6">
-      <div className="h-10 w-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center font-extrabold">
+      <div className="h-10 w-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center font-bold">
         {step}
       </div>
-      <div className="mt-4 text-lg font-extrabold">{title}</div>
+      <div className="mt-4 text-lg font-bold">{title}</div>
       <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{description}</p>
     </div>
   );

@@ -62,6 +62,22 @@ async def connect_db():
     await client.admin.command("ping")
     logger.info("Connected to MongoDB ✓")
 
+    # Ensure indexes exist (idempotent). TTL prevents oauth_states growth.
+    try:
+        db = get_db()
+        # TTL index: when expires_at < now, MongoDB will delete the document automatically.
+        # expireAfterSeconds=0 means expire exactly at the timestamp.
+        await db["oauth_states"].create_index("expires_at", expireAfterSeconds=0)
+        # Speed up the callback validation query.
+        await db["oauth_states"].create_index([
+            ("user_id", 1),
+            ("state_hash", 1),
+            ("used", 1),
+            ("expires_at", 1),
+        ])
+    except Exception:
+        logger.exception("Failed to ensure Mongo indexes")
+
 
 async def close_db():
     global _client

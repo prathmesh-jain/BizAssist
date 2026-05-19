@@ -19,6 +19,8 @@ export default function Sidebar({ isOpen, setIsOpen, currentView, setCurrentView
     const { theme, toggleTheme } = useThemeStore();
     const [editingChatId, setEditingChatId] = React.useState<string | null>(null);
     const [editingTitle, setEditingTitle] = React.useState('');
+    const [deleteTarget, setDeleteTarget] = React.useState<{ id: string; title: string } | null>(null);
+    const [isDeletingChat, setIsDeletingChat] = React.useState(false);
 
     React.useEffect(() => {
         fetchChats();
@@ -60,10 +62,23 @@ export default function Sidebar({ isOpen, setIsOpen, currentView, setCurrentView
 
     const handleDelete = async (chatId: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        if (confirm('Are you sure you want to delete this chat?')) {
-            await deleteChat(chatId);
+        const chat = chats.find(c => c.id === chatId);
+        if (!chat) return;
+        setDeleteTarget({ id: chatId, title: chat.title });
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!deleteTarget || isDeletingChat) return;
+        setIsDeletingChat(true);
+        try {
+            await deleteChat(deleteTarget.id);
+            if (activeChatId === deleteTarget.id) {
+                navigate('/app/chat');
+            }
+            setDeleteTarget(null);
+        } finally {
+            setIsDeletingChat(false);
         }
-        navigate('/app/chat');
     };
 
     const menuItems = [
@@ -74,6 +89,35 @@ export default function Sidebar({ isOpen, setIsOpen, currentView, setCurrentView
 
     return (
         <>
+            {deleteTarget && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+                    <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-2xl p-6">
+                        <h3 className="text-lg font-bold text-foreground">Delete Chat?</h3>
+                        <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+                            This will permanently delete
+                            <span className="font-semibold text-foreground"> {deleteTarget.title}</span>
+                            {' '}and its message history.
+                        </p>
+                        <div className="mt-6 flex items-center justify-end gap-3">
+                            <button
+                                onClick={() => setDeleteTarget(null)}
+                                disabled={isDeletingChat}
+                                className="px-4 py-2 rounded-xl border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleConfirmDelete}
+                                disabled={isDeletingChat}
+                                className="px-4 py-2 rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-50"
+                            >
+                                {isDeletingChat ? 'Deleting...' : 'Delete'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Mobile Backdrop */}
             {isOpen && (
                 <div

@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Message, ToolStatus } from '../../types';
 import MessageBubble from './MessageBubble';
+import InterruptBubble from './InterruptBubble';
 import useChatStore from '../../store/chatStore';
 import { CheckCircle2, Loader2, XCircle, FileSpreadsheet, Search, FileText, Brain } from 'lucide-react';
 
@@ -172,9 +173,18 @@ export default function ChatWindow({ messages, streamingMessage, activeTools, is
                     </div>
                 )}
 
-                {messages.map(msg => (
-                    <MessageBubble key={msg.id} message={msg} />
+                {messages.map(item => (
+                    item.interrupt ? (
+                        <InterruptBubble
+                            key={item.id}
+                            chatId={useChatStore.getState().activeChatId!}
+                            interrupt={item.interrupt!}
+                        />
+                    ) : (
+                        <MessageBubble key={item.id} message={item} />
+                    )
                 ))}
+
 
                 {/* Streaming response */}
                 {streamingMessage && (

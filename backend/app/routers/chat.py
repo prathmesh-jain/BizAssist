@@ -201,6 +201,29 @@ def _chat_doc_to_public(doc: dict) -> dict:
     }
 
 
+def _should_expose_message(m: dict) -> bool:
+    if m.get("role") == "tool":
+        return False
+
+    interrupt = m.get("interrupt") or {}
+    if interrupt and not interrupt.get("is_pending"):
+        return False
+
+    content = str(m.get("content") or "").strip()
+    attachments = m.get("attachments") or []
+    tool_calls = m.get("tool_calls") or []
+    is_tool_only_assistant = (
+        m.get("role") == "assistant"
+        and not content
+        and not attachments
+        and bool(tool_calls)
+    )
+    if is_tool_only_assistant:
+        return False
+
+    return True
+
+
 @router.post("", response_model=ChatPublic)
 async def create_chat(data: ChatCreate, user: CurrentUser):
     """Create a new chat session."""
@@ -285,7 +308,7 @@ async def get_messages(
                 created_at=m["created_at"],
             )
             for m in msgs
-            if m["role"] != "tool" and (not m.get("interrupt") or m.get("interrupt", {}).get("is_pending"))
+            if _should_expose_message(m)
         ],
         "has_more": has_more,
     }

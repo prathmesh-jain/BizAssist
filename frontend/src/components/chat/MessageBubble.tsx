@@ -10,6 +10,7 @@ interface MessageBubbleProps {
 
 export default function MessageBubble({ message, isStreaming = false }: MessageBubbleProps) {
     const isAi = message.role === 'assistant';
+    const isToolOnly = isAi && !message.content && !(message.attachments ?? []).length && !!message.tool_calls?.length;
 
     const attachments = message.attachments ?? [];
 
@@ -26,7 +27,7 @@ export default function MessageBubble({ message, isStreaming = false }: MessageB
     };
 
     return (
-        <div className={`flex w-full mb-8 ${isAi ? 'justify-start' : 'justify-end'}`}>
+        <div className={`flex w-full ${isToolOnly ? 'mb-3' : 'mb-8'} ${isAi ? 'justify-start' : 'justify-end'}`}>
             <div className={`flex max-w-[90%] md:max-w-[80%] ${isAi ? 'flex-row' : 'flex-row-reverse items-end'}`}>
                 {/* Avatar */}
                 <div className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm border
@@ -110,11 +111,11 @@ export default function MessageBubble({ message, isStreaming = false }: MessageB
 
                     {/* Tool Calls */}
                     {message.tool_calls && message.tool_calls.length > 0 && (
-                        <div className={`flex flex-wrap gap-2 pt-1 ${isAi ? 'justify-start' : 'justify-end'}`}>
+                        <div className={`flex flex-row flex-wrap items-center gap-2 pt-1 max-w-full ${isAi ? 'justify-start' : 'justify-end'}`}>
                             {message.tool_calls.map((tool, idx) => (
                                 <div
                                     key={idx}
-                                    className="flex items-center space-x-2 px-3 py-1.5 bg-muted/50 border border-border rounded-lg text-[11px] uppercase font-bold tracking-tight text-muted-foreground hover:bg-muted transition-colors"
+                                    className="inline-flex items-center space-x-2 px-3 py-1.5 bg-muted/50 border border-border rounded-lg text-[11px] uppercase font-bold tracking-tight text-muted-foreground hover:bg-muted transition-colors"
                                 >
                                     <Terminal className={`w-3.5 h-3.5 ${tool.status === 'started' ? 'text-primary animate-pulse' : 'text-primary'}`} />
                                     <span>{tool.name}</span>
