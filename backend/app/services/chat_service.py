@@ -185,7 +185,7 @@ async def stream_agent_response(
                                 return 
 
                         # Capture Tool Calls & Citations
-                        if node_name == "agent" and isinstance(node_output, dict):
+                        if node_name in ("chat", "planner", "executor") and isinstance(node_output, dict):
                             if "messages" in node_output:
                                 for m in node_output["messages"]:
                                     if hasattr(m, "tool_calls") and m.tool_calls:
@@ -199,7 +199,7 @@ async def stream_agent_response(
 
                 elif chunk_type == "messages":
                     msg, metadata = data
-                    if metadata.get("langgraph_node") in ("agent", "unsafe"):
+                    if metadata.get("langgraph_node") in ("chat", "unsafe"):
                         token = msg.content
                         if token:
                             yielded_any = True

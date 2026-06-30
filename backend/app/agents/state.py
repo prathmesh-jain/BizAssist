@@ -1,9 +1,9 @@
-from typing import TypedDict, Optional, Annotated, Any
+from typing import Annotated, TypedDict
 from langchain_core.messages import BaseMessage
 from langgraph.graph import add_messages
 
 
-class AgentState(TypedDict):
+class AgentState(TypedDict, total=False):
     """
     Shared state passed between all nodes in the LangGraph agent graph.
     """
@@ -16,6 +16,21 @@ class AgentState(TypedDict):
     
     # Observability
     tool_calls_made: list[str]
+
+    # Chat / planning flow
+    chat_route: str
+    execution_brief: str
+    execution_plan: str
+    execution_steps: list[str]
+    execution_query: str
+    execution_completed: bool
+    active_agent: str
+
+    # Tool selection
+    active_tool_ids: list[str]
+    last_tool_search_category: str
+    consecutive_tool_searches: int
+    last_tool_search_query: str
     
     # Guardrail (transient state for the safety node)
     is_safe: bool

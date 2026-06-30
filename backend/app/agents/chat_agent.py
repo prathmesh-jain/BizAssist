@@ -1,26 +1,65 @@
 import logging
-from langchain_core.messages import SystemMessage, AIMessage, ToolMessage, HumanMessage
+from typing import Any
+
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
+from pydantic import BaseModel, Field
+
 from app.agents.state import AgentState
+from app.agents.tooling import get_chat_local_tools
 from app.services.llm_service import get_llm
-from app.agents.tooling import build_tools_for_agent
 
 logger = logging.getLogger(__name__)
 
 
+class ChatDecision(BaseModel):
+    action: str = Field(description="Either 'answer' or 'plan'.")
+    answer: str = Field(default="", description="Direct user-facing answer when action is 'answer'.")
+    execution_brief: str = Field(
+        default="",
+        description="Concise handoff for the planner when action is 'plan'. Include task, context, constraints, and relevant chat file context.",
+    )
+
+
+CHAT_SYSTEM = """
+You are BizAssist, the main chat agent for a business operations assistant.
+
+You are not only for greetings. Solve the user's request directly whenever it can be handled from:
+- the ongoing conversation
+- uploaded chat files
+- simple reasoning grounded in chat-local context
+
+You have chat-local tools for:
+- request_clarification
+- chat attachment inspection
+
+Use structured output:
+- action='answer' when you can solve it directly
+- action='plan' when broader planning or external execution is needed
+
+Rules:
+1. Use tools when chat-local file access or clarification is needed.
+2. Answer directly when chat-local context is sufficient.
+3. Route to planning when spreadsheet actions, broader orchestration, or external-system execution is needed.
+4. Do not invent facts not grounded in the conversation or tool results.
+"""
+
+
+FINAL_RESPONSE_SYSTEM = """
+You are BizAssist, preparing the final answer after execution is complete.
+
+Use the execution findings already present in the conversation.
+Provide a concise, grounded final answer for the user.
+If the execution surfaced uncertainty or missing data, say so clearly.
+"""
+
+
 def _clean_message_history(messages: list) -> list:
-    """
-    Ensure the message history is valid for OpenAI.
-    Specifically: an AIMessage with tool_calls must be followed by ToolMessages.
-    If a tool call is missing its response, we remove the tool call from the AIMessage.
-    """
     clean_msgs = []
     for i, msg in enumerate(messages):
         if isinstance(msg, AIMessage) and msg.tool_calls:
-            # Check if all tool calls have a corresponding ToolMessage in the subsequent messages
             valid_tool_calls = []
             for tc in msg.tool_calls:
                 tc_id = tc.get("id")
-                # Look ahead for a ToolMessage with this ID
                 found = False
                 for j in range(i + 1, len(messages)):
                     next_msg = messages[j]
@@ -28,18 +67,14 @@ def _clean_message_history(messages: list) -> list:
                         found = True
                         break
                     if not isinstance(next_msg, ToolMessage):
-                        # Stop looking if we hit a non-tool message
                         break
-                
+
                 if found:
                     valid_tool_calls.append(tc)
-            
-            # If no tool calls are valid, we convert the AIMessage to a plain message or skip tool_calls
+
             if not valid_tool_calls:
-                # Create a new AIMessage without tool_calls
                 clean_msgs.append(AIMessage(content=msg.content))
             else:
-                # Update tool_calls to only include valid ones
                 msg.tool_calls = valid_tool_calls
                 clean_msgs.append(msg)
         else:
@@ -47,70 +82,118 @@ def _clean_message_history(messages: list) -> list:
     return clean_msgs
 
 
-CHAT_SYSTEM = """
-You are BizAssist, an AI business operations assistant.
-Your goal is to help users manage financial data, spreadsheets, and business documents.
-
-━━━ CAPABILITIES ━━━
-• Financial Analysis: Analyze spending, trends, and business performance.
-• Spreadsheet Management: Read, write, and update Google Sheets.
-• Document Intelligence: Answer questions based on uploaded PDFs, DOCX, and images.
-• Business Insights: Provide actionable recommendations grounded in user data.
-
-━━━ CORE RULES ━━━
-1. GROUNDING: Use ONLY the data provided via tools (spreadsheets, RAG, attachments). Never fabricate numbers, vendors, or dates.
-2. CONFIRMATION: Ask for confirmation before making significant changes to financial data.
-3. CONCISION: Be practical, confident, and concise. Avoid unnecessary filler.
-4. UNCERTAINTY: If data is missing or a request is ambiguous, ask clarifying questions using 'request_clarification'.
-5. SCOPE: Focus on business and finance. Redirect unrelated technical or general queries.
-
-━━━ TOOL USAGE ━━━
-• Use 'list_ingested_documents' to see all documents in the RAG knowledge base.
-• Use 'rag_retrieve' to search indexed documents. You can filter by filename if a specific document is requested.
-• Use attachment tools to inspect newly uploaded files in the current chat.
-• Use Google Sheets tools to manage spreadsheet data. Always fetch headers before writing to ensure correct mapping.
-"""
-
-
-async def chat_node(state: AgentState) -> dict:
-    """Main agent node that handles all business operations."""
+async def _conversation_context_system(state: AgentState) -> str:
     from app.services.google_sheets_service import get_default_spreadsheet_id
-    
-    user_id = state["user_id"]
-    
-    # Optional: inject default spreadsheet info into system prompt for context
-    default_sid = await get_default_spreadsheet_id(user_id)
-    spreadsheet_info = ""
+
+    default_sid = await get_default_spreadsheet_id(state["user_id"])
     if default_sid:
         spreadsheet_info = f"\n\n[Context] Default Spreadsheet ID: {default_sid}"
     else:
-        spreadsheet_info = "\n\n[Context] No default spreadsheet connected. Ask user to connect in Settings if needed."
+        spreadsheet_info = "\n\n[Context] No default spreadsheet connected."
 
-    llm = await get_llm(
-        user_id=user_id,
-        purpose="primary",
-        temperature=0.2,
-        streaming=True,
-    )
-    
-    # Build tools for the unified agent
-    tools = build_tools_for_agent(state)
-    llm_with_tools = llm.bind_tools(tools)
-
-    # Use the main messages list
-    messages = state.get("messages") or []
-    
-    # Clean history to avoid 400 errors from OpenAI
-    messages = _clean_message_history(messages)
-    
-    # Prepend summary if exists
     summary = state.get("message_summary")
     system_content = CHAT_SYSTEM + spreadsheet_info
     if summary:
         system_content += f"\n\n[Earlier Conversation Summary]\n{summary}"
-        
-    llm_messages = [SystemMessage(content=system_content)] + messages
+    return system_content
 
-    response = await llm_with_tools.ainvoke(llm_messages)
 
-    return {"messages": [response]}
+def _extract_structured_payload(result: Any) -> tuple[BaseMessage | None, ChatDecision | None]:
+    if isinstance(result, dict):
+        raw = result.get("raw")
+        parsed = result.get("parsed")
+        return raw if isinstance(raw, BaseMessage) else None, parsed if isinstance(parsed, ChatDecision) else None
+    return None, result if isinstance(result, ChatDecision) else None
+
+
+async def chat_node(state: AgentState) -> dict:
+    messages = _clean_message_history(state.get("messages") or [])
+
+    if state.get("execution_completed"):
+        llm = await get_llm(
+            user_id=state["user_id"],
+            purpose="primary",
+            temperature=0.2,
+            streaming=True,
+        )
+        system_content = FINAL_RESPONSE_SYSTEM
+        summary = state.get("message_summary")
+        if summary:
+            system_content += f"\n\n[Earlier Conversation Summary]\n{summary}"
+
+        response = await llm.ainvoke([SystemMessage(content=system_content)] + messages)
+        return {
+            "messages": [response],
+            "chat_route": "answer",
+            "execution_brief": "",
+            "execution_plan": "",
+            "execution_steps": [],
+            "execution_query": "",
+            "execution_completed": False,
+            "active_agent": "",
+            "active_tool_ids": [],
+        }
+
+    system_content = await _conversation_context_system(state)
+    llm = await get_llm(
+        user_id=state["user_id"],
+        purpose="primary",
+        temperature=0.1,
+        streaming=False,
+    )
+    unified_model = llm.with_structured_output(
+        schema=ChatDecision,
+        method="json_schema",
+        include_raw=True,
+        strict=True,
+        tools=get_chat_local_tools(state),
+    )
+    result = await unified_model.ainvoke([SystemMessage(content=system_content)] + messages)
+    raw_response, parsed = _extract_structured_payload(result)
+
+    if raw_response and getattr(raw_response, "tool_calls", None):
+        return {
+            "messages": [raw_response],
+            "chat_route": "answer",
+            "active_agent": "chat",
+        }
+
+    if parsed:
+        action = (parsed.action or "answer").strip().lower()
+        if action == "plan":
+            execution_brief = (parsed.execution_brief or "").strip()
+            if not execution_brief:
+                execution_brief = "Review the latest user request and plan the required operational steps."
+            return {
+                "chat_route": "planner",
+                "execution_brief": execution_brief,
+                "execution_plan": "",
+                "execution_steps": [],
+                "execution_query": "",
+                "execution_completed": False,
+                "active_agent": "planner",
+                "active_tool_ids": [],
+            }
+
+        answer = (parsed.answer or "").strip() or "How can I help with your business operations today?"
+        return {
+            "messages": [AIMessage(content=answer)],
+            "chat_route": "answer",
+            "execution_brief": "",
+            "execution_plan": "",
+            "execution_steps": [],
+            "execution_query": "",
+            "execution_completed": False,
+            "active_agent": "",
+            "active_tool_ids": [],
+        }
+
+    fallback_text = ""
+    if raw_response is not None:
+        fallback_text = str(getattr(raw_response, "content", "") or "").strip()
+    fallback_text = fallback_text or "I need a bit more context to help with that."
+    return {
+        "messages": [AIMessage(content=fallback_text)],
+        "chat_route": "answer",
+        "active_agent": "",
+    }

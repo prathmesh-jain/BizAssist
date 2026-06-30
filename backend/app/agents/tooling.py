@@ -1,8 +1,10 @@
+import ast
 import json
 import logging
+from collections import Counter
 from typing import Any, Optional
 
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from langgraph.prebuilt import ToolNode
 from langgraph.types import interrupt
@@ -16,9 +18,122 @@ def _state_ids(state: AgentState) -> tuple[str, str | None]:
     return state.get("user_id", ""), state.get("chat_id")
 
 
-def build_tools_for_agent(state: AgentState) -> list:
-    """Build all available tools for the unified agent."""
-    user_id, chat_id = _state_ids(state)
+def _latest_user_message(state: AgentState) -> str:
+    for message in reversed(state.get("messages") or []):
+        if getattr(message, "type", "") == "human":
+            return str(getattr(message, "content", "") or "").strip()
+    return ""
+
+
+def _message_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                parts.append(str(item.get("text", "")))
+            elif isinstance(item, str):
+                parts.append(item)
+        return "\n".join(part for part in parts if part).strip()
+    return str(content or "").strip()
+
+
+def build_execution_tool_query(state: AgentState) -> str:
+    """Build a search query for executor tool selection."""
+    execution_query = str(state.get("execution_query") or "").strip()
+    if execution_query:
+        return execution_query
+
+    planned_parts: list[str] = []
+    execution_brief = str(state.get("execution_brief") or "").strip()
+    execution_plan = str(state.get("execution_plan") or "").strip()
+    if execution_brief:
+        planned_parts.append(f"Execution brief:\n{execution_brief}")
+    if execution_plan:
+        planned_parts.append(f"Execution plan:\n{execution_plan}")
+    if planned_parts:
+        return "\n\n".join(planned_parts)
+
+    parts: list[str] = []
+
+    summary = str(state.get("message_summary") or "").strip()
+    if summary:
+        parts.append(f"Summary:\n{summary}")
+
+    recent_messages = state.get("messages") or []
+    recent_context: list[str] = []
+    for message in reversed(recent_messages):
+        if isinstance(message, ToolMessage):
+            continue
+        role = None
+        if isinstance(message, HumanMessage):
+            role = "User"
+        elif isinstance(message, AIMessage):
+            role = "Assistant"
+        elif isinstance(message, SystemMessage):
+            continue
+        elif getattr(message, "type", "") == "human":
+            role = "User"
+        elif getattr(message, "type", "") == "ai":
+            role = "Assistant"
+        else:
+            continue
+
+        text = _message_text(getattr(message, "content", ""))
+        if not text:
+            continue
+
+        recent_context.append(f"{role}: {text}")
+        if len(recent_context) >= 6:
+            break
+
+    if recent_context:
+        parts.append("Recent conversation:\n" + "\n".join(reversed(recent_context)))
+
+    return "\n\n".join(part for part in parts if part).strip()
+
+
+def _infer_search_category(query: str, matches: list[dict[str, Any]]) -> str:
+    integrations = [str(match.get("integration") or "").strip() for match in matches if match.get("integration")]
+    if integrations:
+        return Counter(integrations).most_common(1)[0][0]
+
+    normalized = query.lower()
+    if any(token in normalized for token in ("sheet", "spreadsheet", "tab", "row", "column", "cell")):
+        return "google_sheets"
+    if any(token in normalized for token in ("document", "invoice", "pdf", "contract", "file")):
+        return "rag"
+    if any(token in normalized for token in ("attachment", "upload", "uploaded")):
+        return "attachments"
+    return "general"
+
+
+def _tool_search_interrupt_question(category: str, query: str) -> str:
+    if category == "google_sheets":
+        return (
+            "I keep searching spreadsheet tools but still need a clearer instruction. "
+            "Tell me exactly what you want to do in the spreadsheet."
+        )
+    if category == "rag":
+        return (
+            "I keep searching document tools but still need a clearer instruction. "
+            "Tell me which document, file, or business question you want me to focus on."
+        )
+    if category == "attachments":
+        return (
+            "I keep searching attachment tools but still need a clearer instruction. "
+            "Tell me which uploaded file to inspect and what you want from it."
+        )
+    return (
+        "I keep searching for the right tools but still need a clearer instruction. "
+        "Please describe exactly what you want me to do."
+    )
+
+
+def get_core_tools(state: AgentState) -> list:
+    """Build the core tools that remain available across execution turns."""
+    user_id, _ = _state_ids(state)
 
     @tool("request_clarification")
     async def request_clarification(
@@ -59,24 +174,213 @@ def build_tools_for_agent(state: AgentState) -> list:
         docs = await list_user_documents(user_id=user_id)
         return {"ok": True, "documents": docs}
 
-    tools = [request_clarification, rag_retrieve, list_ingested_documents]
+    return [request_clarification, rag_retrieve, list_ingested_documents]
 
-    # Add attachment tools
+
+def get_clarification_tools(state: AgentState) -> list:
+    return [tool for tool in get_core_tools(state) if tool.name == "request_clarification"]
+
+
+def get_registry_control_tools(state: AgentState) -> list:
+    from app.agents.tool_registry import get_tool_registry
+
+    registry = get_tool_registry()
+
+    @tool("search_available_tools")
+    def search_available_tools(query: str, limit: int = 5) -> dict:
+        """Search for additional tools semantically when the current selection is insufficient."""
+        active_tool_ids = state.get("active_tool_ids") or []
+        results = registry.search(
+            query,
+            limit=max(1, min(int(limit or 5), 8)),
+            exclude_ids=active_tool_ids,
+        )
+        matches = registry.describe([result.metadata.id for result in results])
+        tool_ids = [result["id"] for result in matches]
+        search_category = _infer_search_category(query, matches)
+
+        same_category = state.get("last_tool_search_category") == search_category
+        same_query = (state.get("last_tool_search_query") or "").strip().lower() == query.strip().lower()
+        streak = int(state.get("consecutive_tool_searches") or 0)
+        if same_category or same_query:
+            streak += 1
+        else:
+            streak = 1
+
+        if streak >= 3:
+            user_response = interrupt(
+                {
+                    "question": _tool_search_interrupt_question(search_category, query),
+                    "interrupt_type": "text_input",
+                    "reason": "tool_search_needs_clarification",
+                }
+            )
+            return {
+                "ok": True,
+                "query": query,
+                "search_category": search_category,
+                "selected_tool_ids": [],
+                "matches": [],
+                "needs_user_clarification": True,
+                "user_response": user_response,
+            }
+
+        return {
+            "ok": True,
+            "query": query,
+            "search_category": search_category,
+            "selected_tool_ids": tool_ids,
+            "matches": matches,
+        }
+
+    return [search_available_tools]
+
+
+def get_chat_local_tools(state: AgentState) -> list:
     from app.tools.chat_attachments_tools import get_chat_attachments_tools
-    tools.extend(get_chat_attachments_tools(user_id=user_id, chat_id=chat_id))
 
-    # Add spreadsheet tools
-    from app.tools.google_sheets_tools import get_sheets_tools
-    tools.extend(get_sheets_tools(user_id=user_id, chat_id=chat_id))
+    user_id, chat_id = _state_ids(state)
+    tools = get_clarification_tools(state)
+    tools.extend(get_chat_attachments_tools(user_id=user_id, chat_id=chat_id))
+    return tools
+
+
+def get_planner_tools(state: AgentState) -> list:
+    from app.tools.chat_attachments_tools import get_chat_attachments_tools
+
+    user_id, chat_id = _state_ids(state)
+    tools = get_clarification_tools(state)
+    tools.extend(get_registry_control_tools(state))
+    tools.extend(get_chat_attachments_tools(user_id=user_id, chat_id=chat_id))
+    return tools
+
+
+def select_initial_tool_ids(state: AgentState) -> list[str]:
+    from app.agents.tool_registry import get_tool_registry
+
+    registry = get_tool_registry()
+    execution_query = build_execution_tool_query(state)
+    if not execution_query:
+        return []
+
+    results = registry.search(execution_query, limit=6)
+    return [result.metadata.id for result in results]
+
+
+def build_tools_for_agent(state: AgentState) -> list:
+    """Build only the currently relevant tools for the execution agent."""
+    from app.agents.tool_registry import get_tool_registry
+
+    registry = get_tool_registry()
+    active_tool_ids = state.get("active_tool_ids") or select_initial_tool_ids(state)
+    tools = get_registry_control_tools(state)
+    tools.extend(registry.load(active_tool_ids, state))
+
+    loaded_names = {tool.name for tool in tools}
+    for core_tool in get_core_tools(state):
+        if core_tool.name not in loaded_names:
+            tools.append(core_tool)
+            loaded_names.add(core_tool.name)
 
     return tools
 
 
+def _parse_tool_message_content(content: Any) -> dict[str, Any] | None:
+    if isinstance(content, dict):
+        return content
+    if isinstance(content, str):
+        try:
+            return json.loads(content)
+        except Exception:
+            try:
+                parsed = ast.literal_eval(content)
+                if isinstance(parsed, dict):
+                    return parsed
+            except Exception:
+                return None
+    if isinstance(content, list):
+        text_parts = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                text_parts.append(str(item.get("text", "")))
+        if text_parts:
+            try:
+                return json.loads("".join(text_parts))
+            except Exception:
+                try:
+                    parsed = ast.literal_eval("".join(text_parts))
+                    if isinstance(parsed, dict):
+                        return parsed
+                except Exception:
+                    return None
+    return None
+
+
 async def common_tool_node(state: AgentState) -> dict:
     """Execute the latest AIMessage tool calls."""
-    tools = build_tools_for_agent(state)
+    active_agent = state.get("active_agent") or "executor"
+    if active_agent == "chat":
+        tools = get_chat_local_tools(state)
+    elif active_agent == "planner":
+        tools = get_planner_tools(state)
+    else:
+        tools = build_tools_for_agent(state)
     node = ToolNode(tools)
-    return await node.ainvoke(state)
+    result = await node.ainvoke(state)
+
+    active_tool_ids = list(state.get("active_tool_ids") or select_initial_tool_ids(state))
+    tool_calls_made = list(state.get("tool_calls_made") or [])
+    result.setdefault("active_agent", active_agent)
+
+    for message in result.get("messages") or []:
+        if not isinstance(message, ToolMessage):
+            continue
+
+        if message.name and message.name not in tool_calls_made:
+            tool_calls_made.append(message.name)
+
+        payload = _parse_tool_message_content(message.content) or {}
+
+        if message.name != "search_available_tools":
+            continue
+
+        search_category = str(payload.get("search_category") or "general")
+        search_query = str(payload.get("query") or "").strip()
+
+        if payload.get("needs_user_clarification"):
+            result["last_tool_search_category"] = ""
+            result["last_tool_search_query"] = ""
+            result["consecutive_tool_searches"] = 0
+            continue
+
+        for tool_id in payload.get("selected_tool_ids") or []:
+            if tool_id not in active_tool_ids:
+                active_tool_ids.append(tool_id)
+
+        same_category = state.get("last_tool_search_category") == search_category
+        same_query = (state.get("last_tool_search_query") or "").strip().lower() == search_query.lower()
+        previous_streak = int(state.get("consecutive_tool_searches") or 0)
+        if same_category or same_query:
+            consecutive_searches = previous_streak + 1
+        else:
+            consecutive_searches = 1
+
+        result["last_tool_search_category"] = search_category
+        result["last_tool_search_query"] = search_query
+        result["consecutive_tool_searches"] = consecutive_searches
+
+    called_search_tool = any(
+        isinstance(message, ToolMessage) and message.name == "search_available_tools"
+        for message in result.get("messages") or []
+    )
+    if not called_search_tool:
+        result["last_tool_search_category"] = ""
+        result["last_tool_search_query"] = ""
+        result["consecutive_tool_searches"] = 0
+
+    result["active_tool_ids"] = active_tool_ids
+    result["tool_calls_made"] = tool_calls_made
+    return result
 
 
 def last_message_has_tool_calls(state: AgentState) -> bool:

@@ -30,6 +30,8 @@ function resolveToolDisplay(rawName: string): { label: string; icon: React.React
             return { label: 'Google Sheets', icon: <FileSpreadsheet className="w-3.5 h-3.5" />, verb: 'Reading spreadsheet…' };
         return { label: 'Google Sheets', icon: <FileSpreadsheet className="w-3.5 h-3.5" />, verb: 'Accessing spreadsheet…' };
     }
+    if (n.includes('search_available_tools'))
+        return { label: 'Tool Search', icon: <Search className="w-3.5 h-3.5" />, verb: 'Searching available tools...' };
     if (n.includes('search') || n.includes('web'))
         return { label: 'Web Search', icon: <Search className="w-3.5 h-3.5" />, verb: 'Searching the web…' };
     if (n.includes('retriev') || n.includes('rag') || n.includes('document') || n.includes('chunk'))
