@@ -187,11 +187,12 @@ def get_registry_control_tools(state: AgentState) -> list:
     registry = get_tool_registry()
 
     @tool("search_available_tools")
-    def search_available_tools(query: str, limit: int = 5) -> dict:
+    async def search_available_tools(query: str, limit: int = 5) -> dict:
         """Search for additional tools semantically when the current selection is insufficient."""
         active_tool_ids = state.get("active_tool_ids") or []
-        results = registry.search(
+        results = await registry.search(
             query,
+            state,
             limit=max(1, min(int(limit or 5), 8)),
             exclude_ids=active_tool_ids,
         )
@@ -255,7 +256,7 @@ def get_planner_tools(state: AgentState) -> list:
     return tools
 
 
-def select_initial_tool_ids(state: AgentState) -> list[str]:
+async def select_initial_tool_ids(state: AgentState) -> list[str]:
     from app.agents.tool_registry import get_tool_registry
 
     registry = get_tool_registry()
@@ -263,16 +264,16 @@ def select_initial_tool_ids(state: AgentState) -> list[str]:
     if not execution_query:
         return []
 
-    results = registry.search(execution_query, limit=6)
+    results = await registry.search(execution_query, state, limit=6)
     return [result.metadata.id for result in results]
 
 
-def build_tools_for_agent(state: AgentState) -> list:
+async def build_tools_for_agent(state: AgentState) -> list:
     """Build only the currently relevant tools for the execution agent."""
     from app.agents.tool_registry import get_tool_registry
 
     registry = get_tool_registry()
-    active_tool_ids = state.get("active_tool_ids") or select_initial_tool_ids(state)
+    active_tool_ids = list(state.get("active_tool_ids") or await select_initial_tool_ids(state))
     tools = get_registry_control_tools(state)
     tools.extend(registry.load(active_tool_ids, state))
 
@@ -324,11 +325,11 @@ async def common_tool_node(state: AgentState) -> dict:
     elif active_agent == "planner":
         tools = get_planner_tools(state)
     else:
-        tools = build_tools_for_agent(state)
+        tools = await build_tools_for_agent(state)
     node = ToolNode(tools)
     result = await node.ainvoke(state)
 
-    active_tool_ids = list(state.get("active_tool_ids") or select_initial_tool_ids(state))
+    active_tool_ids = list(state.get("active_tool_ids") or await select_initial_tool_ids(state))
     tool_calls_made = list(state.get("tool_calls_made") or [])
     result.setdefault("active_agent", active_agent)
 

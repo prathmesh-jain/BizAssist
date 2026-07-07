@@ -14,6 +14,8 @@ Capture: User goals, financial data, spreadsheet/doc references, and decisions.
 Merge with prior summary. Keep it concise (bullet points).
 """
 
+SUMMARY_BLOCK_PREFIX = "[Earlier Conversation Summary]"
+
 
 def _make_transcript(messages: list[BaseMessage]) -> str:
     lines = []
@@ -31,6 +33,14 @@ def _make_transcript(messages: list[BaseMessage]) -> str:
     return "\n".join(lines)
 
 
+def build_summary_message(summary: str) -> SystemMessage:
+    return SystemMessage(content=f"{SUMMARY_BLOCK_PREFIX}\n{summary.strip()}")
+
+
+def _is_summary_message(message: BaseMessage) -> bool:
+    return isinstance(message, SystemMessage) and str(getattr(message, "content", "") or "").startswith(SUMMARY_BLOCK_PREFIX)
+
+
 async def summarization_node(state: AgentState) -> dict:
     """Keep checkpoint memory compact with a rolling graph-state summary.
 
@@ -43,11 +53,15 @@ async def summarization_node(state: AgentState) -> dict:
         return {}
 
     to_summarize = messages[:-20]
-    keep = messages[-20:]
+    keep = [message for message in messages[-20:] if not _is_summary_message(message)]
     existing_summary = state.get("message_summary") or ""
     transcript = _make_transcript(to_summarize)
     if not transcript.strip():
-        return {"messages": [RemoveMessage(id=REMOVE_ALL_MESSAGES), *keep]}
+        replacement_messages = [RemoveMessage(id=REMOVE_ALL_MESSAGES)]
+        if existing_summary.strip():
+            replacement_messages.append(build_summary_message(existing_summary))
+        replacement_messages.extend(keep)
+        return {"messages": replacement_messages}
 
     if existing_summary:
         user_content = (
@@ -76,5 +90,9 @@ async def summarization_node(state: AgentState) -> dict:
 
     return {
         "message_summary": new_summary,
-        "messages": [RemoveMessage(id=REMOVE_ALL_MESSAGES), *keep],
+        "messages": [
+            RemoveMessage(id=REMOVE_ALL_MESSAGES),
+            build_summary_message(new_summary),
+            *keep,
+        ],
     }

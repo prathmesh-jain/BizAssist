@@ -33,7 +33,7 @@ async def executor_node(state: AgentState) -> dict:
         streaming=True,
     )
 
-    tools = build_tools_for_agent(state)
+    tools = await build_tools_for_agent(state)
     llm_with_tools = llm.bind_tools(tools)
     messages = _clean_message_history(state.get("messages") or [])
 
@@ -56,4 +56,9 @@ async def executor_node(state: AgentState) -> dict:
         "messages": [response],
         "execution_completed": not bool(getattr(response, "tool_calls", None)),
         "active_agent": "executor",
+        "progress_event": {
+            "stage": "execution",
+            "message": "Working through the execution steps.",
+            "steps": (state.get("execution_steps") or [])[:5],
+        },
     }

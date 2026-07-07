@@ -186,6 +186,9 @@ async def stream_agent_response(
 
                         # Capture Tool Calls & Citations
                         if node_name in ("chat", "planner", "executor") and isinstance(node_output, dict):
+                            progress_event = node_output.get("progress_event")
+                            if isinstance(progress_event, dict):
+                                yield f"data: {json.dumps({'type': 'status', 'content': progress_event})}\n\n"
                             if "messages" in node_output:
                                 for m in node_output["messages"]:
                                     if hasattr(m, "tool_calls") and m.tool_calls:
@@ -196,6 +199,11 @@ async def stream_agent_response(
                                         citations = list(dict.fromkeys(re.findall(r"\[Source:\s*([^\]]+)\]", str(m.content))))
                                         if citations:
                                             yield f"data: {json.dumps({'type': 'source', 'name': 'RAG Retrieval', 'citations': citations[:6]})}\n\n"
+
+                        if node_name == "tools" and isinstance(node_output, dict):
+                            for m in node_output.get("messages") or []:
+                                if getattr(m, "type", "") == "tool" and getattr(m, "name", None):
+                                    yield f"data: {json.dumps({'type': 'tool_end', 'name': m.name})}\n\n"
 
                 elif chunk_type == "messages":
                     msg, metadata = data

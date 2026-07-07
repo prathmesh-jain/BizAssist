@@ -3,6 +3,7 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
+    openai_api_key: str = ""
     # LLM — override any of these in .env to swap models
     primary_model: str = "gpt-4.1-mini"    # chat, analytics, invoice
     fast_model: str = "gpt-4.1-mini"        # title gen, summarization

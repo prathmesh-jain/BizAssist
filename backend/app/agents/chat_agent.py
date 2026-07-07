@@ -82,21 +82,6 @@ def _clean_message_history(messages: list) -> list:
     return clean_msgs
 
 
-async def _conversation_context_system(state: AgentState) -> str:
-    from app.services.google_sheets_service import get_default_spreadsheet_id
-
-    default_sid = await get_default_spreadsheet_id(state["user_id"])
-    if default_sid:
-        spreadsheet_info = f"\n\n[Context] Default Spreadsheet ID: {default_sid}"
-    else:
-        spreadsheet_info = "\n\n[Context] No default spreadsheet connected."
-
-    summary = state.get("message_summary")
-    system_content = CHAT_SYSTEM + spreadsheet_info
-    if summary:
-        system_content += f"\n\n[Earlier Conversation Summary]\n{summary}"
-    return system_content
-
 
 def _extract_structured_payload(result: Any) -> tuple[BaseMessage | None, ChatDecision | None]:
     if isinstance(result, dict):
@@ -116,12 +101,7 @@ async def chat_node(state: AgentState) -> dict:
             temperature=0.2,
             streaming=True,
         )
-        system_content = FINAL_RESPONSE_SYSTEM
-        summary = state.get("message_summary")
-        if summary:
-            system_content += f"\n\n[Earlier Conversation Summary]\n{summary}"
-
-        response = await llm.ainvoke([SystemMessage(content=system_content)] + messages)
+        response = await llm.ainvoke([SystemMessage(content=FINAL_RESPONSE_SYSTEM)] + messages)
         return {
             "messages": [response],
             "chat_route": "answer",
@@ -133,8 +113,6 @@ async def chat_node(state: AgentState) -> dict:
             "active_agent": "",
             "active_tool_ids": [],
         }
-
-    system_content = await _conversation_context_system(state)
     llm = await get_llm(
         user_id=state["user_id"],
         purpose="primary",
@@ -148,7 +126,7 @@ async def chat_node(state: AgentState) -> dict:
         strict=True,
         tools=get_chat_local_tools(state),
     )
-    result = await unified_model.ainvoke([SystemMessage(content=system_content)] + messages)
+    result = await unified_model.ainvoke([SystemMessage(content=CHAT_SYSTEM)] + messages)
     raw_response, parsed = _extract_structured_payload(result)
 
     if raw_response and getattr(raw_response, "tool_calls", None):
@@ -175,7 +153,7 @@ async def chat_node(state: AgentState) -> dict:
                 "active_tool_ids": [],
             }
 
-        answer = (parsed.answer or "").strip() or "How can I help with your business operations today?"
+        answer = (parsed.answer or "").strip() or "Sorry something went wrong, can you please try again"
         return {
             "messages": [AIMessage(content=answer)],
             "chat_route": "answer",

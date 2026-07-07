@@ -100,6 +100,10 @@ async def planner_node(state: AgentState) -> dict:
         return {
             "messages": [raw_response],
             "active_agent": "planner",
+            "progress_event": {
+                "stage": "planning",
+                "message": "Planning the work and gathering any missing details.",
+            },
         }
 
     if parsed:
@@ -116,6 +120,11 @@ async def planner_node(state: AgentState) -> dict:
             "execution_completed": False,
             "active_agent": "executor",
             "active_tool_ids": [],
+            "progress_event": {
+                "stage": "plan_ready",
+                "message": "Plan ready. Executing the task now.",
+                "steps": execution_steps[:5],
+            },
         }
 
     return {
@@ -125,4 +134,9 @@ async def planner_node(state: AgentState) -> dict:
         "execution_completed": False,
         "active_agent": "executor",
         "active_tool_ids": [],
+        "progress_event": {
+            "stage": "plan_ready",
+            "message": "Plan ready. Executing the task now.",
+            "steps": [execution_brief],
+        },
     }

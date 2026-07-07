@@ -25,6 +25,7 @@ class AgentState(TypedDict, total=False):
     execution_query: str
     execution_completed: bool
     active_agent: str
+    progress_event: dict
 
     # Tool selection
     active_tool_ids: list[str]
