@@ -65,7 +65,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 
     try:
         _init_firebase_admin()
-        decoded = auth.verify_id_token(token)
+        decoded = auth.verify_id_token(token,clock_skew_seconds=5,)
 
         firebase_uid = decoded.get("uid")
         if not firebase_uid:

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import asyncio
 import logging
-import math
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Callable, Iterable, Protocol, Sequence
 
 from app.agents.state import AgentState
+from app.services.tool_catalog_service import query_tool_catalog
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +46,7 @@ def _tokenize(value: str) -> list[str]:
 
 
 class MetadataToolSearchBackend:
-    """Default metadata search that can later be swapped for vector or hybrid search."""
+    """Lexical fallback search over tool metadata."""
 
     async def search(
         self,
@@ -105,37 +104,11 @@ class MetadataToolSearchBackend:
         return score
 
 
-def _tool_search_text(metadata: ToolMetadata) -> str:
-    parts = [
-        metadata.name,
-        metadata.description,
-        f"Integration: {metadata.integration}",
-    ]
-    if metadata.tags:
-        parts.append("Tags: " + ", ".join(metadata.tags))
-    if metadata.examples:
-        parts.append("Examples: " + "; ".join(metadata.examples))
-    return "\n".join(part for part in parts if part).strip()
-
-
-def _cosine_similarity(left: Sequence[float], right: Sequence[float]) -> float:
-    if not left or not right or len(left) != len(right):
-        return 0.0
-    numerator = sum(a * b for a, b in zip(left, right))
-    left_norm = math.sqrt(sum(a * a for a in left))
-    right_norm = math.sqrt(sum(b * b for b in right))
-    if left_norm == 0 or right_norm == 0:
-        return 0.0
-    return numerator / (left_norm * right_norm)
-
-
-class EmbeddingToolSearchBackend:
-    """Semantic tool search over metadata embeddings with lexical tie-breaking."""
+class PersistentToolCatalogSearchBackend:
+    """Semantic tool search backed by the persistent Chroma tool catalog."""
 
     def __init__(self, fallback_backend: ToolSearchBackend | None = None):
         self._fallback_backend = fallback_backend or MetadataToolSearchBackend()
-        self._embedding_cache: dict[str, list[float]] = {}
-        self._embedding_lock = asyncio.Lock()
 
     async def search(
         self,
@@ -146,95 +119,49 @@ class EmbeddingToolSearchBackend:
         limit: int = 5,
         exclude_ids: set[str] | None = None,
     ) -> list[ToolSearchResult]:
-        normalized_query = query.strip()
-        if not normalized_query:
+        exclude_ids = exclude_ids or set()
+        metadata_by_id = {metadata.id: metadata for metadata in tools}
+        if not metadata_by_id:
             return []
 
-        exclude_ids = exclude_ids or set()
         try:
-            query_embedding = await self._embed_query(normalized_query, state)
-            await self._ensure_tool_embeddings(tools, state)
+            raw_results = await query_tool_catalog(
+                query,
+                limit=max(limit * 2, 8),
+                exclude_ids=exclude_ids,
+                user_id=state.get("user_id"),
+            )
         except Exception as exc:
-            logger.warning("Semantic tool search failed, falling back to metadata search: %s", exc)
+            logger.warning("Persistent tool catalog search failed, falling back to metadata search: %s", exc)
             return await self._fallback_backend.search(
-                normalized_query,
+                query,
                 tools,
                 state,
                 limit=limit,
                 exclude_ids=exclude_ids,
             )
 
-        lexical_results = await self._fallback_backend.search(
-            normalized_query,
+        scored: list[ToolSearchResult] = []
+        seen_ids: set[str] = set()
+        for raw in raw_results:
+            tool_id = str(raw.get("tool_id") or "")
+            metadata = metadata_by_id.get(tool_id)
+            if not metadata or tool_id in seen_ids:
+                continue
+            seen_ids.add(tool_id)
+            scored.append(ToolSearchResult(metadata=metadata, score=float(raw.get("score") or 0.0)))
+            if len(scored) >= limit:
+                break
+
+        if scored:
+            return scored
+
+        return await self._fallback_backend.search(
+            query,
             tools,
             state,
-            limit=max(limit * 2, 8),
+            limit=limit,
             exclude_ids=exclude_ids,
-        )
-        lexical_scores = {item.metadata.id: item.score for item in lexical_results}
-
-        scored: list[ToolSearchResult] = []
-        for metadata in tools:
-            if metadata.id in exclude_ids:
-                continue
-
-            embedding = self._embedding_cache.get(metadata.id)
-            if not embedding:
-                continue
-
-            semantic_score = _cosine_similarity(query_embedding, embedding)
-            lexical_bonus = lexical_scores.get(metadata.id, 0.0) * 0.02
-            total_score = semantic_score + lexical_bonus
-            if total_score <= 0:
-                continue
-            scored.append(ToolSearchResult(metadata=metadata, score=total_score))
-
-        scored.sort(
-            key=lambda item: (
-                item.score,
-                len(item.metadata.examples),
-                len(item.metadata.tags),
-                item.metadata.name,
-            ),
-            reverse=True,
-        )
-        return scored[:limit]
-
-    async def _ensure_tool_embeddings(self, tools: Sequence[ToolMetadata], state: AgentState) -> None:
-        missing = [tool for tool in tools if tool.id not in self._embedding_cache]
-        if not missing:
-            return
-
-        async with self._embedding_lock:
-            missing = [tool for tool in tools if tool.id not in self._embedding_cache]
-            if not missing:
-                return
-
-            embeddings_model = await self._get_embeddings_model(state)
-            vectors = await embeddings_model.aembed_documents([_tool_search_text(tool) for tool in missing])
-            for tool, vector in zip(missing, vectors):
-                self._embedding_cache[tool.id] = vector
-
-    async def _embed_query(self, query: str, state: AgentState) -> list[float]:
-        embeddings_model = await self._get_embeddings_model(state)
-        return await embeddings_model.aembed_query(query)
-
-    async def _get_embeddings_model(self, state: AgentState):
-        from langchain_openai import OpenAIEmbeddings
-
-        from app.config import get_settings
-        from app.services.user_settings_service import require_user_openai_api_key
-
-        settings = get_settings()
-        user_id = state.get("user_id")
-        if user_id:
-            api_key = await require_user_openai_api_key(user_id)
-        else:
-            api_key = settings.openai_api_key
-
-        return OpenAIEmbeddings(
-            model="text-embedding-3-small",
-            api_key=api_key,
         )
 
 
@@ -288,6 +215,9 @@ class ToolRegistry:
     def get_metadata(self, tool_id: str) -> ToolMetadata | None:
         return self._metadata.get(tool_id)
 
+    def list_metadata(self) -> list[ToolMetadata]:
+        return list(self._metadata.values())
+
     def describe(self, tool_ids: Sequence[str]) -> list[dict[str, object]]:
         described: list[dict[str, object]] = []
         for tool_id in tool_ids:
@@ -322,7 +252,7 @@ def get_tool_registry() -> ToolRegistry:
     from app.tools.chat_attachments_tools import get_chat_attachments_tools
     from app.tools.google_sheets_tools import get_sheets_tools
 
-    registry = ToolRegistry(search_backend=EmbeddingToolSearchBackend())
+    registry = ToolRegistry(search_backend=PersistentToolCatalogSearchBackend())
 
     def core_loader(state: AgentState) -> list:
         return get_core_tools(state)

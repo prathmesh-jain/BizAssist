@@ -1,5 +1,7 @@
 import logging
-from langchain_core.messages import SystemMessage, AIMessage
+
+from langchain_core.messages import AIMessage, SystemMessage
+
 from app.agents.state import AgentState
 from app.config import get_settings
 from app.services.llm_service import get_llm
@@ -8,28 +10,52 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 GUARDRAIL_SYSTEM = """
-You are a safety guardrail for BizAssist.
-BizAssist supports: Business/finance, invoices, documents, and spreadsheet operations.
-Calculations and spreadsheet formulas are SAFE. Confirmations like "yes/ok" are SAFE.
-Block only out-of-scope requests like writing code or SQL.
-Respond: SAFE or UNSAFE|reason.
+You are a safety classifier for BizAssist.
+
+SAFE:
+- Reading, summarizing, or analyzing spreadsheets, invoices, PDFs, and business documents
+- Spreadsheet calculations and formulas
+- Business, finance, accounting, operations, reports
+- Follow-up questions about uploaded files
+- General conversation and confirmations
+
+UNSAFE:
+- Writing, explaining, debugging, or modifying code
+- Writing SQL queries
+
+Return exactly one of:
+SAFE
+UNSAFE|code_generation
+UNSAFE|sql_queries
+
+Do not invent other categories.
 """
 
 _REFUSALS = {
     "code_generation": (
-        "I can't write or explain code — that's outside my scope.\n\n"
-        "What I *can* help with:\n"
-        "- Analysing your invoices and financial documents\n"
+        "I can't write or explain code - that's outside my scope.\n\n"
+        "What I can help with:\n"
+        "- Analyzing your invoices and financial documents\n"
         "- Business strategy and email drafting\n"
         "- Reviewing expenses and identifying spending patterns\n\n"
         "Would any of those be useful?"
     ),
     "sql_queries": (
         "I can't create SQL queries. I'm a business operations assistant, not a database tool.\n\n"
-        "If you want to analyse your data, I can read your Google Sheets or invoices directly — "
-        "just ask!"
+        "If you want to analyze your data, I can read your Google Sheets or invoices directly - just ask!"
     ),
 }
+
+
+def _normalize_unsafe_reason(reason: str) -> str:
+    normalized = (reason or "").strip().lower()
+    if normalized in _REFUSALS:
+        return normalized
+    if "sql" in normalized:
+        return "sql_queries"
+    if "code" in normalized or "program" in normalized or "script" in normalized:
+        return "code_generation"
+    return ""
 
 
 async def guardrail_node(state: AgentState) -> dict:
@@ -53,17 +79,15 @@ async def guardrail_node(state: AgentState) -> dict:
         {"role": "user", "content": last_user_msg},
     ])
 
-    result = response.content.strip()
+    result = str(response.content or "").strip()
     if result.upper().startswith("SAFE"):
-        logger.info(f"Guardrail: SAFE — user {state['user_id']}")
+        logger.info("Guardrail: SAFE - user %s", state["user_id"])
         return {"is_safe": True, "guardrail_reason": ""}
 
-    reason = result.replace("UNSAFE|", "").strip().lower()
-    if reason not in _REFUSALS:
-        logger.info(f"Guardrail: UNSAFE ({reason}) — user {state['user_id']}")
-        return {"is_safe": True, "guardrail_reason": ""}
-    refusal = _REFUSALS[reason]
-    logger.info(f"Guardrail: UNSAFE ({reason}) — user {state['user_id']}")
+    reason = _normalize_unsafe_reason(result.replace("UNSAFE|", "").strip())
+    refusal = _REFUSALS.get(reason) or _REFUSALS["code_generation"]
+    log_reason = reason or "generic_out_of_scope"
+    logger.info("Guardrail: UNSAFE (%s) - user %s", log_reason, state["user_id"])
     return {"is_safe": False, "guardrail_reason": reason, "refusal_message": refusal}
 
 

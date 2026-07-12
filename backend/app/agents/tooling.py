@@ -181,6 +181,19 @@ def get_clarification_tools(state: AgentState) -> list:
     return [tool for tool in get_core_tools(state) if tool.name == "request_clarification"]
 
 
+def get_chat_control_tools(state: AgentState) -> list:
+    @tool("delegate_to_planner")
+    def delegate_to_planner(execution_brief: str) -> dict:
+        """Hand off the current request to the planner with a concise execution brief."""
+        return {
+            "ok": True,
+            "chat_route": "planner",
+            "execution_brief": execution_brief.strip(),
+        }
+
+    return [delegate_to_planner]
+
+
 def get_registry_control_tools(state: AgentState) -> list:
     from app.agents.tool_registry import get_tool_registry
 
@@ -241,7 +254,8 @@ def get_chat_local_tools(state: AgentState) -> list:
     from app.tools.chat_attachments_tools import get_chat_attachments_tools
 
     user_id, chat_id = _state_ids(state)
-    tools = get_clarification_tools(state)
+    tools = get_chat_control_tools(state)
+    tools.extend(get_clarification_tools(state))
     tools.extend(get_chat_attachments_tools(user_id=user_id, chat_id=chat_id))
     return tools
 
@@ -341,6 +355,20 @@ async def common_tool_node(state: AgentState) -> dict:
             tool_calls_made.append(message.name)
 
         payload = _parse_tool_message_content(message.content) or {}
+
+        if message.name == "delegate_to_planner":
+            execution_brief = str(payload.get("execution_brief") or "").strip()
+            if not execution_brief:
+                execution_brief = "Review the latest user request and plan the required operational steps."
+            result["chat_route"] = "planner"
+            result["execution_brief"] = execution_brief
+            result["execution_plan"] = ""
+            result["execution_steps"] = []
+            result["execution_query"] = ""
+            result["execution_completed"] = False
+            result["active_agent"] = "planner"
+            result["active_tool_ids"] = []
+            continue
 
         if message.name != "search_available_tools":
             continue

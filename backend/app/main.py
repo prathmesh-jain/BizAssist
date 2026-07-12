@@ -9,6 +9,9 @@ from app.config import get_settings
 from app.database import connect_db, close_db
 from app.utils.logger import setup_logging
 from app.routers import chat, documents, integrations, settings as settings_router
+from dotenv import load_dotenv
+
+load_dotenv()
 
 setup_logging()
 logger = logging.getLogger(__name__)

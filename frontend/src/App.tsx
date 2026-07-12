@@ -94,42 +94,61 @@ function BackendWarmupGate({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     let cancelled = false;
+    let timeoutId: number | undefined;
 
     const normalizeBase = (raw?: string) => {
-      const base = (raw || 'http://localhost:8000').replace(/\/+$/, '');
-      return base.endsWith('/api') ? base.slice(0, -4) : base;
+      const base = (raw || "http://localhost:8000").replace(/\/+$/, "");
+      return base.endsWith("/api") ? base.slice(0, -4) : base;
     };
 
     const baseUrl = normalizeBase(import.meta.env.VITE_API_URL);
 
-    const checkOnce = async () => {
+    const pollHealth = async () => {
       try {
-        const res = await fetch(`${baseUrl}/health`, { cache: 'no-store' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const res = await fetch(`${baseUrl}/health`, {
+          cache: "no-store",
+        });
 
-        const data = (await res.json().catch(() => null)) as { status?: string } | null;
-        if (data && data.status && data.status !== 'ok') {
-          throw new Error('Not ready');
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
         }
 
+        const data = (await res.json().catch(() => null)) as
+          | { status?: string }
+          | null;
+
+        if (data?.status !== "ok") {
+          throw new Error("Backend not ready");
+        }
+
+        // Backend is ready → stop polling
         if (!cancelled) {
           setReady(true);
           setLastError(null);
         }
+
+        return;
       } catch (e) {
         if (!cancelled) {
           setAttempt((a) => a + 1);
-          setLastError(e instanceof Error ? e.message : 'Health check failed');
+          setLastError(
+            e instanceof Error ? e.message : "Health check failed"
+          );
+
+          // Schedule the next poll after 2 seconds
+          timeoutId = window.setTimeout(pollHealth, 2000);
         }
       }
     };
 
-    checkOnce();
-    const id = window.setInterval(checkOnce, 2000);
+    pollHealth();
 
     return () => {
       cancelled = true;
-      window.clearInterval(id);
+
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+      }
     };
   }, []);
 

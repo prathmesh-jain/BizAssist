@@ -1,23 +1,8 @@
-import logging
-from typing import Any
-
-from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
-from pydantic import BaseModel, Field
+from langchain_core.messages import AIMessage, RemoveMessage, SystemMessage, ToolMessage
 
 from app.agents.state import AgentState
 from app.agents.tooling import get_chat_local_tools
 from app.services.llm_service import get_llm
-
-logger = logging.getLogger(__name__)
-
-
-class ChatDecision(BaseModel):
-    action: str = Field(description="Either 'answer' or 'plan'.")
-    answer: str = Field(default="", description="Direct user-facing answer when action is 'answer'.")
-    execution_brief: str = Field(
-        default="",
-        description="Concise handoff for the planner when action is 'plan'. Include task, context, constraints, and relevant chat file context.",
-    )
 
 
 CHAT_SYSTEM = """
@@ -32,14 +17,28 @@ You have chat-local tools for:
 - request_clarification
 - chat attachment inspection
 
-Use structured output:
-- action='answer' when you can solve it directly
-- action='plan' when broader planning or external execution is needed
+Chat attachments are files uploaded in this conversation.
+
+Google Sheets are NOT chat attachments.
+
+If the user refers to:
+- Google Sheets
+- spreadsheets stored externally
+- "my sheet"
+- "my spreadsheet"
+- workbook
+- tabs
+- spreadsheet operations
+
+delegate_to_planner.
+
+Only inspect chat attachments when the user is referring to files uploaded into this chat.
+- delegate_to_planner
 
 Rules:
-1. Use tools when chat-local file access or clarification is needed.
-2. Answer directly when chat-local context is sufficient.
-3. Route to planning when spreadsheet actions, broader orchestration, or external-system execution is needed.
+1. Answer directly when chat-local context is sufficient.
+2. Use tools when chat-local file access or clarification is needed.
+3. If the task needs broader planning, orchestration, spreadsheet work, or external-system execution, call delegate_to_planner with a concise execution brief.
 4. Do not invent facts not grounded in the conversation or tool results.
 """
 
@@ -82,15 +81,6 @@ def _clean_message_history(messages: list) -> list:
     return clean_msgs
 
 
-
-def _extract_structured_payload(result: Any) -> tuple[BaseMessage | None, ChatDecision | None]:
-    if isinstance(result, dict):
-        raw = result.get("raw")
-        parsed = result.get("parsed")
-        return raw if isinstance(raw, BaseMessage) else None, parsed if isinstance(parsed, ChatDecision) else None
-    return None, result if isinstance(result, ChatDecision) else None
-
-
 async def chat_node(state: AgentState) -> dict:
     messages = _clean_message_history(state.get("messages") or [])
 
@@ -102,8 +92,15 @@ async def chat_node(state: AgentState) -> dict:
             streaming=True,
         )
         response = await llm.ainvoke([SystemMessage(content=FINAL_RESPONSE_SYSTEM)] + messages)
+        replacement_messages = [response]
+        if messages:
+            last_message = messages[-1]
+            if isinstance(last_message, AIMessage) and not getattr(last_message, "tool_calls", None):
+                last_id = getattr(last_message, "id", None)
+                if last_id:
+                    replacement_messages = [RemoveMessage(id=last_id), response]
         return {
-            "messages": [response],
+            "messages": replacement_messages,
             "chat_route": "answer",
             "execution_brief": "",
             "execution_plan": "",
@@ -113,65 +110,33 @@ async def chat_node(state: AgentState) -> dict:
             "active_agent": "",
             "active_tool_ids": [],
         }
+
     llm = await get_llm(
         user_id=state["user_id"],
         purpose="primary",
         temperature=0.1,
-        streaming=False,
+        streaming=True,
     )
-    unified_model = llm.with_structured_output(
-        schema=ChatDecision,
-        method="json_schema",
-        include_raw=True,
-        strict=True,
-        tools=get_chat_local_tools(state),
+    response = await llm.bind_tools(get_chat_local_tools(state)).ainvoke(
+        [SystemMessage(content=CHAT_SYSTEM)] + messages
     )
-    result = await unified_model.ainvoke([SystemMessage(content=CHAT_SYSTEM)] + messages)
-    raw_response, parsed = _extract_structured_payload(result)
 
-    if raw_response and getattr(raw_response, "tool_calls", None):
-        return {
-            "messages": [raw_response],
-            "chat_route": "answer",
-            "active_agent": "chat",
-        }
+    result = {
+        "messages": [response],
+        "chat_route": "answer",
+        "active_agent": "chat" if getattr(response, "tool_calls", None) else "",
+    }
 
-    if parsed:
-        action = (parsed.action or "answer").strip().lower()
-        if action == "plan":
-            execution_brief = (parsed.execution_brief or "").strip()
-            if not execution_brief:
-                execution_brief = "Review the latest user request and plan the required operational steps."
-            return {
-                "chat_route": "planner",
-                "execution_brief": execution_brief,
+    if not getattr(response, "tool_calls", None):
+        result.update(
+            {
+                "execution_brief": "",
                 "execution_plan": "",
                 "execution_steps": [],
                 "execution_query": "",
                 "execution_completed": False,
-                "active_agent": "planner",
                 "active_tool_ids": [],
             }
+        )
 
-        answer = (parsed.answer or "").strip() or "Sorry something went wrong, can you please try again"
-        return {
-            "messages": [AIMessage(content=answer)],
-            "chat_route": "answer",
-            "execution_brief": "",
-            "execution_plan": "",
-            "execution_steps": [],
-            "execution_query": "",
-            "execution_completed": False,
-            "active_agent": "",
-            "active_tool_ids": [],
-        }
-
-    fallback_text = ""
-    if raw_response is not None:
-        fallback_text = str(getattr(raw_response, "content", "") or "").strip()
-    fallback_text = fallback_text or "I need a bit more context to help with that."
-    return {
-        "messages": [AIMessage(content=fallback_text)],
-        "chat_route": "answer",
-        "active_agent": "",
-    }
+    return result

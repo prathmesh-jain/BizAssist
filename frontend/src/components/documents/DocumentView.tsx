@@ -9,7 +9,7 @@ export default function DocumentView() {
     const [isUploading, setIsUploading] = React.useState(false);
     const [documents, setDocuments] = React.useState<DocumentMetadata[]>([]);
     const [isLoading, setIsLoading] = React.useState(true);
-    const { aiSettings, fetchAISettings } = useSettingsStore();
+    const { aiSettings, isLoaded, fetchAISettings } = useSettingsStore();
 
     const fetchDocuments = React.useCallback(async () => {
         try {
@@ -27,7 +27,8 @@ export default function DocumentView() {
         if (!aiSettings) fetchAISettings();
     }, [fetchDocuments, aiSettings, fetchAISettings]);
 
-    const hasApiKey = aiSettings?.has_api_key;
+    const hasApiKey = !!aiSettings?.has_api_key;
+    const settingsPending = !isLoaded && !aiSettings;
 
     const handleUpload = async () => {
         if (!file) return;
@@ -106,13 +107,13 @@ export default function DocumentView() {
                                 </label>
                                 <button
                                     onClick={handleUpload}
-                                    disabled={!file || isUploading || !hasApiKey}
+                                    disabled={!file || isUploading || (!settingsPending && !hasApiKey)}
                                     className="bg-primary hover:bg-primary/90 text-primary-foreground py-3.5 px-6 rounded-2xl transition-all font-bold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/20 flex items-center justify-center min-w-[120px] active:scale-[0.98]"
                                 >
                                     {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span>Upload</span>}
                                 </button>
                             </div>
-                            {!hasApiKey && (
+                            {!settingsPending && !hasApiKey && (
                                 <div className="flex items-center gap-2 text-destructive text-xs font-bold bg-destructive/10 p-3 rounded-xl border border-destructive/20">
                                     <AlertCircle className="w-4 h-4" />
                                     <span>Please set your OpenAI API Key in Settings to enable document ingestion.</span>

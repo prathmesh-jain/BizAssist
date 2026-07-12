@@ -23,11 +23,12 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
     const [text, setText] = React.useState('');
     const [attachments, setAttachments] = React.useState<Attachment[]>([]);
     const [warning, setWarning] = React.useState<string>('');
-    const { aiSettings, fetchAISettings } = useSettingsStore();
+    const { aiSettings, isLoaded, fetchAISettings } = useSettingsStore();
     const textareaRef = React.useRef<HTMLTextAreaElement>(null);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
     const chatEnabled = !!aiSettings?.chat_enabled;
+    const settingsPending = !isLoaded && !aiSettings;
     const canSend = (text.trim().length > 0 || attachments.length > 0) && !isLoading && chatEnabled;
 
     React.useEffect(() => {
@@ -188,9 +189,15 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     onKeyDown={handleKeyDown}
-                        placeholder={chatEnabled ? "Ask BizAssist anything... (paste images with Ctrl+V)" : "Add your OpenAI API key in Settings to enable chat"}
+                        placeholder={
+                            settingsPending
+                                ? "Ask BizAssist anything... (paste images with Ctrl+V)"
+                                : chatEnabled
+                                    ? "Ask BizAssist anything... (paste images with Ctrl+V)"
+                                    : "Add your OpenAI API key in Settings to enable chat"
+                        }
                     rows={1}
-                        disabled={isLoading || !chatEnabled}
+                        disabled={isLoading || (!settingsPending && !chatEnabled)}
                     className={`w-full bg-card text-foreground border border-border rounded-2xl py-4 pl-5 pr-24 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 resize-none transition-all shadow-sm group-hover:shadow-md ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                     style={{ minHeight: '60px', maxHeight: '200px' }}
                 />
@@ -207,7 +214,7 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
                     <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        disabled={isLoading || !chatEnabled}
+                        disabled={isLoading || (!settingsPending && !chatEnabled)}
                         className="p-2.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-all disabled:opacity-50"
                         title="Attach files"
                     >
@@ -240,7 +247,7 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
                 </div>
                 <span className="hidden xs:block">Shift + Enter for new line • Ctrl+V to paste images</span>
             </div>
-            {!chatEnabled && (
+            {!settingsPending && !chatEnabled && (
                 <div className="max-w-3xl mx-auto mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
                     Add your OpenAI API key in `Settings` before using chat.
                 </div>
