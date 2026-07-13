@@ -1,50 +1,56 @@
-import logging
+import hashlib
 import io
+import logging
+import uuid
 from datetime import datetime
 from typing import Optional
 
-import chromadb
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from qdrant_client import models
 
 from app.config import get_settings
 from app.database import documents_col
+from app.services.qdrant_service import ensure_qdrant_collection, get_qdrant_client, qdrant_filter, qdrant_match_filter
 from app.services.user_settings_service import require_user_openai_api_key
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# Singleton Chroma client
-_chroma_client: Optional[chromadb.PersistentClient] = None
-_collection: Optional[chromadb.Collection] = None
+
+def get_documents_collection_name() -> str:
+    return settings.qdrant_documents_collection
 
 
-def get_chroma_collection() -> chromadb.Collection:
-    global _chroma_client, _collection
-    if _chroma_client is None:
-        _chroma_client = chromadb.PersistentClient(path=settings.chroma_path)
-    if _collection is None:
-        _collection = _chroma_client.get_or_create_collection(
-            name="business_docs",
-            metadata={"hnsw:space": "cosine"},
-        )
-    return _collection
+def build_document_point_id(*, user_id: str, filename: str, chunk_index: int, chunk_text: str) -> str:
+    digest = hashlib.sha256(
+        f"{user_id}\n{filename}\n{chunk_index}\n{chunk_text}".encode("utf-8")
+    ).hexdigest()
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"bizassist-doc:{digest}"))
+
+
+def _get_embeddings_model(api_key: str) -> OpenAIEmbeddings:
+    return OpenAIEmbeddings(
+        model=settings.embedding_model,
+        api_key=api_key,
+    )
 
 
 def _extract_text(file_bytes: bytes, file_type: str, filename: str) -> str:
     """Extract plain text from PDF, DOCX, or TXT."""
     if file_type == "application/pdf":
         import pypdf
+
         reader = pypdf.PdfReader(io.BytesIO(file_bytes))
         return "\n".join(page.extract_text() or "" for page in reader.pages)
 
-    elif file_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    if file_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
         from docx import Document
+
         doc = Document(io.BytesIO(file_bytes))
         return "\n".join(p.text for p in doc.paragraphs)
 
-    else:  # plain text
-        return file_bytes.decode("utf-8", errors="replace")
+    return file_bytes.decode("utf-8", errors="replace")
 
 
 async def ingest_document(
@@ -54,7 +60,7 @@ async def ingest_document(
     user_id: str,
 ) -> dict:
     """
-    Extract text → chunk → embed → store in ChromaDB.
+    Extract text -> chunk -> embed -> store in Qdrant.
     Also records the document in MongoDB.
     """
     text = _extract_text(file_bytes, file_type, filename)
@@ -65,39 +71,51 @@ async def ingest_document(
     chunks = splitter.split_text(text)
 
     api_key = await require_user_openai_api_key(user_id)
-    embeddings_model = OpenAIEmbeddings(
-        model="text-embedding-3-small",
-        openai_api_key=api_key,
-    )
+    embeddings_model = _get_embeddings_model(api_key)
     embeddings = await embeddings_model.aembed_documents(chunks)
 
-    collection = get_chroma_collection()
-    now_str = datetime.utcnow().isoformat()
-
-    # Use deterministic chunk ids: doc_filename_chunk_N
-    import hashlib
-    base_id = hashlib.md5(f"{user_id}{filename}{now_str}".encode()).hexdigest()[:8]
-    chunk_ids = [f"{base_id}_chunk_{i}" for i in range(len(chunks))]
-
-    collection.add(
-        ids=chunk_ids,
-        documents=chunks,
-        embeddings=embeddings,
-        metadatas=[{"user_id": user_id, "filename": filename, "chunk_index": i} for i in range(len(chunks))],
+    collection_name = get_documents_collection_name()
+    ensure_qdrant_collection(collection_name)
+    client = get_qdrant_client()
+    vector_ids = [
+        build_document_point_id(
+            user_id=user_id,
+            filename=filename,
+            chunk_index=i,
+            chunk_text=chunks[i],
+        )
+        for i in range(len(chunks))
+    ]
+    points = [
+        models.PointStruct(
+            id=vector_ids[i],
+            vector=embeddings[i],
+            payload={
+                "user_id": user_id,
+                "filename": filename,
+                "chunk_index": i,
+                "text": chunks[i],
+            },
+        )
+        for i in range(len(chunks))
+    ]
+    client.upsert(
+        collection_name=collection_name,
+        points=points,
+        wait=True,
     )
 
-    # Persist metadata to MongoDB
     doc_record = {
         "user_id": user_id,
         "filename": filename,
         "file_type": file_type,
         "chunk_count": len(chunks),
-        "chroma_ids": chunk_ids,
+        "vector_ids": vector_ids,
         "created_at": datetime.utcnow(),
     }
     result = await documents_col().insert_one(doc_record)
 
-    logger.info(f"Ingested '{filename}' → {len(chunks)} chunks for user {user_id}")
+    logger.info("Ingested '%s' -> %s chunks for user %s", filename, len(chunks), user_id)
     return {"id": str(result.inserted_id), "chunk_count": len(chunks)}
 
 
@@ -108,80 +126,82 @@ async def list_user_documents(user_id: str) -> list[dict]:
     return [{"id": str(d["_id"]), "filename": d["filename"], "created_at": d["created_at"]} for d in docs]
 
 
-def _build_where_clause(user_id: str, filename: Optional[str] = None) -> dict:
-    """Build a Chroma-compatible metadata filter."""
-    filters: list[dict] = [{"user_id": user_id}]
+def _build_query_filter(user_id: str, filename: Optional[str] = None) -> models.Filter:
+    conditions = [qdrant_match_filter("user_id", user_id)]
     if filename:
-        filters.append({"filename": filename})
-    if len(filters) == 1:
-        return filters[0]
-    return {"$and": filters}
+        conditions.append(qdrant_match_filter("filename", filename))
+    return qdrant_filter(*conditions)
 
 
 async def retrieve(query: str, user_id: str, k: int = 5, filename: Optional[str] = None) -> str:
     """Semantic search over the user's documents. Returns concatenated passages."""
-    collection = get_chroma_collection()
+    collection_name = get_documents_collection_name()
+    ensure_qdrant_collection(collection_name)
+    client = get_qdrant_client()
     api_key = await require_user_openai_api_key(user_id)
-    embeddings_model = OpenAIEmbeddings(
-        model="text-embedding-3-small",
-        openai_api_key=api_key,
-    )
+    embeddings_model = _get_embeddings_model(api_key)
     query_embedding = await embeddings_model.aembed_query(query)
 
-    results = collection.query(
-        query_embeddings=[query_embedding],
-        n_results=k,
-        where=_build_where_clause(user_id=user_id, filename=filename),
-        include=["documents", "metadatas"],
+    response = client.query_points(
+        collection_name=collection_name,
+        query=query_embedding,
+        limit=int(k or 5),
+        query_filter=_build_query_filter(user_id=user_id, filename=filename),
+        with_payload=True,
+        with_vectors=False,
     )
 
-    passages = results.get("documents", [[]])[0]
-    if not passages:
-        return ""
+    passages: list[str] = []
+    for point in response.points:
+        payload = point.payload or {}
+        text = str(payload.get("text") or "").strip()
+        if not text:
+            continue
+        source = str(payload.get("filename") or "unknown")
+        passages.append(f"[Source: {source}]\n{text}")
 
-    formatted = []
-    for i, (text, meta) in enumerate(zip(passages, results["metadatas"][0])):
-        formatted.append(f"[Source: {meta.get('filename', 'unknown')}]\n{text}")
-
-    return "\n\n---\n\n".join(formatted)
+    return "\n\n---\n\n".join(passages)
 
 
 async def retrieve_top_filenames(query: str, user_id: str, k: int = 5) -> list[str]:
-    """Return the top-matching document filenames for a query (no passages).
-
-    This is intended as a cheap relevance hint for agents so they can decide
-    whether to use RAG retrieval first.
-    """
-    collection = get_chroma_collection()
+    """Return the top-matching document filenames for a query (no passages)."""
+    collection_name = get_documents_collection_name()
+    ensure_qdrant_collection(collection_name)
+    client = get_qdrant_client()
     api_key = await require_user_openai_api_key(user_id)
-    embeddings_model = OpenAIEmbeddings(
-        model="text-embedding-3-small",
-        openai_api_key=api_key,
-    )
+    embeddings_model = _get_embeddings_model(api_key)
     query_embedding = await embeddings_model.aembed_query(query)
 
-    results = collection.query(
-        query_embeddings=[query_embedding],
-        n_results=int(k or 5),
-        where={"user_id": user_id},
-        include=["metadatas"],
+    response = client.query_points(
+        collection_name=collection_name,
+        query=query_embedding,
+        limit=int(k or 5),
+        query_filter=_build_query_filter(user_id=user_id),
+        with_payload=True,
+        with_vectors=False,
     )
 
-    metas = results.get("metadatas", [[]])[0] or []
     filenames: list[str] = []
-    for meta in metas:
-        if not isinstance(meta, dict):
-            continue
-        fn = (meta.get("filename") or "").strip()
-        if fn and fn not in filenames:
-            filenames.append(fn)
+    for point in response.points:
+        payload = point.payload or {}
+        filename = str(payload.get("filename") or "").strip()
+        if filename and filename not in filenames:
+            filenames.append(filename)
     return filenames
 
 
-async def delete_document_chunks(chroma_ids: list[str]):
-    """Remove specific chunk IDs from ChromaDB."""
-    if not chroma_ids:
+async def delete_document_chunks(vector_ids: list[str]):
+    """Remove specific vector IDs from Qdrant."""
+    if not vector_ids:
         return
-    collection = get_chroma_collection()
-    collection.delete(ids=chroma_ids)
-    logger.info(f"Deleted {len(chroma_ids)} chunks from Chroma")
+    collection_name = get_documents_collection_name()
+    ensure_qdrant_collection(collection_name)
+    client = get_qdrant_client()
+    client.delete(
+        collection_name=collection_name,
+        points_selector=models.PointIdsList(
+            points=vector_ids,
+        ),
+        wait=True,
+    )
+    logger.info("Deleted %s vectors from Qdrant", len(vector_ids))

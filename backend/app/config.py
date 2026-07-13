@@ -40,7 +40,15 @@ class Settings(BaseSettings):
     google_oauth_token_encryption_key: str = ""
 
     # Vector store
-    chroma_path: str = "./chroma_db"
+    embedding_model: str = "text-embedding-3-small"
+    embedding_vector_size: int = 1536
+    embedding_input_cost_per_1m_tokens: float = 0.02
+    qdrant_url: str = ""
+    qdrant_api_key: str = ""
+    qdrant_port: int = 6333
+    qdrant_documents_collection: str = "business_docs"
+    qdrant_tool_catalog_collection: str = "tool_catalog"
+    retrieval_trace_preview_chars: int = 240
 
     # CORS
     cors_origins: list[str] = ["http://localhost:5173"]

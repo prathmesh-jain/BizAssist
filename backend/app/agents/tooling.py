@@ -239,13 +239,21 @@ def get_registry_control_tools(state: AgentState) -> list:
                 "user_response": user_response,
             }
 
-        return {
+        result = {
             "ok": True,
             "query": query,
             "search_category": search_category,
             "selected_tool_ids": tool_ids,
             "matches": matches,
         }
+        logger.info(
+            "search_available_tools query=%r active_tool_ids=%s selected_tool_ids=%s matches=%s",
+            query,
+            active_tool_ids,
+            tool_ids,
+            matches,
+        )
+        return result
 
     return [search_available_tools]
 
