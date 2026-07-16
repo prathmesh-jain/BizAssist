@@ -1,4 +1,5 @@
 import logging
+from difflib import SequenceMatcher
 from typing import Any
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
@@ -6,9 +7,11 @@ from pydantic import BaseModel, Field
 
 from app.agents.state import AgentState
 from app.agents.tooling import get_planner_tools
+from app.config import get_settings
 from app.services.llm_service import get_llm
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 
 class PlannerOutput(BaseModel):
@@ -64,10 +67,63 @@ def _extract_structured_payload(result: Any) -> tuple[BaseMessage | None, Planne
     return None, result if isinstance(result, PlannerOutput) else None
 
 
+def _normalize_step(step: str) -> str:
+    return " ".join("".join(ch.lower() if ch.isalnum() else " " for ch in step).split())
+
+
+def _are_similar_steps(left: str, right: str) -> bool:
+    left_norm = _normalize_step(left)
+    right_norm = _normalize_step(right)
+    if not left_norm or not right_norm:
+        return False
+    if left_norm == right_norm:
+        return True
+    return SequenceMatcher(None, left_norm, right_norm).ratio() >= 0.9
+
+
+def _dedupe_adjacent_steps(steps: list[str]) -> list[str]:
+    deduped: list[str] = []
+    for raw_step in steps:
+        step = str(raw_step or "").strip()
+        if not step:
+            continue
+        if deduped and _are_similar_steps(deduped[-1], step):
+            continue
+        deduped.append(step)
+    return deduped
+
+
+def _fallback_plan(execution_brief: str, iterations: int) -> dict:
+    fallback_step = execution_brief or "Review the latest user request and execute the most likely next action."
+    return {
+        "execution_query": execution_brief,
+        "execution_plan": execution_brief,
+        "execution_steps": [fallback_step],
+        "execution_completed": False,
+        "planner_iterations": 0,
+        "active_agent": "executor",
+        "active_tool_ids": [],
+        "progress_event": {
+            "stage": "plan_ready",
+            "message": f"Planner stopped after {iterations} iterations. Proceeding with a compact fallback plan.",
+            "steps": [fallback_step],
+        },
+    }
+
+
 async def planner_node(state: AgentState) -> dict:
     execution_brief = str(state.get("execution_brief") or "").strip()
     if not execution_brief:
         execution_brief = "Review the latest user request and create an execution plan."
+
+    planner_iterations = int(state.get("planner_iterations") or 0) + 1
+    if planner_iterations > int(settings.planner_max_iterations or 4):
+        logger.warning(
+            "Planner iteration limit reached for user %s after %s iterations",
+            state.get("user_id"),
+            planner_iterations - 1,
+        )
+        return _fallback_plan(execution_brief, planner_iterations - 1)
 
     llm = await get_llm(
         user_id=state["user_id"],
@@ -99,6 +155,7 @@ async def planner_node(state: AgentState) -> dict:
     if raw_response and getattr(raw_response, "tool_calls", None):
         return {
             "messages": [raw_response],
+            "planner_iterations": planner_iterations,
             "active_agent": "planner",
             "progress_event": {
                 "stage": "planning",
@@ -109,7 +166,9 @@ async def planner_node(state: AgentState) -> dict:
     if parsed:
         execution_query = (parsed.execution_query or "").strip() or execution_brief
         execution_plan = (parsed.execution_plan or "").strip() or execution_brief
-        execution_steps = [step.strip() for step in (parsed.execution_steps or []) if str(step).strip()]
+        execution_steps = _dedupe_adjacent_steps(
+            [step.strip() for step in (parsed.execution_steps or []) if str(step).strip()]
+        )
         if not execution_steps:
             execution_steps = [execution_plan]
 
@@ -118,6 +177,7 @@ async def planner_node(state: AgentState) -> dict:
             "execution_plan": execution_plan,
             "execution_steps": execution_steps,
             "execution_completed": False,
+            "planner_iterations": 0,
             "active_agent": "executor",
             "active_tool_ids": [],
             "progress_event": {
@@ -127,16 +187,4 @@ async def planner_node(state: AgentState) -> dict:
             },
         }
 
-    return {
-        "execution_query": execution_brief,
-        "execution_plan": execution_brief,
-        "execution_steps": [execution_brief],
-        "execution_completed": False,
-        "active_agent": "executor",
-        "active_tool_ids": [],
-        "progress_event": {
-            "stage": "plan_ready",
-            "message": "Plan ready. Executing the task now.",
-            "steps": [execution_brief],
-        },
-    }
+    return _fallback_plan(execution_brief, planner_iterations)

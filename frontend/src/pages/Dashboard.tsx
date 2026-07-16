@@ -1,21 +1,27 @@
-import React, { useState } from 'react';
-import { useNavigate, useParams, Routes, Route, Navigate } from 'react-router-dom';
-import Sidebar from '../components/layout/Sidebar';
-import ChatWindow from '../components/chat/ChatWindow';
+import React from 'react';
+import { useLocation, useNavigate, useParams, Routes, Route, Navigate } from 'react-router-dom';
 import ChatInput from '../components/chat/ChatInput';
-import DocumentView from '../components/documents/DocumentView';
-import SettingsView from '../components/settings/SettingsView';
 import useChatStore from '../store/chatStore';
 import type { Message, ToolStatus } from '../types';
+
+const Sidebar = React.lazy(() => import('../components/layout/Sidebar'));
+const ChatWindow = React.lazy(() => import('../components/chat/ChatWindow'));
+const DocumentView = React.lazy(() => import('../components/documents/DocumentView'));
+const SettingsView = React.lazy(() => import('../components/settings/SettingsView'));
 
 export default function Dashboard() {
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
     const navigate = useNavigate();
+    const location = useLocation();
     const { messages, streamingMessage, activeTools, isLoading, sendMessage } = useChatStore();
-    const [currentView, setCurrentView] = useState('chat');
+
+    const currentView = React.useMemo(() => {
+        if (location.pathname.startsWith('/app/settings')) return 'settings';
+        if (location.pathname.startsWith('/app/documents')) return 'documents';
+        return 'chat';
+    }, [location.pathname]);
 
     const setCurrentViewHandler = (view: string) => {
-        setCurrentView(view);
         if (view === 'chat') {
             navigate('/app/chat');
         } else {
@@ -25,12 +31,14 @@ export default function Dashboard() {
 
     return (
         <div className="flex h-screen bg-background overflow-hidden font-sans">
-            <Sidebar
-                isOpen={isSidebarOpen}
-                setIsOpen={setIsSidebarOpen}
-                currentView={currentView}        // sidebar highlights based on URL now
-                setCurrentView={setCurrentViewHandler}
-            />
+            <React.Suspense fallback={null}>
+                <Sidebar
+                    isOpen={isSidebarOpen}
+                    setIsOpen={setIsSidebarOpen}
+                    currentView={currentView}
+                    setCurrentView={setCurrentViewHandler}
+                />
+            </React.Suspense>
             <main className="flex-1 flex flex-col min-w-0 relative">
                 <Routes>
                     {/* Default: redirect / to /chat */}
@@ -106,12 +114,14 @@ function ChatViewWrapper({
     return (
         <div className="flex-1 flex flex-col h-screen overflow-hidden bg-background">
             <MobileHeader onMenuClick={onMenuClick} />
-            <ChatWindow
-                messages={messages}
-                streamingMessage={streamingMessage}
-                activeTools={activeTools}
-                isLoading={isLoading}
-            />
+            <React.Suspense fallback={<div className="flex-1 bg-background" />}>
+                <ChatWindow
+                    messages={messages}
+                    streamingMessage={streamingMessage}
+                    activeTools={activeTools}
+                    isLoading={isLoading}
+                />
+            </React.Suspense>
             <ChatInput onSend={sendMessage} isLoading={isLoading} />
         </div>
     );
@@ -121,7 +131,9 @@ function FeatureView({ children, onMenuClick }: { children: React.ReactNode; onM
     return (
         <div className="flex-1 h-full overflow-auto bg-background">
             <MobileHeader onMenuClick={onMenuClick} />
-            {children}
+            <React.Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading...</div>}>
+                {children}
+            </React.Suspense>
         </div>
     );
 }

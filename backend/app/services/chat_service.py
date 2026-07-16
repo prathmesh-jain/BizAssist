@@ -232,27 +232,20 @@ async def stream_agent_response(
     all_msgs = final_state.values.get("messages") or []
     new_msgs = all_msgs[pre_run_msgs_count:]
 
-    def _is_tool_only_assistant_message(m) -> bool:
-        return (
-            m.type == "ai"
-            and not str(getattr(m, "content", "") or "").strip()
-            and bool(getattr(m, "tool_calls", None))
-        )
-
     if new_msgs:
         for m in new_msgs:
             # Skip persisting the very first human message of a run if it was already persisted
             # in the router before calling this function.
             if not is_resume and m == graph_messages[0]:
                 continue
+            if m.type == "tool":
+                continue
+            if m.type == "ai" and bool(getattr(m, "tool_calls", None)):
+                continue
             if m.type == "ai":
-                if _is_tool_only_assistant_message(m):
-                    continue
                 role = "assistant"
             elif m.type == "human":
                 role = "user"
-            elif m.type == "tool":
-                role = "tool"
             else:
                 role = "system"
 

@@ -22,6 +22,13 @@ def get_documents_collection_name() -> str:
     return settings.qdrant_documents_collection
 
 
+def _ensure_documents_collection() -> None:
+    ensure_qdrant_collection(
+        get_documents_collection_name(),
+        keyword_indexes=("user_id", "filename"),
+    )
+
+
 def build_document_point_id(*, user_id: str, filename: str, chunk_index: int, chunk_text: str) -> str:
     digest = hashlib.sha256(
         f"{user_id}\n{filename}\n{chunk_index}\n{chunk_text}".encode("utf-8")
@@ -67,7 +74,7 @@ async def ingest_document(
     if not text.strip():
         raise ValueError("Could not extract any text from the uploaded file.")
 
-    splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)
+    splitter = RecursiveCharacterTextSplitter(chunk_size=settings.chunk_size, chunk_overlap=settings.chunk_overlap)
     chunks = splitter.split_text(text)
 
     api_key = await require_user_openai_api_key(user_id)
@@ -75,7 +82,7 @@ async def ingest_document(
     embeddings = await embeddings_model.aembed_documents(chunks)
 
     collection_name = get_documents_collection_name()
-    ensure_qdrant_collection(collection_name)
+    _ensure_documents_collection()
     client = get_qdrant_client()
     vector_ids = [
         build_document_point_id(
@@ -136,7 +143,7 @@ def _build_query_filter(user_id: str, filename: Optional[str] = None) -> models.
 async def retrieve(query: str, user_id: str, k: int = 5, filename: Optional[str] = None) -> str:
     """Semantic search over the user's documents. Returns concatenated passages."""
     collection_name = get_documents_collection_name()
-    ensure_qdrant_collection(collection_name)
+    _ensure_documents_collection()
     client = get_qdrant_client()
     api_key = await require_user_openai_api_key(user_id)
     embeddings_model = _get_embeddings_model(api_key)
@@ -166,7 +173,7 @@ async def retrieve(query: str, user_id: str, k: int = 5, filename: Optional[str]
 async def retrieve_top_filenames(query: str, user_id: str, k: int = 5) -> list[str]:
     """Return the top-matching document filenames for a query (no passages)."""
     collection_name = get_documents_collection_name()
-    ensure_qdrant_collection(collection_name)
+    _ensure_documents_collection()
     client = get_qdrant_client()
     api_key = await require_user_openai_api_key(user_id)
     embeddings_model = _get_embeddings_model(api_key)
@@ -195,7 +202,7 @@ async def delete_document_chunks(vector_ids: list[str]):
     if not vector_ids:
         return
     collection_name = get_documents_collection_name()
-    ensure_qdrant_collection(collection_name)
+    _ensure_documents_collection()
     client = get_qdrant_client()
     client.delete(
         collection_name=collection_name,

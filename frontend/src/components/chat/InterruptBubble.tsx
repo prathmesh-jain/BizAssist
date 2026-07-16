@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { Check, X, AlertCircle, Upload, Send } from 'lucide-react';
 import type { Interrupt } from '../../types';
 import useChatStore from '../../store/chatStore';
@@ -42,13 +41,9 @@ const InterruptBubble: React.FC<InterruptBubbleProps> = ({ chatId, interrupt }) 
     }[interruptType];
 
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="my-4 mx-auto max-w-lg overflow-hidden rounded-2xl border border-white/20 bg-white/10 p-6 shadow-2xl backdrop-blur-md dark:bg-slate-900/40"
-        >
+        <div className="interrupt-bubble-enter my-4 mx-auto max-w-lg overflow-hidden rounded-2xl border border-white/20 bg-white/10 p-6 shadow-2xl backdrop-blur-md dark:bg-slate-900/40">
             <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 rounded-full bg-blue-500/20 p-2 text-blue-500">
+                <div className="shrink-0 rounded-full bg-blue-500/20 p-2 text-blue-500">
                     <AlertCircle size={24} />
                 </div>
                 <div className="flex-1">
@@ -127,7 +122,7 @@ const InterruptBubble: React.FC<InterruptBubbleProps> = ({ chatId, interrupt }) 
                     )}
                 </div>
             </div>
-        </motion.div>
+        </div>
     );
 };
 

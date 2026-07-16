@@ -50,6 +50,7 @@ async def get_user_ai_settings(user_id: str) -> dict:
         "provider": "openai",
         "has_api_key": bool(encrypted_key),
         "chat_enabled": bool(encrypted_key),
+        "guardrail_enabled": bool(ai.get("guardrail_enabled", settings.use_guardrail)),
         "primary_model": (ai.get("primary_model") or defaults["primary_model"]).strip(),
         "fast_model": (ai.get("fast_model") or defaults["fast_model"]).strip(),
         "nano_model": (ai.get("nano_model") or defaults["nano_model"]).strip(),
@@ -61,6 +62,7 @@ async def update_user_ai_settings(
     *,
     openai_api_key: str | None = None,
     clear_api_key: bool = False,
+    guardrail_enabled: bool | None = None,
     primary_model: str | None = None,
     fast_model: str | None = None,
     nano_model: str | None = None,
@@ -77,6 +79,9 @@ async def update_user_ai_settings(
             updates["ai_settings.openai_api_key_encrypted"] = _fernet().encrypt(
                 token.encode("utf-8")
             ).decode("utf-8")
+
+    if guardrail_enabled is not None:
+        updates["ai_settings.guardrail_enabled"] = bool(guardrail_enabled)
 
     for key, value in (
         ("ai_settings.primary_model", primary_model),

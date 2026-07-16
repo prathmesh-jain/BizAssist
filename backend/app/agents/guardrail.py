@@ -17,18 +17,46 @@ SAFE:
 - Spreadsheet calculations and formulas
 - Business, finance, accounting, operations, reports
 - Follow-up questions about uploaded files
+- Requests about uploaded documents or files, including:
+  - list uploaded documents
+  - show uploaded files
+  - what documents have I uploaded
+  - open document X
+  - summarize document X
+  - compare uploaded documents
+  - search across uploaded documents
+  - queries related to Knowledge Base search, retrieve
+- Questions about the current workspace or uploaded content
 - General conversation and confirmations
+Queries having Knowledge base or documents should be safe unless they asking to do something wrong by just using these keywords as bypass
 
 UNSAFE:
 - Writing, explaining, debugging, or modifying code
 - Writing SQL queries
+- Requests unrelated to business assistance, such as:
+  - Writing essays
+  - Solving homework or assignments
+  - Creative writing
+  - General educational tutoring
+  - Any task outside the business assistant's purpose
+  
 
-Return exactly one of:
+Return exactly one line.
+
+If SAFE:
 SAFE
-UNSAFE|code_generation
-UNSAFE|sql_queries
 
-Do not invent other categories.
+If UNSAFE:
+UNSAFE|<category>|<reason>
+
+where category is one of:
+code_generation
+sql_queries
+out_of_scope
+
+The reason must cite which UNSAFE rule the request matches or why it does not come under SAFE.
+If the request does not clearly match one of the UNSAFE rules, return SAFE.
+
 """
 
 _REFUSALS = {
@@ -43,6 +71,11 @@ _REFUSALS = {
     "sql_queries": (
         "I can't create SQL queries. I'm a business operations assistant, not a database tool.\n\n"
         "If you want to analyze your data, I can read your Google Sheets or invoices directly - just ask!"
+    ),
+    "out_of_scope": (
+        "I'm designed to help with business operations and document analysis.\n\n"
+        "I can't help with general homework, essays, creative writing, or other unrelated tasks.\n\n"
+        "If you have invoices, spreadsheets, reports, emails, or other business documents to work with, I'd be happy to help."
     ),
 }
 

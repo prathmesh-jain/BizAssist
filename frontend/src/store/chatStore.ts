@@ -315,6 +315,14 @@ const useChatStore = create<ChatState>((set, get) => ({
             id: Date.now().toString(),
             role: 'user',
             content,
+            attachments: attachments.map((attachment, index) => ({
+                id: `local-${Date.now()}-${index}`,
+                filename: attachment.file.name,
+                content_type: attachment.file.type || 'application/octet-stream',
+                size: attachment.file.size,
+                url: attachment.preview || '',
+                local_url: attachment.preview || '',
+            })),
             created_at: new Date().toISOString()
         };
         set((state) => ({ messages: [...state.messages, userMsg] }));

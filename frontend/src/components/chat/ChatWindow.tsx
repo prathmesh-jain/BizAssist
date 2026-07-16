@@ -158,7 +158,7 @@ export default function ChatWindow({ messages, streamingMessage, activeTools, is
         return (
             <div className="flex-1 flex flex-col items-center justify-center p-4 text-center bg-background">
                 <div className="w-16 h-16 bg-primary/10 rounded-3xl flex items-center justify-center mb-8 border border-primary/20 shadow-inner">
-                    <div className="w-10 h-10 bg-primary rounded-2xl animate-pulse shadow-lg shadow-primary/40 flex items-center justify-center text-primary-foreground font-bold text-xl">B</div>
+                    <div className="w-10 h-10 bg-primary rounded-2xl shadow-lg shadow-primary/40 flex items-center justify-center text-primary-foreground font-bold text-xl">B</div>
                 </div>
                 <h2 className="text-2xl font-bold text-foreground mb-3 tracking-tight">How can I help today?</h2>
                 <p className="text-muted-foreground max-w-sm text-sm leading-relaxed">

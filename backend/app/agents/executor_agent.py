@@ -1,8 +1,7 @@
 import logging
 
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
 
-from app.agents.chat_agent import _clean_message_history
 from app.agents.state import AgentState
 from app.agents.tooling import build_tools_for_agent
 from app.services.llm_service import get_llm
@@ -25,6 +24,26 @@ Rules:
 """
 
 
+def _executor_scratchpad(messages: list[BaseMessage]) -> list[BaseMessage]:
+    scratchpad: list[BaseMessage] = []
+    index = len(messages) - 1
+
+    while index >= 0:
+        message = messages[index]
+        if isinstance(message, ToolMessage):
+            scratchpad.append(message)
+            index -= 1
+            continue
+        if isinstance(message, AIMessage) and getattr(message, "tool_calls", None):
+            scratchpad.append(message)
+            index -= 1
+            continue
+        break
+
+    scratchpad.reverse()
+    return scratchpad
+
+
 async def executor_node(state: AgentState) -> dict:
     llm = await get_llm(
         user_id=state["user_id"],
@@ -35,7 +54,7 @@ async def executor_node(state: AgentState) -> dict:
 
     tools = await build_tools_for_agent(state)
     llm_with_tools = llm.bind_tools(tools)
-    messages = _clean_message_history(state.get("messages") or [])
+    scratchpad = _executor_scratchpad(state.get("messages") or [])
 
     system_content = (
         EXECUTOR_SYSTEM
@@ -48,7 +67,7 @@ async def executor_node(state: AgentState) -> dict:
     response = await llm_with_tools.ainvoke(
         [
             SystemMessage(content=system_content),
-            *messages,
+            *scratchpad,
         ]
     )
 

@@ -24,6 +24,7 @@ class AgentState(TypedDict, total=False):
     execution_steps: list[str]
     execution_query: str
     execution_completed: bool
+    planner_iterations: int
     active_agent: str
     progress_event: dict
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from functools import lru_cache
-from typing import Any
+from typing import Any, Sequence
 from urllib.parse import urlparse
 
 from qdrant_client import QdrantClient, models
@@ -27,10 +27,15 @@ def get_qdrant_client() -> QdrantClient:
     )
 
 
-def ensure_qdrant_collection(collection_name: str) -> None:
+def ensure_qdrant_collection(
+    collection_name: str,
+    *,
+    keyword_indexes: Sequence[str] | None = None,
+) -> None:
     client = get_qdrant_client()
     try:
         client.get_collection(collection_name=collection_name)
+        _ensure_keyword_indexes(client, collection_name, keyword_indexes or ())
         return
     except UnexpectedResponse as exc:
         if exc.status_code != 404:
@@ -46,6 +51,30 @@ def ensure_qdrant_collection(collection_name: str) -> None:
             distance=models.Distance.COSINE,
         ),
     )
+    _ensure_keyword_indexes(client, collection_name, keyword_indexes or ())
+
+
+def _ensure_keyword_indexes(
+    client: QdrantClient,
+    collection_name: str,
+    keyword_indexes: Sequence[str],
+) -> None:
+    for field_name in keyword_indexes:
+        normalized = str(field_name or "").strip()
+        if not normalized:
+            continue
+        try:
+            client.create_payload_index(
+                collection_name=collection_name,
+                field_name=normalized,
+                field_schema=models.PayloadSchemaType.KEYWORD,
+                wait=True,
+            )
+        except UnexpectedResponse as exc:
+            response_text = str(exc)
+            if "already exists" in response_text.lower():
+                continue
+            raise
 
 
 def qdrant_match_filter(key: str, value: Any) -> models.FieldCondition:

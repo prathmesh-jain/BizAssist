@@ -1,4 +1,5 @@
 import ast
+import difflib
 import json
 import logging
 from collections import Counter
@@ -8,10 +9,24 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from langchain_core.tools import tool
 from langgraph.prebuilt import ToolNode
 from langgraph.types import interrupt
+from pydantic import BaseModel, Field
 
 from app.agents.state import AgentState
 
 logger = logging.getLogger(__name__)
+
+
+class ListDocumentsInput(BaseModel):
+    filename: str | None = Field(
+        default=None,
+        description="Optional filename or partial filename to fuzzy-match against available documents.",
+    )
+    limit: int = Field(
+        default=5,
+        ge=1,
+        le=10,
+        description="Maximum number of matching documents to return.",
+    )
 
 
 def _state_ids(state: AgentState) -> tuple[str, str | None]:
@@ -157,7 +172,8 @@ def get_core_tools(state: AgentState) -> list:
 
     @tool("rag_retrieve")
     async def rag_retrieve(query: str, k: int = 5, filename: Optional[str] = None) -> dict:
-        """Retrieve relevant passages from indexed business documents. 
+        """Retrieve relevant passages from indexed business documents.
+        Use this for direct knowledge-base lookup and single-step document questions.
         Optionally filter by a specific filename to focus the search.
         """
         from app.services.rag_service import retrieve
@@ -165,20 +181,83 @@ def get_core_tools(state: AgentState) -> list:
         ctx = await retrieve(query=query, user_id=user_id, k=int(k or 5), filename=filename)
         return {"ok": True, "query": query, "k": int(k or 5), "filename": filename, "context": ctx}
 
-    @tool("list_ingested_documents")
-    async def list_ingested_documents() -> dict:
-        """List all business documents currently indexed in the RAG knowledge base.
-        Returns a list of document names and IDs.
-        """
-        from app.services.rag_service import list_user_documents
-        docs = await list_user_documents(user_id=user_id)
-        return {"ok": True, "documents": docs}
-
-    return [request_clarification, rag_retrieve, list_ingested_documents]
+    return [request_clarification, rag_retrieve]
 
 
 def get_clarification_tools(state: AgentState) -> list:
     return [tool for tool in get_core_tools(state) if tool.name == "request_clarification"]
+
+
+def get_rag_tools(state: AgentState) -> list:
+    return [tool for tool in get_core_tools(state) if tool.name == "rag_retrieve"]
+
+
+def get_document_listing_tools(state: AgentState) -> list:
+    user_id, chat_id = _state_ids(state)
+
+    @tool("list_documents", args_schema=ListDocumentsInput)
+    async def list_documents(filename: str | None = None, limit: int = 5) -> dict:
+        """List available documents from chat uploads and indexed knowledge-base documents.
+
+        Optionally provide a filename or partial filename to return the closest matching documents.
+        Results include the document source so you know whether a file is a chat upload or an indexed document.
+        If you later need to read an indexed knowledge-base document, route that task to the planner.
+        """
+        from app.services.rag_service import list_user_documents
+        from app.tools.chat_attachments_tools import list_chat_attachments_metadata
+
+        max_results = max(1, min(int(limit or 5), 10))
+        search_value = (filename or "").strip().lower()
+
+        chat_documents = await list_chat_attachments_metadata(user_id=user_id, chat_id=chat_id)
+        indexed_documents = await list_user_documents(user_id=user_id)
+
+        combined: list[dict[str, Any]] = []
+        for document in chat_documents:
+            combined.append(
+                {
+                    "id": str(document.get("id") or ""),
+                    "filename": str(document.get("filename") or ""),
+                    "source": "chat_upload",
+                    "source_label": "Chat Upload",
+                    "content_type": document.get("content_type"),
+                    "size": document.get("size"),
+                }
+            )
+        for document in indexed_documents:
+            combined.append(
+                {
+                    "id": str(document.get("id") or ""),
+                    "filename": str(document.get("filename") or ""),
+                    "source": "indexed_document",
+                    "source_label": "Indexed Document",
+                    "created_at": document.get("created_at"),
+                }
+            )
+
+        if search_value:
+            scored: list[tuple[float, dict[str, Any]]] = []
+            for document in combined:
+                doc_name = str(document.get("filename") or "").strip()
+                if not doc_name:
+                    continue
+                lowered_name = doc_name.lower()
+                ratio = difflib.SequenceMatcher(None, search_value, lowered_name).ratio()
+                if search_value in lowered_name:
+                    ratio += 0.4
+                scored.append((ratio, document))
+            scored.sort(key=lambda item: (item[0], item[1].get("filename", "")), reverse=True)
+            documents = [document for score, document in scored if score > 0][:max_results]
+        else:
+            documents = combined[:max_results]
+
+        return {
+            "ok": True,
+            "query": filename or "",
+            "documents": documents,
+        }
+
+    return [list_documents]
 
 
 def get_chat_control_tools(state: AgentState) -> list:
@@ -259,22 +338,26 @@ def get_registry_control_tools(state: AgentState) -> list:
 
 
 def get_chat_local_tools(state: AgentState) -> list:
-    from app.tools.chat_attachments_tools import get_chat_attachments_tools
+    from app.tools.chat_attachments_tools import get_chat_attachment_read_tools
 
     user_id, chat_id = _state_ids(state)
     tools = get_chat_control_tools(state)
     tools.extend(get_clarification_tools(state))
-    tools.extend(get_chat_attachments_tools(user_id=user_id, chat_id=chat_id))
+    tools.extend(get_rag_tools(state))
+    tools.extend(get_document_listing_tools(state))
+    tools.extend(get_chat_attachment_read_tools(user_id=user_id, chat_id=chat_id))
     return tools
 
 
 def get_planner_tools(state: AgentState) -> list:
-    from app.tools.chat_attachments_tools import get_chat_attachments_tools
+    from app.tools.chat_attachments_tools import get_chat_attachment_read_tools
 
     user_id, chat_id = _state_ids(state)
     tools = get_clarification_tools(state)
+    tools.extend(get_rag_tools(state))
+    tools.extend(get_document_listing_tools(state))
     tools.extend(get_registry_control_tools(state))
-    tools.extend(get_chat_attachments_tools(user_id=user_id, chat_id=chat_id))
+    tools.extend(get_chat_attachment_read_tools(user_id=user_id, chat_id=chat_id))
     return tools
 
 
@@ -374,6 +457,7 @@ async def common_tool_node(state: AgentState) -> dict:
             result["execution_steps"] = []
             result["execution_query"] = ""
             result["execution_completed"] = False
+            result["planner_iterations"] = 0
             result["active_agent"] = "planner"
             result["active_tool_ids"] = []
             continue

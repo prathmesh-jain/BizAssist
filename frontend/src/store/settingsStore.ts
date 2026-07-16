@@ -11,6 +11,7 @@ interface SettingsState {
     updateAISettings: (payload: {
         openai_api_key?: string;
         clear_api_key?: boolean;
+        guardrail_enabled?: boolean;
         primary_model?: string;
         fast_model?: string;
         nano_model?: string;

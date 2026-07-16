@@ -248,6 +248,7 @@ def _register_metadata(
 
 @lru_cache(maxsize=1)
 def get_tool_registry() -> ToolRegistry:
+    from app.agents.tooling import get_document_listing_tools
     from app.agents.tooling import get_core_tools
     from app.tools.chat_attachments_tools import get_chat_attachments_tools
     from app.tools.google_sheets_tools import get_sheets_tools
@@ -262,6 +263,9 @@ def get_tool_registry() -> ToolRegistry:
             user_id=state.get("user_id", ""),
             chat_id=state.get("chat_id"),
         )
+
+    def document_listing_loader(state: AgentState) -> list:
+        return get_document_listing_tools(state)
 
     def sheets_loader(state: AgentState) -> list:
         return get_sheets_tools(
@@ -288,14 +292,6 @@ def get_tool_registry() -> ToolRegistry:
                 tags=("documents", "search", "knowledge_base", "retrieve"),
                 examples=("find unpaid invoices in documents", "search contract terms"),
             ),
-            ToolMetadata(
-                id="list_ingested_documents",
-                name="list_ingested_documents",
-                description="List documents currently indexed in the RAG knowledge base.",
-                integration="rag",
-                tags=("documents", "list", "knowledge_base", "files"),
-                examples=("what files are indexed", "show my ingested documents"),
-            ),
         ],
         core_loader,
     )
@@ -304,13 +300,20 @@ def get_tool_registry() -> ToolRegistry:
         registry,
         [
             ToolMetadata(
-                id="chat_list_attachments",
-                name="chat_list_attachments",
-                description="List uploaded attachments available in the current chat.",
-                integration="attachments",
-                tags=("attachments", "files", "uploads", "chat"),
-                examples=("show uploaded files", "list attachments"),
+                id="list_documents",
+                name="list_documents",
+                description="List available documents across chat uploads and indexed knowledge-base documents, with optional fuzzy filename matching.",
+                integration="documents",
+                tags=("documents", "files", "list", "search", "chat_upload", "knowledge_base"),
+                examples=("find invoice pdf", "list uploaded and indexed documents"),
             ),
+        ],
+        document_listing_loader,
+    )
+
+    _register_metadata(
+        registry,
+        [
             ToolMetadata(
                 id="chat_read_attachment_text",
                 name="chat_read_attachment_text",

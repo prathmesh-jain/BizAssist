@@ -1,5 +1,5 @@
 import React from 'react';
-import { Send, Hash, Paperclip, X, FileText } from 'lucide-react';
+import { Send, Paperclip, X, FileText } from 'lucide-react';
 import useSettingsStore from '../../store/settingsStore';
 
 interface Attachment {
@@ -168,7 +168,7 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
                                     <FileText className="w-5 h-5 text-primary" />
                                 </div>
                             )}
-                            <span className="text-sm text-foreground max-w-[150px] truncate">
+                            <span className="text-sm text-foreground max-w-38 truncate">
                                 {att.file.name}
                             </span>
                             <button
@@ -234,18 +234,7 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
             </div>
 
             <div className="max-w-3xl mx-auto mt-3 flex items-center justify-between text-[11px] text-muted-foreground uppercase font-semibold tracking-tight px-1 opacity-70">
-                <div className="flex items-center space-x-4">
-                    <span className="flex items-center space-x-1.5">
-                        <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                        <span>AI Engine Online</span>
-                    </span>
-                    <span className="hidden sm:inline-block border-l border-border h-3 ml-1" />
-                    <span className="hidden sm:flex items-center space-x-1.5">
-                        <Hash className="w-3.5 h-3.5" />
-                        <span>Financial Analysis Mode</span>
-                    </span>
-                </div>
-                <span className="hidden xs:block">Shift + Enter for new line • Ctrl+V to paste images</span>
+                <span className="hidden sm:block">Shift + Enter for new line • Ctrl+V to paste images</span>
             </div>
             {!settingsPending && !chatEnabled && (
                 <div className="max-w-3xl mx-auto mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">

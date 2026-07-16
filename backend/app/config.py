@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     # Memory sliding-window — override in .env
     memory_window_size: int = 20    # total messages before summarization fires
     memory_overlap: float = 0.15    # fraction of the summarized chunk to keep raw (for continuity)
+    
+    #chunk size and overlap
+    chunk_size: float = 1200
+    chunk_overlap: float = 120
 
     # Database
     mongodb_uri: str = "mongodb://localhost:27017"
@@ -58,6 +62,7 @@ class Settings(BaseSettings):
 
     # Agent runtime
     agent_run_retries: int = 2
+    planner_max_iterations: int = 4
 
     # Temp storage cleanup (chat attachments)
     chat_tmp_ttl_seconds: int = 60 * 60 * 24  # 24h
