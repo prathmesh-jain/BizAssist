@@ -18,6 +18,7 @@ async def patch_ai_settings(body: AISettingsUpdate, user: CurrentUser):
         user.id,
         openai_api_key=body.openai_api_key,
         clear_api_key=body.clear_api_key,
+        guardrail_enabled=body.guardrail_enabled,
         primary_model=body.primary_model,
         fast_model=body.fast_model,
         nano_model=body.nano_model,

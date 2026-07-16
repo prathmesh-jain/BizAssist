@@ -23,6 +23,10 @@ const SUGGESTIONS = [
 function resolveToolDisplay(rawName: string): { label: string; icon: React.ReactNode; verb: string } {
     const n = rawName.toLowerCase();
 
+    if (n.includes('planning'))
+        return { label: 'Planning', icon: <Brain className="w-3.5 h-3.5" />, verb: 'Planning the workflow...' };
+    if (n.includes('execution'))
+        return { label: 'Execution', icon: <Brain className="w-3.5 h-3.5" />, verb: 'Executing the workflow...' };
     if (n.includes('sheet') || n.includes('spreadsheet') || n.includes('google')) {
         if (n.includes('add') || n.includes('write') || n.includes('update') || n.includes('row'))
             return { label: 'Google Sheets', icon: <FileSpreadsheet className="w-3.5 h-3.5" />, verb: 'Editing spreadsheet…' };
@@ -30,6 +34,8 @@ function resolveToolDisplay(rawName: string): { label: string; icon: React.React
             return { label: 'Google Sheets', icon: <FileSpreadsheet className="w-3.5 h-3.5" />, verb: 'Reading spreadsheet…' };
         return { label: 'Google Sheets', icon: <FileSpreadsheet className="w-3.5 h-3.5" />, verb: 'Accessing spreadsheet…' };
     }
+    if (n.includes('search_available_tools'))
+        return { label: 'Tool Search', icon: <Search className="w-3.5 h-3.5" />, verb: 'Searching available tools...' };
     if (n.includes('search') || n.includes('web'))
         return { label: 'Web Search', icon: <Search className="w-3.5 h-3.5" />, verb: 'Searching the web…' };
     if (n.includes('retriev') || n.includes('rag') || n.includes('document') || n.includes('chunk'))
@@ -72,7 +78,13 @@ function ToolPill({ tool }: { tool: { name: string; status: ToolStatus } }) {
 }
 
 /** The thinking / tool activity bar shown below the thinking indicator */
-function AgentActivityBar({ activeTools }: { activeTools: { name: string; status: ToolStatus }[] }) {
+function AgentActivityBar({
+    activeTools,
+    agentStatus,
+}: {
+    activeTools: { name: string; status: ToolStatus }[];
+    agentStatus: { message: string; steps?: string[] } | null;
+}) {
     const hasActive = activeTools.some(t => t.status === 'started');
 
     return (
@@ -89,6 +101,17 @@ function AgentActivityBar({ activeTools }: { activeTools: { name: string; status
                 </span>
             </div>
 
+            {agentStatus && (
+                <div className="bg-card border border-border rounded-2xl px-4 py-3 shadow-sm max-w-xl">
+                    <p className="text-sm font-medium text-foreground">{agentStatus.message}</p>
+                    {agentStatus.steps && agentStatus.steps.length > 0 && (
+                        <p className="text-xs text-muted-foreground mt-2">
+                            {agentStatus.steps.slice(0, 4).join(' • ')}
+                        </p>
+                    )}
+                </div>
+            )}
+
             {/* Tool pills */}
             {activeTools.length > 0 && (
                 <div className="flex flex-wrap gap-2 pl-1 animate-fadeIn">
@@ -103,7 +126,7 @@ function AgentActivityBar({ activeTools }: { activeTools: { name: string; status
 
 export default function ChatWindow({ messages, streamingMessage, activeTools, isLoading }: ChatWindowProps) {
     const scrollRef = React.useRef<HTMLDivElement>(null);
-    const { hasMoreMessages, isLoadingMore, loadMoreMessages, sendMessage } = useChatStore();
+    const { hasMoreMessages, isLoadingMore, loadMoreMessages, sendMessage, agentStatus } = useChatStore();
     const isAutoScrollEnabled = React.useRef(true);
     const prevMessageCount = React.useRef(messages.length);
 
@@ -135,7 +158,7 @@ export default function ChatWindow({ messages, streamingMessage, activeTools, is
         return (
             <div className="flex-1 flex flex-col items-center justify-center p-4 text-center bg-background">
                 <div className="w-16 h-16 bg-primary/10 rounded-3xl flex items-center justify-center mb-8 border border-primary/20 shadow-inner">
-                    <div className="w-10 h-10 bg-primary rounded-2xl animate-pulse shadow-lg shadow-primary/40 flex items-center justify-center text-primary-foreground font-bold text-xl">B</div>
+                    <div className="w-10 h-10 bg-primary rounded-2xl shadow-lg shadow-primary/40 flex items-center justify-center text-primary-foreground font-bold text-xl">B</div>
                 </div>
                 <h2 className="text-2xl font-bold text-foreground mb-3 tracking-tight">How can I help today?</h2>
                 <p className="text-muted-foreground max-w-sm text-sm leading-relaxed">
@@ -207,7 +230,7 @@ export default function ChatWindow({ messages, streamingMessage, activeTools, is
                         <div className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center border bg-primary/10 text-primary border-primary/20">
                             <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 0 2h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1 0-2h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2zm0 7a5 5 0 0 0-5 5v3h10v-3a5 5 0 0 0-5-5zM9 16a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm6 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2z" /></svg>
                         </div>
-                        <AgentActivityBar activeTools={activeTools} />
+                        <AgentActivityBar activeTools={activeTools} agentStatus={agentStatus} />
                     </div>
                 )}
             </div>

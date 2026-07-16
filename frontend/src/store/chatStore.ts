@@ -10,6 +10,7 @@ interface ChatState {
     isLoading: boolean;
     streamingMessage: string;
     activeTools: ToolCall[];
+    agentStatus: { message: string; steps?: string[] } | null;
     hasMoreMessages: boolean;
     isLoadingMore: boolean;
 
@@ -34,12 +35,14 @@ const getApiBase = () => {
 };
 
 interface ChatStreamEvent {
-    type: 'token' | 'interrupt' | 'tool_start' | 'tool_end' | 'source' | 'title_update' | 'error' | 'done';
+    type: 'token' | 'interrupt' | 'tool_start' | 'tool_end' | 'source' | 'title_update' | 'status' | 'error' | 'done';
     content?: string | { 
         question: string; 
         interrupt_type?: 'file_upload' | 'text_input' | 'yes_no_confirmation' | 'accept_decline';
         action_required?: string; 
         data?: any; 
+        message?: string;
+        steps?: string[];
     };
     interrupt_id?: string;
     name?: string;
@@ -118,9 +121,21 @@ async function handleStream(
                     set((state: ChatState) => ({ 
                         messages: [...state.messages, interruptMsg],
                         streamingMessage: '', 
-                        activeTools: [] 
+                        activeTools: [],
+                        agentStatus: null,
                     }));
                     return; 
+
+                } else if (parsed.type === 'status') {
+                    const statusContent = typeof parsed.content === 'object' ? parsed.content : null;
+                    if (statusContent?.message) {
+                        set({
+                            agentStatus: {
+                                message: String(statusContent.message),
+                                steps: Array.isArray(statusContent.steps) ? statusContent.steps.map(String) : undefined,
+                            }
+                        });
+                    }
 
                 } else if (parsed.type === 'tool_start') {
                     const toolName = parsed.name ?? parsed.tool;
@@ -208,10 +223,11 @@ async function handleStream(
         set((state: ChatState) => ({
             messages: [...state.messages, aiMsg],
             streamingMessage: '',
-            activeTools: []
+            activeTools: [],
+            agentStatus: null,
         }));
     }
-    set({ streamingMessage: '', activeTools: [] });
+    set({ streamingMessage: '', activeTools: [], agentStatus: null });
 
     if (finalChatId) {
         try {
@@ -246,6 +262,7 @@ const useChatStore = create<ChatState>((set, get) => ({
     isLoading: false,
     streamingMessage: '',
     activeTools: [],
+    agentStatus: null,
     hasMoreMessages: true,
     isLoadingMore: false,
 
@@ -259,7 +276,7 @@ const useChatStore = create<ChatState>((set, get) => ({
     },
 
     setActiveChat: async (id: string) => {
-        set({ activeChatId: id, messages: [], streamingMessage: '', activeTools: [], hasMoreMessages: true });
+        set({ activeChatId: id, messages: [], streamingMessage: '', activeTools: [], agentStatus: null, hasMoreMessages: true });
         try {
             const authHeader = await getAuthHeader();
             const response = await fetch(`${getApiBase()}/chat/${id}/messages?limit=10`, {
@@ -292,12 +309,20 @@ const useChatStore = create<ChatState>((set, get) => ({
         let { activeChatId } = get();
         if (!activeChatId) activeChatId = await get().createChat('New Chat');
 
-        set({ isLoading: true, streamingMessage: '', activeTools: [] });
+        set({ isLoading: true, streamingMessage: '', activeTools: [], agentStatus: null });
 
         const userMsg: Message = {
             id: Date.now().toString(),
             role: 'user',
             content,
+            attachments: attachments.map((attachment, index) => ({
+                id: `local-${Date.now()}-${index}`,
+                filename: attachment.file.name,
+                content_type: attachment.file.type || 'application/octet-stream',
+                size: attachment.file.size,
+                url: attachment.preview || '',
+                local_url: attachment.preview || '',
+            })),
             created_at: new Date().toISOString()
         };
         set((state) => ({ messages: [...state.messages, userMsg] }));
@@ -390,12 +415,13 @@ const useChatStore = create<ChatState>((set, get) => ({
         } catch (error) {}
     },
 
-    clearStreaming: () => set({ streamingMessage: '', activeTools: [] }),
+    clearStreaming: () => set({ streamingMessage: '', activeTools: [], agentStatus: null }),
 
     resolveInterrupt: async (chatId: string, action: 'accept' | 'reject', data?: any) => {
         set((state: ChatState) => ({ 
             isLoading: true, 
             activeTools: [],
+            agentStatus: null,
             messages: state.messages.filter(m => !m.interrupt)
         }));
         try {
@@ -430,6 +456,7 @@ const useChatStore = create<ChatState>((set, get) => ({
         set((state: ChatState) => ({
             isLoading: true,
             activeTools: [],
+            agentStatus: null,
             messages: state.messages.filter(m => !m.interrupt),
             streamingMessage: '',
         }));

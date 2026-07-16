@@ -9,7 +9,7 @@ class DocumentInDB(BaseModel):
     filename: str
     file_type: str
     chunk_count: int = 0
-    chroma_ids: list[str] = Field(default_factory=list)
+    vector_ids: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 

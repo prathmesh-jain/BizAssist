@@ -37,16 +37,8 @@ def messages_col():
     return get_db()["messages"]
 
 
-def invoices_col():
-    return get_db()["invoices"]
-
-
 def documents_col():
     return get_db()["documents"]
-
-
-def financial_docs_col():
-    return get_db()["financial_docs"]
 
 
 def oauth_tokens_col():

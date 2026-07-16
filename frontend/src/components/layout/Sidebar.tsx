@@ -83,7 +83,7 @@ export default function Sidebar({ isOpen, setIsOpen, currentView, setCurrentView
 
     const menuItems = [
         { id: 'chat', label: 'Chat Assistant', icon: MessageSquare },
-        { id: 'documents', label: 'Documents', icon: FileText },
+        { id: 'documents', label: 'Knowledge Base', icon: FileText },
         { id: 'settings', label: 'Settings', icon: Settings },
     ];
 

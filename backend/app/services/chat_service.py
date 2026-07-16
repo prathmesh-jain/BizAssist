@@ -185,7 +185,10 @@ async def stream_agent_response(
                                 return 
 
                         # Capture Tool Calls & Citations
-                        if node_name == "agent" and isinstance(node_output, dict):
+                        if node_name in ("chat", "planner", "executor") and isinstance(node_output, dict):
+                            progress_event = node_output.get("progress_event")
+                            if isinstance(progress_event, dict):
+                                yield f"data: {json.dumps({'type': 'status', 'content': progress_event})}\n\n"
                             if "messages" in node_output:
                                 for m in node_output["messages"]:
                                     if hasattr(m, "tool_calls") and m.tool_calls:
@@ -197,9 +200,14 @@ async def stream_agent_response(
                                         if citations:
                                             yield f"data: {json.dumps({'type': 'source', 'name': 'RAG Retrieval', 'citations': citations[:6]})}\n\n"
 
+                        if node_name == "tools" and isinstance(node_output, dict):
+                            for m in node_output.get("messages") or []:
+                                if getattr(m, "type", "") == "tool" and getattr(m, "name", None):
+                                    yield f"data: {json.dumps({'type': 'tool_end', 'name': m.name})}\n\n"
+
                 elif chunk_type == "messages":
                     msg, metadata = data
-                    if metadata.get("langgraph_node") in ("agent", "unsafe"):
+                    if metadata.get("langgraph_node") in ("chat", "unsafe"):
                         token = msg.content
                         if token:
                             yielded_any = True
@@ -224,27 +232,20 @@ async def stream_agent_response(
     all_msgs = final_state.values.get("messages") or []
     new_msgs = all_msgs[pre_run_msgs_count:]
 
-    def _is_tool_only_assistant_message(m) -> bool:
-        return (
-            m.type == "ai"
-            and not str(getattr(m, "content", "") or "").strip()
-            and bool(getattr(m, "tool_calls", None))
-        )
-
     if new_msgs:
         for m in new_msgs:
             # Skip persisting the very first human message of a run if it was already persisted
             # in the router before calling this function.
             if not is_resume and m == graph_messages[0]:
                 continue
+            if m.type == "tool":
+                continue
+            if m.type == "ai" and bool(getattr(m, "tool_calls", None)):
+                continue
             if m.type == "ai":
-                if _is_tool_only_assistant_message(m):
-                    continue
                 role = "assistant"
             elif m.type == "human":
                 role = "user"
-            elif m.type == "tool":
-                role = "tool"
             else:
                 role = "system"
 

@@ -1,26 +1,75 @@
-import logging
-from langchain_core.messages import SystemMessage, AIMessage, ToolMessage, HumanMessage
-from app.agents.state import AgentState
-from app.services.llm_service import get_llm
-from app.agents.tooling import build_tools_for_agent
+from langchain_core.messages import AIMessage, BaseMessage, RemoveMessage, SystemMessage, ToolMessage
 
-logger = logging.getLogger(__name__)
+from app.agents.state import AgentState
+from app.agents.tooling import get_chat_local_tools
+from app.services.llm_service import get_llm
+
+
+CHAT_SYSTEM = """
+You are BizAssist, the main chat agent for a business operations assistant.
+
+You are not only for greetings. Solve the user's request directly whenever it can be handled from:
+- the ongoing conversation
+- uploaded chat files
+- simple reasoning grounded in chat-local context
+
+You have chat-local tools for:
+- request_clarification
+- chat attachment inspection
+- list_documents
+- rag_retrieve
+
+Chat attachments are files uploaded in this conversation.
+
+The list_documents tool returns documents from both:
+- chat_upload
+- indexed_document
+
+If the user names a file, you may pass that filename to list_documents to get the top fuzzy matches.
+
+If a result is from chat_upload, you may inspect it with chat attachment tools.
+
+If a result is from indexed_document, you may use rag_retrieve for single-step factual lookup or direct question answering.
+Delegate_to_planner only when the indexed-document task is broader, multi-step, comparative, or requires execution after analysis.
+
+Google Sheets are NOT chat attachments.
+
+If the user refers to:
+- Google Sheets
+- spreadsheets stored externally
+- "my sheet"
+- "my spreadsheet"
+- workbook
+- tabs
+- spreadsheet operations
+
+Then delegate_to_planner.
+
+Rules:
+1. Answer directly when chat-local context is sufficient.
+2. Use tools when chat-local file access or clarification is needed.
+3. Use rag_retrieve for direct knowledge-base lookup questions that can be answered in one pass.
+4. If the task needs broader planning, orchestration, spreadsheet work, or external-system execution, call delegate_to_planner with a concise execution brief.
+5. Do not invent facts not grounded in the conversation or tool results.
+"""
+
+
+FINAL_RESPONSE_SYSTEM = """
+You are BizAssist, preparing the final answer after execution is complete.
+
+Use the execution findings already present in the conversation.
+Provide a concise, grounded final answer for the user.
+If the execution surfaced uncertainty or missing data, say so clearly.
+"""
 
 
 def _clean_message_history(messages: list) -> list:
-    """
-    Ensure the message history is valid for OpenAI.
-    Specifically: an AIMessage with tool_calls must be followed by ToolMessages.
-    If a tool call is missing its response, we remove the tool call from the AIMessage.
-    """
     clean_msgs = []
     for i, msg in enumerate(messages):
         if isinstance(msg, AIMessage) and msg.tool_calls:
-            # Check if all tool calls have a corresponding ToolMessage in the subsequent messages
             valid_tool_calls = []
             for tc in msg.tool_calls:
                 tc_id = tc.get("id")
-                # Look ahead for a ToolMessage with this ID
                 found = False
                 for j in range(i + 1, len(messages)):
                     next_msg = messages[j]
@@ -28,18 +77,14 @@ def _clean_message_history(messages: list) -> list:
                         found = True
                         break
                     if not isinstance(next_msg, ToolMessage):
-                        # Stop looking if we hit a non-tool message
                         break
-                
+
                 if found:
                     valid_tool_calls.append(tc)
-            
-            # If no tool calls are valid, we convert the AIMessage to a plain message or skip tool_calls
+
             if not valid_tool_calls:
-                # Create a new AIMessage without tool_calls
                 clean_msgs.append(AIMessage(content=msg.content))
             else:
-                # Update tool_calls to only include valid ones
                 msg.tool_calls = valid_tool_calls
                 clean_msgs.append(msg)
         else:
@@ -47,70 +92,88 @@ def _clean_message_history(messages: list) -> list:
     return clean_msgs
 
 
-CHAT_SYSTEM = """
-You are BizAssist, an AI business operations assistant.
-Your goal is to help users manage financial data, spreadsheets, and business documents.
+def _recent_tool_exchange_removals(messages: list[BaseMessage]) -> list[RemoveMessage]:
+    removals: list[RemoveMessage] = []
+    index = len(messages) - 1
 
-━━━ CAPABILITIES ━━━
-• Financial Analysis: Analyze spending, trends, and business performance.
-• Spreadsheet Management: Read, write, and update Google Sheets.
-• Document Intelligence: Answer questions based on uploaded PDFs, DOCX, and images.
-• Business Insights: Provide actionable recommendations grounded in user data.
+    while index >= 0 and isinstance(messages[index], ToolMessage):
+        message_id = getattr(messages[index], "id", None)
+        if message_id:
+            removals.append(RemoveMessage(id=message_id))
+        index -= 1
 
-━━━ CORE RULES ━━━
-1. GROUNDING: Use ONLY the data provided via tools (spreadsheets, RAG, attachments). Never fabricate numbers, vendors, or dates.
-2. CONFIRMATION: Ask for confirmation before making significant changes to financial data.
-3. CONCISION: Be practical, confident, and concise. Avoid unnecessary filler.
-4. UNCERTAINTY: If data is missing or a request is ambiguous, ask clarifying questions using 'request_clarification'.
-5. SCOPE: Focus on business and finance. Redirect unrelated technical or general queries.
+    if removals and index >= 0:
+        candidate = messages[index]
+        if isinstance(candidate, AIMessage) and getattr(candidate, "tool_calls", None):
+            message_id = getattr(candidate, "id", None)
+            if message_id:
+                removals.append(RemoveMessage(id=message_id))
 
-━━━ TOOL USAGE ━━━
-• Use 'list_ingested_documents' to see all documents in the RAG knowledge base.
-• Use 'rag_retrieve' to search indexed documents. You can filter by filename if a specific document is requested.
-• Use attachment tools to inspect newly uploaded files in the current chat.
-• Use Google Sheets tools to manage spreadsheet data. Always fetch headers before writing to ensure correct mapping.
-"""
+    return removals
 
 
 async def chat_node(state: AgentState) -> dict:
-    """Main agent node that handles all business operations."""
-    from app.services.google_sheets_service import get_default_spreadsheet_id
-    
-    user_id = state["user_id"]
-    
-    # Optional: inject default spreadsheet info into system prompt for context
-    default_sid = await get_default_spreadsheet_id(user_id)
-    spreadsheet_info = ""
-    if default_sid:
-        spreadsheet_info = f"\n\n[Context] Default Spreadsheet ID: {default_sid}"
-    else:
-        spreadsheet_info = "\n\n[Context] No default spreadsheet connected. Ask user to connect in Settings if needed."
+    messages = _clean_message_history(state.get("messages") or [])
+
+    if state.get("execution_completed"):
+        llm = await get_llm(
+            user_id=state["user_id"],
+            purpose="primary",
+            temperature=0.2,
+            streaming=True,
+        )
+        response = await llm.ainvoke([SystemMessage(content=FINAL_RESPONSE_SYSTEM)] + messages)
+        replacement_messages = [response]
+        if messages:
+            last_message = messages[-1]
+            if isinstance(last_message, AIMessage) and not getattr(last_message, "tool_calls", None):
+                last_id = getattr(last_message, "id", None)
+                if last_id:
+                    replacement_messages = [RemoveMessage(id=last_id), response]
+        return {
+            "messages": replacement_messages,
+            "chat_route": "answer",
+            "execution_brief": "",
+            "execution_plan": "",
+            "execution_steps": [],
+            "execution_query": "",
+            "execution_completed": False,
+            "planner_iterations": 0,
+            "active_agent": "",
+            "active_tool_ids": [],
+        }
 
     llm = await get_llm(
-        user_id=user_id,
+        user_id=state["user_id"],
         purpose="primary",
-        temperature=0.2,
+        temperature=0.1,
         streaming=True,
     )
-    
-    # Build tools for the unified agent
-    tools = build_tools_for_agent(state)
-    llm_with_tools = llm.bind_tools(tools)
+    response = await llm.bind_tools(get_chat_local_tools(state)).ainvoke(
+        [SystemMessage(content=CHAT_SYSTEM)] + messages
+    )
 
-    # Use the main messages list
-    messages = state.get("messages") or []
-    
-    # Clean history to avoid 400 errors from OpenAI
-    messages = _clean_message_history(messages)
-    
-    # Prepend summary if exists
-    summary = state.get("message_summary")
-    system_content = CHAT_SYSTEM + spreadsheet_info
-    if summary:
-        system_content += f"\n\n[Earlier Conversation Summary]\n{summary}"
-        
-    llm_messages = [SystemMessage(content=system_content)] + messages
+    result = {
+        "messages": [response],
+        "chat_route": "answer",
+        "active_agent": "chat" if getattr(response, "tool_calls", None) else "",
+    }
 
-    response = await llm_with_tools.ainvoke(llm_messages)
+    if not getattr(response, "tool_calls", None):
+        replacement_messages = _recent_tool_exchange_removals(messages)
+        if replacement_messages:
+            replacement_messages.append(response)
+            result["messages"] = replacement_messages
+        result.update(
+            {
+                "execution_brief": "",
+                "execution_plan": "",
+                "execution_steps": [],
+                "execution_query": "",
+                "execution_completed": False,
+                "planner_iterations": 0,
+                "active_tool_ids": [],
+            }
+        )
 
-    return {"messages": [response]}
+    return result

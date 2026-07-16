@@ -1,12 +1,17 @@
 import { Terminal, User as UserIcon, Bot } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import DOMPurify from 'dompurify';
+import { Marked } from 'marked';
 import type { Message } from '../../types';
 
 interface MessageBubbleProps {
     message: Message;
     isStreaming?: boolean;
 }
+
+const markdownParser = new Marked({
+    gfm: true,
+    breaks: true,
+});
 
 export default function MessageBubble({ message, isStreaming = false }: MessageBubbleProps) {
     const isAi = message.role === 'assistant';
@@ -25,6 +30,12 @@ export default function MessageBubble({ message, isStreaming = false }: MessageB
     const resolveUrl = (a: any) => {
         return a.local_url || a.url || '';
     };
+
+    const sanitizedHtml = isAi && message.content
+        ? DOMPurify.sanitize(markdownParser.parse(message.content) as string, {
+            USE_PROFILES: { html: true },
+        })
+        : '';
 
     return (
         <div className={`flex w-full ${isToolOnly ? 'mb-3' : 'mb-8'} ${isAi ? 'justify-start' : 'justify-end'}`}>
@@ -97,9 +108,7 @@ export default function MessageBubble({ message, isStreaming = false }: MessageB
                                 prose-th:bg-muted/50 prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:font-bold prose-th:text-foreground
                                 prose-td:px-3 prose-td:py-2 prose-td:border-t prose-td:border-border
                             ">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                    {message.content}
-                                </ReactMarkdown>
+                                <div dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
                             </div>
                         ) : (
                             <div className="whitespace-pre-wrap font-medium">{message.content}</div>

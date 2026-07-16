@@ -1,15 +1,8 @@
-export interface User {
-    id: string;
-    email: string;
-    fullName?: string;
-    clerkId: string;
-    imageUrl?: string;
-}
-
 export interface AISettings {
     provider: 'openai';
     has_api_key: boolean;
     chat_enabled: boolean;
+    guardrail_enabled: boolean;
     primary_model: string;
     fast_model: string;
     nano_model: string;
@@ -22,7 +15,7 @@ export interface Chat {
     updated_at: string;
 }
 
-export interface Attachment {
+interface Attachment {
     id: string;
     filename: string;
     content_type: string;
@@ -39,7 +32,7 @@ export interface ToolCall {
     citations?: string[];
 }
 
-export type InterruptType = 'file_upload' | 'text_input' | 'yes_no_confirmation' | 'accept_decline';
+type InterruptType = 'file_upload' | 'text_input' | 'yes_no_confirmation' | 'accept_decline';
 
 export interface Interrupt {
     id: string;

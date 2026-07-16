@@ -3,6 +3,7 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
+    openai_api_key: str = ""
     # LLM — override any of these in .env to swap models
     primary_model: str = "gpt-4.1-mini"    # chat, analytics, invoice
     fast_model: str = "gpt-4.1-mini"        # title gen, summarization
@@ -12,6 +13,10 @@ class Settings(BaseSettings):
     # Memory sliding-window — override in .env
     memory_window_size: int = 20    # total messages before summarization fires
     memory_overlap: float = 0.15    # fraction of the summarized chunk to keep raw (for continuity)
+    
+    #chunk size and overlap
+    chunk_size: float = 1200
+    chunk_overlap: float = 120
 
     # Database
     mongodb_uri: str = "mongodb://localhost:27017"
@@ -39,7 +44,15 @@ class Settings(BaseSettings):
     google_oauth_token_encryption_key: str = ""
 
     # Vector store
-    chroma_path: str = "./chroma_db"
+    embedding_model: str = "text-embedding-3-small"
+    embedding_vector_size: int = 1536
+    embedding_input_cost_per_1m_tokens: float = 0.02
+    qdrant_url: str = ""
+    qdrant_api_key: str = ""
+    qdrant_port: int = 6333
+    qdrant_documents_collection: str = "business_docs"
+    qdrant_tool_catalog_collection: str = "tool_catalog"
+    retrieval_trace_preview_chars: int = 240
 
     # CORS
     cors_origins: list[str] = ["http://localhost:5173"]
@@ -49,6 +62,7 @@ class Settings(BaseSettings):
 
     # Agent runtime
     agent_run_retries: int = 2
+    planner_max_iterations: int = 4
 
     # Temp storage cleanup (chat attachments)
     chat_tmp_ttl_seconds: int = 60 * 60 * 24  # 24h

@@ -13,6 +13,7 @@ const MODEL_OPTIONS = ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano'];
 export default function SettingsView() {
     const [sheetsStatus, setSheetsStatus] = React.useState<ConnectionStatus | null>(null);
     const [apiKeyInput, setApiKeyInput] = React.useState('');
+    const [guardrailEnabled, setGuardrailEnabled] = React.useState(true);
     const [primaryModel, setPrimaryModel] = React.useState('gpt-4.1');
     const [fastModel, setFastModel] = React.useState('gpt-4.1-mini');
     const [nanoModel, setNanoModel] = React.useState('gpt-4.1-nano');
@@ -35,6 +36,7 @@ export default function SettingsView() {
 
     React.useEffect(() => {
         if (!aiSettings) return;
+        setGuardrailEnabled(aiSettings.guardrail_enabled);
         setPrimaryModel(aiSettings.primary_model);
         setFastModel(aiSettings.fast_model);
         setNanoModel(aiSettings.nano_model);
@@ -100,6 +102,7 @@ export default function SettingsView() {
         try {
             await updateAISettings({
                 ...(apiKeyInput.trim() ? { openai_api_key: apiKeyInput.trim() } : {}),
+                guardrail_enabled: guardrailEnabled,
                 primary_model: primaryModel,
                 fast_model: fastModel,
                 nano_model: nanoModel,
@@ -310,15 +313,35 @@ export default function SettingsView() {
 
                 {/* Guardrails */}
                 <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
-                    <h3 className="text-lg font-bold text-foreground mb-3">Safety Guardrails</h3>
-                    <p className="text-sm text-muted-foreground mb-4">BizAssist is built for business operations. It automatically blocks out-of-scope requests:</p>
-                    <div className="flex gap-5">
-                        {['Code generation', 'SQL queries'].map(item => (
+                    <div className="flex items-start justify-between gap-4 flex-wrap">
+                        <div>
+                            <h3 className="text-lg font-bold text-foreground mb-2">Safety Guardrails</h3>
+                            <p className="text-sm text-muted-foreground">
+                                Control whether BizAssist blocks out-of-scope requests such as code generation and SQL queries.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setGuardrailEnabled(prev => !prev)}
+                            className={`relative inline-flex h-7 w-13 items-center rounded-full transition-colors ${guardrailEnabled ? 'bg-primary' : 'bg-muted border border-border'}`}
+                            aria-pressed={guardrailEnabled}
+                        >
+                            <span
+                                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${guardrailEnabled ? 'translate-x-7' : 'translate-x-1'}`}
+                            />
+                        </button>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-5">
+                        {['Code generation', 'SQL queries', 'Any Out Of Scope queries'].map(item => (
                             <div key={item} className="flex items-center gap-2 text-sm text-muted-foreground">
                                 <XCircle className="w-4 h-4 text-destructive shrink-0" />
                                 <span>{item}</span>
                             </div>
                         ))}
+                    </div>
+                    <div className="mt-4 rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+                        Guardrails are currently <span className="font-semibold text-foreground">{guardrailEnabled ? 'enabled' : 'disabled'}</span> for your account.
+                        Save AI Settings to persist this choice.
                     </div>
                 </div>
             </div>

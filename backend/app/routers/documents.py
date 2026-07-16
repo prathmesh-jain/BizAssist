@@ -60,12 +60,12 @@ async def list_documents(user: CurrentUser):
 
 @router.delete("/{doc_id}")
 async def delete_document(doc_id: str, user: CurrentUser):
-    """Remove a document from MongoDB (and optionally from Chroma)."""
+    """Remove a document from MongoDB and the vector store."""
     from bson import ObjectId
     from app.services.rag_service import delete_document_chunks
     doc = await documents_col().find_one({"_id": ObjectId(doc_id), "user_id": user.id})
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
-    await delete_document_chunks(doc.get("chroma_ids", []))
+    await delete_document_chunks(doc.get("vector_ids") or doc.get("chroma_ids", []))
     await documents_col().delete_one({"_id": ObjectId(doc_id)})
     return {"ok": True}

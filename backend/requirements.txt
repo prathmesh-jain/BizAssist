@@ -20,7 +20,7 @@ langgraph-checkpoint-mongodb
 langchain-text-splitters
 
 # Vector Store
-chromadb
+qdrant-client
 
 # Document parsing
 pypdf
