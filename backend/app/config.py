@@ -10,10 +10,6 @@ class Settings(BaseSettings):
     nano_model: str = "gpt-4.1-nano"        # safety check only (cheapest)
     user_secrets_encryption_key: str = ""
 
-    # Memory sliding-window — override in .env
-    memory_window_size: int = 20    # total messages before summarization fires
-    memory_overlap: float = 0.15    # fraction of the summarized chunk to keep raw (for continuity)
-    
     #chunk size and overlap
     chunk_size: float = 1200
     chunk_overlap: float = 120
