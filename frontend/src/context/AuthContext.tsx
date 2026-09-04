@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const getIdTokenFn = React.useCallback(async () => {
         const u = firebaseAuth.currentUser;
         if (!u) return null;
-        return await u.getIdToken(true);
+        return await u.getIdToken();
     }, []);
 
     const value: AuthContextValue = {
