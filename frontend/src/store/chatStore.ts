@@ -187,9 +187,9 @@ async function handleStream(
                         set({ isLoading: false });
                     }
                     const errorText = parsed.content ? String(parsed.content) : 'Something went wrong.';
-                    set((state: ChatState) => ({ streamingMessage: state.streamingMessage || errorText }));
+                    set((state: ChatState) => ({ streamingMessage: state.streamingMessage || errorText, isLoading: false }));
                     buffer = '';
-                    break;
+                    return; // Return early to prevent server sync from overwriting error
 
                 } else if (parsed.type === 'done') {
                     buffer = '';
@@ -404,6 +404,7 @@ const useChatStore = create<ChatState>((set, get) => ({
                 chats: state.chats.filter(c => c.id !== id),
                 activeChatId: state.activeChatId === id ? null : state.activeChatId,
                 messages: state.activeChatId === id ? [] : state.messages,
+                streamingMessage: state.activeChatId === id ? '' : state.streamingMessage,
             }));
         } catch (error) {}
     },

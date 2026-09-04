@@ -185,7 +185,7 @@ export default function ChatWindow({ messages, streamingMessage, activeTools, is
             onScroll={handleScroll}
             className="flex-1 overflow-y-auto p-4 bg-background scroll-smooth"
         >
-            <div className="max-w-3xl mx-auto w-full pb-10 space-y-1">
+            <div className="max-w-5xl mx-auto w-full pb-10 space-y-1">
                 {/* Load-more indicator */}
                 {isLoadingMore && (
                     <div className="flex justify-center py-4">
@@ -219,7 +219,6 @@ export default function ChatWindow({ messages, streamingMessage, activeTools, is
                             tool_calls: activeTools,
                             created_at: new Date().toISOString()
                         }}
-                        isStreaming
                     />
                 )}
 

@@ -146,12 +146,12 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
     return (
         <div className="p-4 bg-background border-t border-border">
             {warning && (
-                <div className="max-w-3xl mx-auto mb-3 px-4 py-2 rounded-xl border border-destructive/30 bg-destructive/10 text-destructive text-sm font-semibold">
+                <div className="max-w-5xl mx-auto mb-3 px-4 py-2 rounded-xl border border-destructive/30 bg-destructive/10 text-destructive text-sm font-semibold">
                     {warning}
                 </div>
             )}
             {attachments.length > 0 && (
-                <div className="max-w-3xl mx-auto mb-3 flex flex-wrap gap-2">
+                <div className="max-w-5xl mx-auto mb-3 flex flex-wrap gap-2">
                     {attachments.map(att => (
                         <div
                             key={att.id}
@@ -183,7 +183,7 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
                 </div>
             )}
 
-            <div className="max-w-3xl mx-auto relative group">
+            <div className="max-w-5xl mx-auto relative group">
                 <textarea
                     ref={textareaRef}
                     value={text}
@@ -233,11 +233,11 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
                 </div>
             </div>
 
-            <div className="max-w-3xl mx-auto mt-3 flex items-center justify-between text-[11px] text-muted-foreground uppercase font-semibold tracking-tight px-1 opacity-70">
+            <div className="max-w-5xl mx-auto mt-3 flex items-center justify-between text-[11px] text-muted-foreground uppercase font-semibold tracking-tight px-1 opacity-70">
                 <span className="hidden sm:block">Shift + Enter for new line • Ctrl+V to paste images</span>
             </div>
             {!settingsPending && !chatEnabled && (
-                <div className="max-w-3xl mx-auto mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
+                <div className="max-w-5xl mx-auto mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
                     Add your OpenAI API key in `Settings` before using chat.
                 </div>
             )}

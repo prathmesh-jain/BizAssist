@@ -216,15 +216,28 @@ async def stream_agent_response(
 
             break
 
-        except Exception:
+        except Exception as e:
             logger.exception(f"Error in agent stream (attempt {attempt}/{max_attempts})")
             if not yielded_any and attempt < max_attempts:
                 await asyncio.sleep(0.2)
                 continue
             
             if not yielded_any:
-                err_msg = "I'm sorry, something went wrong."
-                yield f"data: {json.dumps({'type': 'token', 'content': err_msg})}\n\n"
+                # Provide specific error messages for common issues
+                error_msg = str(e)
+                error_msg_lower = error_msg.lower()
+                
+                if "invalid_api_key" in error_msg_lower or "incorrect api key" in error_msg_lower or "api key" in error_msg_lower:
+                    err_msg = "Invalid API key. Please check your API key in Settings."
+                elif "authentication" in error_msg_lower or "unauthorized" in error_msg_lower:
+                    err_msg = "Authentication failed. Please check your API key in Settings."
+                elif "rate limit" in error_msg_lower or "quota" in error_msg_lower:
+                    err_msg = "API rate limit exceeded. Please try again later."
+                elif "network" in error_msg_lower or "connection" in error_msg_lower:
+                    err_msg = "Network error. Please check your internet connection."
+                else:
+                    err_msg = "Something went wrong. Please try again."
+                yield f"data: {json.dumps({'type': 'error', 'content': err_msg})}\n\n"
             break
 
     # ── 5. Persist assistant message(s) ─────────────────────────────────────

@@ -13,7 +13,7 @@ const markdownParser = new Marked({
     breaks: true,
 });
 
-export default function MessageBubble({ message, isStreaming = false }: MessageBubbleProps) {
+export default function MessageBubble({ message}: MessageBubbleProps) {
     const isAi = message.role === 'assistant';
     const isToolOnly = isAi && !message.content && !(message.attachments ?? []).length && !!message.tool_calls?.length;
 
@@ -89,7 +89,7 @@ export default function MessageBubble({ message, isStreaming = false }: MessageB
                         </div>
                     )}
 
-                    {message.content && <div className={`px-5 py-3.5 rounded-2xl text-[15px] leading-relaxed shadow-sm border transition-colors
+                    {message.content && <div className={`px-5 py-3.5 rounded-2xl text-[15px] leading-relaxed shadow-sm border transition-colors max-w-2xl break-words
             ${isAi
                             ? 'bg-card text-foreground border-border rounded-tl-none'
                             : 'bg-primary text-primary-foreground border-primary/20 rounded-br-none'}`}>
@@ -112,9 +112,6 @@ export default function MessageBubble({ message, isStreaming = false }: MessageB
                             </div>
                         ) : (
                             <div className="whitespace-pre-wrap font-medium">{message.content}</div>
-                        )}
-                        {isStreaming && (
-                            <span className="inline-block w-2 h-5 ml-1 bg-primary animate-pulse align-middle" />
                         )}
                     </div>}
 
