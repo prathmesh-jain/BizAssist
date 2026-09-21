@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.dependencies import CurrentUser
+from app.db.base import get_db_session
 from app.models.settings import AISettingsPublic, AISettingsUpdate
 from app.services.user_settings_service import get_user_ai_settings, update_user_ai_settings
 
@@ -8,14 +9,15 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 
 @router.get("/ai", response_model=AISettingsPublic)
-async def get_ai_settings(user: CurrentUser):
-    return AISettingsPublic(**(await get_user_ai_settings(user.id)))
+async def get_ai_settings(user: CurrentUser, session = Depends(get_db_session)):
+    return AISettingsPublic(**(await get_user_ai_settings(user.user.id, session)))
 
 
 @router.patch("/ai", response_model=AISettingsPublic)
-async def patch_ai_settings(body: AISettingsUpdate, user: CurrentUser):
+async def patch_ai_settings(body: AISettingsUpdate, user: CurrentUser, session = Depends(get_db_session)):
     updated = await update_user_ai_settings(
-        user.id,
+        user.user.id,
+        session,
         openai_api_key=body.openai_api_key,
         clear_api_key=body.clear_api_key,
         guardrail_enabled=body.guardrail_enabled,

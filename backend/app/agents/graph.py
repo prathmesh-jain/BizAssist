@@ -1,9 +1,8 @@
 import logging
 from functools import lru_cache
 
-from langgraph.checkpoint.mongodb import MongoDBSaver
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import END, StateGraph
-from pymongo import MongoClient
 
 from app.agents.chat_agent import chat_node
 from app.agents.executor_agent import executor_node
@@ -50,7 +49,7 @@ def route_from_tools(state: AgentState) -> str:
 
 @lru_cache(maxsize=1)
 def get_compiled_graph():
-    """Build and compile the LangGraph agent graph."""
+    """Build and compile the LangGraph agent graph with PostgreSQL checkpointing."""
     graph = StateGraph(AgentState)
 
     graph.add_node("summarize", summarization_node)
@@ -113,8 +112,8 @@ def get_compiled_graph():
         },
     )
 
-    client = MongoClient(settings.mongodb_uri)
-    checkpointer = MongoDBSaver(client, db_name=settings.db_name)
+    # Use PostgreSQL checkpointer
+    checkpointer = AsyncPostgresSaver.from_conn_string(settings.database_url)
     compiled = graph.compile(checkpointer=checkpointer)
-    logger.info("LangGraph agent graph compiled successfully")
+    logger.info("LangGraph agent graph compiled successfully with PostgreSQL checkpointing")
     return compiled

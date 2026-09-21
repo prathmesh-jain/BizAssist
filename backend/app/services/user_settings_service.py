@@ -2,10 +2,11 @@ import logging
 from typing import Literal
 
 from cryptography.fernet import Fernet
-from bson import ObjectId
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.database import users_col
+from app.db.base import get_db_session
+from app.repositories import SettingsRepository
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -38,27 +39,36 @@ def _default_models() -> dict[str, str]:
     }
 
 
-async def get_user_ai_settings(user_id: str) -> dict:
-    doc = await users_col().find_one(
-        {"_id": ObjectId(user_id)},
-        projection={"ai_settings": 1},
-    )
-    ai = (doc or {}).get("ai_settings") or {}
+async def get_user_ai_settings(user_id: str, session: AsyncSession) -> dict:
+    """Get user AI settings from PostgreSQL."""
+    ai_settings = await SettingsRepository.get_by_user_id(session, user_id)
     defaults = _default_models()
-    encrypted_key = ai.get("openai_api_key_encrypted")
+
+    if not ai_settings:
+        return {
+            "provider": "openai",
+            "has_api_key": False,
+            "chat_enabled": False,
+            "guardrail_enabled": settings.use_guardrail,
+            "primary_model": defaults["primary_model"].strip(),
+            "fast_model": defaults["fast_model"].strip(),
+            "nano_model": defaults["nano_model"].strip(),
+        }
+
     return {
-        "provider": "openai",
-        "has_api_key": bool(encrypted_key),
-        "chat_enabled": bool(encrypted_key),
-        "guardrail_enabled": bool(ai.get("guardrail_enabled", settings.use_guardrail)),
-        "primary_model": (ai.get("primary_model") or defaults["primary_model"]).strip(),
-        "fast_model": (ai.get("fast_model") or defaults["fast_model"]).strip(),
-        "nano_model": (ai.get("nano_model") or defaults["nano_model"]).strip(),
+        "provider": ai_settings.provider,
+        "has_api_key": bool(ai_settings.openai_api_key_encrypted),
+        "chat_enabled": bool(ai_settings.openai_api_key_encrypted),
+        "guardrail_enabled": ai_settings.guardrail_enabled,
+        "primary_model": (ai_settings.primary_model or defaults["primary_model"]).strip(),
+        "fast_model": (ai_settings.fast_model or defaults["fast_model"]).strip(),
+        "nano_model": (ai_settings.nano_model or defaults["nano_model"]).strip(),
     }
 
 
 async def update_user_ai_settings(
     user_id: str,
+    session: AsyncSession,
     *,
     openai_api_key: str | None = None,
     clear_api_key: bool = False,
@@ -67,62 +77,47 @@ async def update_user_ai_settings(
     fast_model: str | None = None,
     nano_model: str | None = None,
 ) -> dict:
-    updates: dict[str, str] = {}
-    unsets: dict[str, str] = {}
-
+    """Update user AI settings in PostgreSQL."""
     if clear_api_key:
-        unsets["ai_settings.openai_api_key_encrypted"] = ""
+        await SettingsRepository.clear_api_key(session, user_id)
 
     if openai_api_key is not None:
         token = openai_api_key.strip()
         if token:
-            updates["ai_settings.openai_api_key_encrypted"] = _fernet().encrypt(
-                token.encode("utf-8")
-            ).decode("utf-8")
+            encrypted = _fernet().encrypt(token.encode("utf-8")).decode("utf-8")
+            await SettingsRepository.update_api_key(session, user_id, encrypted)
 
-    if guardrail_enabled is not None:
-        updates["ai_settings.guardrail_enabled"] = bool(guardrail_enabled)
+    if any(v is not None for v in (guardrail_enabled, primary_model, fast_model, nano_model)):
+        await SettingsRepository.update_models(
+            session,
+            user_id,
+            primary_model=primary_model,
+            fast_model=fast_model,
+            nano_model=nano_model,
+            guardrail_enabled=guardrail_enabled,
+        )
 
-    for key, value in (
-        ("ai_settings.primary_model", primary_model),
-        ("ai_settings.fast_model", fast_model),
-        ("ai_settings.nano_model", nano_model),
-    ):
-        if value is not None:
-            cleaned = value.strip()
-            if cleaned:
-                updates[key] = cleaned
-
-    update_doc: dict[str, dict] = {}
-    if updates:
-        update_doc["$set"] = updates
-    if unsets:
-        update_doc["$unset"] = unsets
-
-    if update_doc:
-        await users_col().update_one({"_id": ObjectId(user_id)}, update_doc)
-
-    return await get_user_ai_settings(user_id)
+    return await get_user_ai_settings(user_id, session)
 
 
-async def get_user_openai_api_key(user_id: str) -> str:
-    doc = await users_col().find_one(
-        {"_id": ObjectId(user_id)},
-        projection={"ai_settings.openai_api_key_encrypted": 1},
-    )
-    encrypted = ((doc or {}).get("ai_settings") or {}).get("openai_api_key_encrypted")
-    if not encrypted:
+async def get_user_openai_api_key(user_id: str, session: AsyncSession) -> str:
+    """Get and decrypt user's OpenAI API key."""
+    ai_settings = await SettingsRepository.get_by_user_id(session, user_id)
+    if not ai_settings or not ai_settings.openai_api_key_encrypted:
         return ""
 
     try:
-        return _fernet().decrypt(encrypted.encode("utf-8")).decode("utf-8")
+        return _fernet().decrypt(
+            ai_settings.openai_api_key_encrypted.encode("utf-8")
+        ).decode("utf-8")
     except Exception as exc:
         logger.exception("Failed to decrypt user OpenAI API key")
         raise UserSettingsError("Stored OpenAI API key could not be decrypted.") from exc
 
 
-async def require_user_openai_api_key(user_id: str) -> str:
-    api_key = await get_user_openai_api_key(user_id)
+async def require_user_openai_api_key(user_id: str, session: AsyncSession) -> str:
+    """Require user to have an OpenAI API key configured."""
+    api_key = await get_user_openai_api_key(user_id, session)
     if api_key:
         return api_key
     raise UserSettingsError(
@@ -130,8 +125,9 @@ async def require_user_openai_api_key(user_id: str) -> str:
     )
 
 
-async def get_user_model_for_purpose(user_id: str, purpose: LLMPurpose) -> str:
-    ai_settings = await get_user_ai_settings(user_id)
+async def get_user_model_for_purpose(user_id: str, purpose: LLMPurpose, session: AsyncSession) -> str:
+    """Get the appropriate model for a given purpose."""
+    ai_settings = await get_user_ai_settings(user_id, session)
     if purpose == "fast":
         return ai_settings["fast_model"]
     if purpose == "nano":

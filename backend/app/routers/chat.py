@@ -1,16 +1,16 @@
 import logging
 from pathlib import Path
 from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse, FileResponse
-from bson import ObjectId
 from pydantic import BaseModel
 from typing import Literal,Optional,Any
 from app.dependencies import CurrentUser
-from app.database import chats_col, messages_col
+from app.db.base import get_db_session
 from app.models.chat import ChatCreate, ChatPublic
 from app.models.message import MessagePublic
+from app.repositories import ChatRepository, MessageRepository
 from app.services.chat_service import (
     build_attachment_event_text,
     extract_text_from_image_bytes,
@@ -63,9 +63,9 @@ def _extract_text_from_pdf_bytes(raw: bytes) -> str:
         return ""
 
 
-async def _ensure_chat_enabled(user_id: str) -> None:
+async def _ensure_chat_enabled(user_id: str, session) -> None:
     try:
-        await require_user_openai_api_key(user_id)
+        await require_user_openai_api_key(user_id, session)
     except UserSettingsError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -75,6 +75,7 @@ async def _store_chat_attachments(
     chat_id: str,
     user_id: str,
     files: list[UploadFile],
+    session,
 ) -> list[dict]:
     attachments: list[dict] = []
     tmp_dir = _chat_tmp_dir(chat_id)
@@ -114,7 +115,7 @@ async def _store_chat_attachments(
             except Exception:
                 extracted_text = ""
         else:
-            extracted_text = await extract_text_from_image_bytes(raw, original_content_type, user_id)
+            extracted_text = await extract_text_from_image_bytes(raw, original_content_type, user_id, session)
 
         stored_name = f"{att_id}.txt"
         path = tmp_dir / stored_name
@@ -154,50 +155,32 @@ async def _persist_user_message(
     user_id: str,
     content: str,
     attachments: list[dict] | None = None,
+    session,
 ) -> datetime:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     stored_content = content.strip()
     if not stored_content and attachments:
         stored_content = build_attachment_event_text(attachments)
 
-    await messages_col().insert_one({
-        "chat_id": chat_id,
-        "user_id": user_id,
-        "role": "user",
-        "content": stored_content,
-        "tool_calls": None,
-        "attachments": [
-            {
-                k: a[k]
-                for k in (
-                    "id",
-                    "filename",
-                    "content_type",
-                    "size",
-                    "url",
-                    "stored_path",
-                    "original_content_type",
-                )
-                if k in a
-            }
-            for a in (attachments or [])
-        ] or None,
-        "created_at": now,
-    })
-
-    await chats_col().update_one(
-        {"_id": ObjectId(chat_id)},
-        {"$set": {"updated_at": now}},
+    await MessageRepository.create(
+        session,
+        chat_id=chat_id,
+        user_id=user_id,
+        role="user",
+        content=stored_content,
+        attachments=attachments,
     )
+
+    await ChatRepository.update_timestamp(session, chat_id)
     return now
 
 
-def _chat_doc_to_public(doc: dict) -> dict:
+def _chat_doc_to_public(chat) -> dict:
     return {
-        "id": str(doc["_id"]),
-        "title": doc.get("title", "New Chat"),
-        "created_at": doc["created_at"],
-        "updated_at": doc["updated_at"],
+        "id": chat.id,
+        "title": chat.title,
+        "created_at": chat.created_at,
+        "updated_at": chat.updated_at,
     }
 
 
@@ -225,29 +208,21 @@ def _should_expose_message(m: dict) -> bool:
 
 
 @router.post("", response_model=ChatPublic)
-async def create_chat(data: ChatCreate, user: CurrentUser):
+async def create_chat(data: ChatCreate, user: CurrentUser, session = Depends(get_db_session)):
     """Create a new chat session."""
-    now = datetime.utcnow()
-    doc = {
-        "user_id": user.id,
-        "title": data.title or "New Chat",
-        "created_at": now,
-        "updated_at": now,
-        "is_deleted": False,
-    }
-    result = await chats_col().insert_one(doc)
-    doc["_id"] = result.inserted_id
-    return ChatPublic(**_chat_doc_to_public(doc))
+    chat = await ChatRepository.create(
+        session,
+        organization_id=user.organization.id,
+        created_by_user_id=user.user.id,
+        title=data.title or "New Chat",
+    )
+    return ChatPublic(**_chat_doc_to_public(chat))
 
 
 @router.get("", response_model=list[ChatPublic])
-async def list_chats(user: CurrentUser):
-    """List all chats for the current user."""
-    cursor = chats_col().find(
-        {"user_id": user.id},
-        sort=[("updated_at", -1)],
-    )
-    chats = await cursor.to_list(length=100)
+async def list_chats(user: CurrentUser, session = Depends(get_db_session)):
+    """List all chats for the current user's organization."""
+    chats = await ChatRepository.list_by_organization(session, user.organization.id)
     return [ChatPublic(**_chat_doc_to_public(c)) for c in chats]
 
 
@@ -257,6 +232,7 @@ async def get_messages(
     user: CurrentUser,
     limit: int = 10,
     before: str | None = None,
+    session = Depends(get_db_session),
 ):
     """
     Retrieve messages in a chat session with pagination.
@@ -264,50 +240,34 @@ async def get_messages(
     - before: message ID to fetch messages before (for infinite scroll)
     Returns: {"messages": [...], "has_more": bool}
     """
-    chat = await chats_col().find_one({"_id": ObjectId(chat_id), "user_id": user.id})
+    chat = await ChatRepository.get_by_id(session, chat_id, user.organization.id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 
-    query = {"chat_id": chat_id}
-    
-    # If 'before' is provided, fetch older messages
-    if before:
-        try:
-            before_msg = await messages_col().find_one({"_id": ObjectId(before)})
-            if before_msg:
-                query["created_at"] = {"$lt": before_msg["created_at"]}
-        except Exception:
-            pass
-
-    cursor = messages_col().find(
-        query,
-        sort=[("created_at", -1)],  # newest first for pagination
-        limit=limit + 1,  # fetch one extra to check if there are more
-    )
-    msgs = await cursor.to_list(length=limit + 1)
+    messages = await MessageRepository.list_by_chat(session, chat_id, limit, before)
 
     # Check if there are more messages
-    has_more = len(msgs) > limit
+    has_more = len(messages) > limit
     if has_more:
-        msgs = msgs[:limit]  # remove the extra one
+        messages = messages[:limit]  # remove the extra one
 
     # Reverse to return oldest first for the UI
-    msgs = list(reversed(msgs))
+    messages = list(reversed(messages))
 
     # Filter: Only send 'pending' interrupts to the frontend
     # If a message has an 'interrupt' field that is no longer pending, we skip it
     return {
         "messages": [
             MessagePublic(
-                id=str(m["_id"]),
-                role=m["role"],
-                content=m["content"],
-                tool_calls=m.get("tool_calls"),
-                attachments=m.get("attachments"),
-                interrupt=m.get("interrupt"),
-                created_at=m["created_at"],
+                id=m.id,
+                role=m.role,
+                content=m.content,
+                tool_calls=m.tool_calls,
+                attachments=m.attachments,
+                interrupt=m.interrupt,
+                created_at=m.created_at,
             )
-            for m in msgs
+            for m in messages
             if _should_expose_message(m)
         ],
         "has_more": has_more,
@@ -315,7 +275,7 @@ async def get_messages(
 
 
 @router.post("/{chat_id}/message")
-async def send_message(chat_id: str, body: dict, user: CurrentUser):
+async def send_message(chat_id: str, body: dict, user: CurrentUser, session = Depends(get_db_session)):
     """
     Send a user message and stream back the AI response via SSE.
     Body: {"content": "..."}
@@ -324,15 +284,17 @@ async def send_message(chat_id: str, body: dict, user: CurrentUser):
     if not content:
         raise HTTPException(status_code=400, detail="Message content is required")
 
-    chat = await chats_col().find_one({"_id": ObjectId(chat_id), "user_id": user.id})
+    chat = await ChatRepository.get_by_id(session, chat_id, user.organization.id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 
-    await _ensure_chat_enabled(user.id)
-    await _persist_user_message(chat_id=chat_id, user_id=user.id, content=content)
+    await _ensure_chat_enabled(user.user.id, session)
+    await _persist_user_message(chat_id=chat_id, user_id=user.user.id, content=content, session=session)
 
     return StreamingResponse(
-        stream_agent_response(content, chat_id, user.id),
+        stream_agent_response(
+            content, chat_id, user.user.id, user.organization.id, session
+        ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -344,31 +306,35 @@ async def send_message_with_files(
     user: CurrentUser,
     content: str = Form(""),
     files: list[UploadFile] = File(default=[]),
+    session = Depends(get_db_session),
 ):
     """Send a user message with file attachments (multipart/form-data) and stream back the AI response via SSE."""
     content = (content or "").strip()
     if not content and not files:
         raise HTTPException(status_code=400, detail="Message content or files are required")
 
-    chat = await chats_col().find_one({"_id": ObjectId(chat_id), "user_id": user.id})
+    chat = await ChatRepository.get_by_id(session, chat_id, user.organization.id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 
-    await _ensure_chat_enabled(user.id)
-    attachments = await _store_chat_attachments(chat_id=chat_id, user_id=user.id, files=files)
+    await _ensure_chat_enabled(user.user.id, session)
+    attachments = await _store_chat_attachments(chat_id=chat_id, user_id=user.user.id, files=files, session=session)
     upload_note = build_attachment_event_text(attachments) if attachments else ""
     await _persist_user_message(
         chat_id=chat_id,
-        user_id=user.id,
+        user_id=user.user.id,
         content=content,
         attachments=attachments,
+        session=session,
     )
 
     return StreamingResponse(
         stream_agent_response(
             content,
             chat_id,
-            user.id,
+            user.user.id,
+            user.organization.id,
+            session,
             user_message_context=upload_note if attachments else None,
         ),
         media_type="text/event-stream",
@@ -377,23 +343,24 @@ async def send_message_with_files(
 
 
 @router.get("/{chat_id}/attachments/{attachment_id}")
-async def get_chat_attachment(chat_id: str, attachment_id: str, user: CurrentUser):
+async def get_chat_attachment(chat_id: str, attachment_id: str, user: CurrentUser, session = Depends(get_db_session)):
     """Serve an uploaded attachment for preview/download."""
-    chat = await chats_col().find_one({"_id": ObjectId(chat_id), "user_id": user.id})
+    chat = await ChatRepository.get_by_id(session, chat_id, user.organization.id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 
     # Find attachment metadata from messages
-    doc = await messages_col().find_one(
-        {
-            "chat_id": chat_id,
-            "user_id": user.id,
-            "attachments.id": attachment_id,
-        },
-        projection={"attachments": 1},
-    )
-    atts = (doc or {}).get("attachments") or []
-    att = next((a for a in atts if a.get("id") == attachment_id), None)
+    messages = await MessageRepository.list_by_chat(session, chat_id, limit=1000)
+    att = None
+    for msg in messages:
+        if msg.attachments:
+            for a in msg.attachments:
+                if a.get("id") == attachment_id:
+                    att = a
+                    break
+        if att:
+            break
+
     if not att:
         raise HTTPException(status_code=404, detail="Attachment not found")
 
@@ -415,15 +382,15 @@ async def get_chat_attachment(chat_id: str, attachment_id: str, user: CurrentUse
 
 
 @router.delete("/{chat_id}")
-async def delete_chat(chat_id: str, user: CurrentUser):
+async def delete_chat(chat_id: str, user: CurrentUser, session = Depends(get_db_session)):
     """Hard-delete a chat session."""
-    result = await chats_col().delete_one({"_id": ObjectId(chat_id), "user_id": user.id})
-    if result.deleted_count == 0:
+    success = await ChatRepository.hard_delete(session, chat_id, user.organization.id)
+    if not success:
         raise HTTPException(status_code=404, detail="Chat not found")
 
     # Also delete all messages belonging to this chat.
     try:
-        await messages_col().delete_many({"chat_id": chat_id, "user_id": user.id})
+        await MessageRepository.delete_by_chat(session, chat_id)
     except Exception:
         logger.exception("Failed to delete messages for chat_id=%s", chat_id)
 
@@ -443,75 +410,59 @@ class ResolveInterruptRequest(BaseModel):
     data: Optional[Any] = None
 
 @router.patch("/{chat_id}")
-async def rename_chat(chat_id: str, body: RenameChatRequest, user: CurrentUser):
+async def rename_chat(chat_id: str, body: RenameChatRequest, user: CurrentUser, session = Depends(get_db_session)):
     """Rename a chat session."""
     new_title = body.title.strip()
     if not new_title:
         raise HTTPException(status_code=400, detail="Title is required")
-    
-    result = await chats_col().update_one(
-        {"_id": ObjectId(chat_id), "user_id": user.id},
-        {"$set": {"title": new_title, "updated_at": datetime.utcnow()}},
-    )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Chat not found")
-    
-    chat = await chats_col().find_one({"_id": ObjectId(chat_id)})
+
+    chat = await ChatRepository.update_title(session, chat_id, user.organization.id, new_title)
     if not chat:
-        raise HTTPException(status_code=404, detail="Chat found but could not be retrieved")
+        raise HTTPException(status_code=404, detail="Chat not found")
+
     return ChatPublic(**_chat_doc_to_public(chat))
 
 @router.post("/{chat_id}/interrupt-resolve")
-async def resolve_chat_interrupt(chat_id: str, body: ResolveInterruptRequest, user: CurrentUser):
+async def resolve_chat_interrupt(chat_id: str, body: ResolveInterruptRequest, user: CurrentUser, session = Depends(get_db_session)):
     """
     Resolve a pending interrupt and resume the graph.
     """
     action = body.action
     data = body.data
-    
-    chat = await chats_col().find_one({"_id": ObjectId(chat_id), "user_id": user.id})
+
+    chat = await ChatRepository.get_by_id(session, chat_id, user.organization.id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 
-    await _ensure_chat_enabled(user.id)
-    
+    await _ensure_chat_enabled(user.user.id, session)
+
     # Mark any pending interrupt as resolved instead of deleting (Audit Log)
-    update_result = await messages_col().update_many(
-        {
-            "chat_id": chat_id,
-            "interrupt.is_pending": True
-        },
-        {
-            "$set": {
-                "interrupt.is_pending": False,
-                "interrupt.resolution": action,
-                "interrupt.resolved_at": datetime.utcnow()
-            }
-        }
-    )
-    logger.info(f"Marked {update_result.modified_count} interrupts as resolved (action: {action}) for chat {chat_id}")
+    await MessageRepository.mark_interrupts_resolved(session, chat_id, action)
+    logger.info(f"Marked interrupts as resolved (action: {action}) for chat {chat_id}")
 
     if action == "reject":
-        now = datetime.utcnow()
-        await messages_col().insert_one({
-            "chat_id": chat_id,
-            "user_id": user.id,
-            "role": "user",
-            "content": f"[User rejected the action]: {data}",
-            "created_at": now,
-        })
+        now = datetime.now(timezone.utc)
+        await MessageRepository.create(
+            session,
+            chat_id=chat_id,
+            user_id=user.user.id,
+            role="user",
+            content=f"[User rejected the action]: {data}",
+        )
         resume_value = False
     else:
         if isinstance(data, str) and data.strip():
-            await _persist_user_message(chat_id=chat_id, user_id=user.id, content=data.strip())
+            await _persist_user_message(chat_id=chat_id, user_id=user.user.id, content=data.strip(), session=session)
         resume_value = data if data is not None else True
 
     return StreamingResponse(
         stream_agent_response(
-            None, 
-            chat_id, 
-            user.id, 
-            is_resume=True, 
+            None,
+            chat_id,
+            user.user.id,
+            user.organization.id,
+            session,
+            is_resume=True,
             resume_value=resume_value
         ),
         media_type="text/event-stream",
@@ -525,41 +476,31 @@ async def resolve_chat_interrupt_with_files(
     user: CurrentUser,
     content: str = Form(""),
     files: list[UploadFile] = File(default=[]),
+    session = Depends(get_db_session),
 ):
     """Resolve a pending file-upload interrupt and resume the graph from the same checkpoint."""
     content = (content or "").strip()
     if not files:
         raise HTTPException(status_code=400, detail="At least one file is required")
 
-    chat = await chats_col().find_one({"_id": ObjectId(chat_id), "user_id": user.id})
+    chat = await ChatRepository.get_by_id(session, chat_id, user.organization.id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 
-    await _ensure_chat_enabled(user.id)
+    await _ensure_chat_enabled(user.user.id, session)
 
-    update_result = await messages_col().update_many(
-        {
-            "chat_id": chat_id,
-            "interrupt.is_pending": True
-        },
-        {
-            "$set": {
-                "interrupt.is_pending": False,
-                "interrupt.resolution": "accept",
-                "interrupt.resolved_at": datetime.utcnow()
-            }
-        }
-    )
-    logger.info("Marked %s interrupts as resolved via file upload for chat %s", update_result.modified_count, chat_id)
+    await MessageRepository.mark_interrupts_resolved(session, chat_id, "accept")
+    logger.info("Marked interrupts as resolved via file upload for chat %s", chat_id)
 
-    attachments = await _store_chat_attachments(chat_id=chat_id, user_id=user.id, files=files)
+    attachments = await _store_chat_attachments(chat_id=chat_id, user_id=user.user.id, files=files, session=session)
     upload_note = build_attachment_event_text(attachments)
     stored_content = content or upload_note
     await _persist_user_message(
         chat_id=chat_id,
-        user_id=user.id,
+        user_id=user.user.id,
         content=stored_content,
         attachments=attachments,
+        session=session,
     )
 
     resume_value = {
@@ -579,7 +520,9 @@ async def resolve_chat_interrupt_with_files(
         stream_agent_response(
             None,
             chat_id,
-            user.id,
+            user.user.id,
+            user.organization.id,
+            session,
             is_resume=True,
             resume_value=resume_value,
         ),

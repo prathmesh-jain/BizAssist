@@ -3,23 +3,25 @@ import logging
 import asyncio
 import base64
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import AsyncGenerator
-from bson import ObjectId
 from langgraph.types import Command
-from app.database import chats_col, messages_col
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.config import get_settings
+from app.repositories import ChatRepository, MessageRepository
+from app.db.base import get_db_session
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
-async def _extract_image_sample(file_bytes: bytes, content_type: str, user_id: str) -> str:
+async def _extract_image_sample(file_bytes: bytes, content_type: str, user_id: str, session: AsyncSession) -> str:
     from langchain_core.messages import SystemMessage, HumanMessage
     from app.services.llm_service import get_llm
 
     b64 = base64.b64encode(file_bytes).decode("utf-8")
-    llm = await get_llm(user_id=user_id, purpose="primary", temperature=0)
+    llm = await get_llm(user_id=user_id, purpose="primary", temperature=0, session=session)
     prompt = (
         "You are given an image uploaded by a user. "
         "Extract all visible text from the image in structured format "
@@ -50,6 +52,7 @@ async def extract_text_from_image_bytes(
     file_bytes: bytes,
     content_type: str,
     user_id: str,
+    session: AsyncSession,
 ) -> str:
     """Extract plain text from an uploaded image using an LLM.
 
@@ -62,7 +65,7 @@ async def extract_text_from_image_bytes(
     if not ctype.startswith("image/"):
         return ""
     try:
-        return await _extract_image_sample(file_bytes, ctype, user_id)
+        return await _extract_image_sample(file_bytes, ctype, user_id, session)
     except Exception:
         logger.exception("Failed to extract text from image bytes")
         return ""
@@ -79,11 +82,11 @@ def build_attachment_event_text(attachments: list[dict]) -> str:
     return "User uploaded file(s): " + ", ".join(names[:5])
 
 
-async def generate_chat_title(first_message: str, user_id: str) -> str:
+async def generate_chat_title(first_message: str, user_id: str, session: AsyncSession) -> str:
     """Generate a short title from the first user message."""
     from app.services.llm_service import get_llm
 
-    llm = await get_llm(user_id=user_id, purpose="fast", temperature=0)
+    llm = await get_llm(user_id=user_id, purpose="fast", temperature=0, session=session)
     response = await llm.ainvoke([
         {"role": "system", "content": (
             "Generate a short, descriptive title (3–5 words) for a business conversation "
@@ -98,6 +101,8 @@ async def stream_agent_response(
     user_message: str | None,
     chat_id: str,
     user_id: str,
+    organization_id: str,
+    session: AsyncSession,
     user_message_context: str | None = None,
     is_resume: bool = False,
     resume_value: str | bool | dict | None = None,
@@ -119,29 +124,31 @@ async def stream_agent_response(
         "messages": graph_messages,
         "user_id": user_id,
         "chat_id": chat_id,
+        "organization_id": organization_id,
     }
 
     full_response = ""
     yielded_any = False
-    
-    thread_id = f"{user_id}_{chat_id}"
+
+    # Organization-aware thread ID
+    thread_id = f"{organization_id}_{chat_id}"
     config = {"configurable": {"thread_id": thread_id}}
-    
+
     # Get current state before run to calculate new messages later
     pre_run_state = await graph.aget_state(config)
     pre_run_msgs_count = len(pre_run_state.values.get("messages") or [])
-    
+
     # Use Command(resume=...) if resuming, otherwise use initial_state
     input_data = initial_state if not is_resume else Command(resume=resume_value)
 
     max_attempts = 1 if is_resume else max(int(getattr(settings, "agent_run_retries", 2) or 2), 1)
-    
+
     for attempt in range(1, max_attempts + 1):
         try:
             async for part in graph.astream(
-                input_data, 
-                config=config, 
-                stream_mode=["messages", "updates"], 
+                input_data,
+                config=config,
+                stream_mode=["messages", "updates"],
                 version="v2"
             ):
                 chunk_type = part["type"]
@@ -163,26 +170,23 @@ async def stream_agent_response(
                                     "data": val.get("data") if is_dict else None,
                                     "is_pending": True
                                 }
-                                
+
                                 # Persist to DB
                                 try:
-                                    await messages_col().update_many(
-                                        {"chat_id": chat_id, "interrupt.is_pending": True},
-                                        {"$set": {"interrupt.is_pending": False, "interrupt.resolution": "stale"}}
+                                    await MessageRepository.mark_interrupts_resolved(session, chat_id, "stale")
+                                    await MessageRepository.create(
+                                        session,
+                                        chat_id=chat_id,
+                                        user_id=user_id,
+                                        role="assistant",
+                                        content="",
+                                        interrupt=interrupt_payload,
                                     )
-                                    await messages_col().insert_one({
-                                        "chat_id": chat_id,
-                                        "user_id": user_id,
-                                        "role": "assistant",
-                                        "content": "",
-                                        "interrupt": interrupt_payload,
-                                        "created_at": datetime.utcnow(),
-                                    })
                                 except Exception:
                                     logger.exception("Failed to persist interrupt")
 
                                 yield f"data: {json.dumps({'type': 'interrupt', 'interrupt_id': interrupt_obj.id, 'content': interrupt_payload})}\n\n"
-                                return 
+                                return
 
                         # Capture Tool Calls & Citations
                         if node_name in ("chat", "planner", "executor") and isinstance(node_output, dict):
@@ -194,7 +198,7 @@ async def stream_agent_response(
                                     if hasattr(m, "tool_calls") and m.tool_calls:
                                         for tc in m.tool_calls:
                                             yield f"data: {json.dumps({'type': 'tool_start', 'name': tc['name']})}\n\n"
-                                    
+
                                     if hasattr(m, "content") and m.content:
                                         citations = list(dict.fromkeys(re.findall(r"\[Source:\s*([^\]]+)\]", str(m.content))))
                                         if citations:
@@ -221,12 +225,12 @@ async def stream_agent_response(
             if not yielded_any and attempt < max_attempts:
                 await asyncio.sleep(0.2)
                 continue
-            
+
             if not yielded_any:
                 # Provide specific error messages for common issues
                 error_msg = str(e)
                 error_msg_lower = error_msg.lower()
-                
+
                 if "invalid_api_key" in error_msg_lower or "incorrect api key" in error_msg_lower or "api key" in error_msg_lower:
                     err_msg = "Invalid API key. Please check your API key in Settings."
                 elif "authentication" in error_msg_lower or "unauthorized" in error_msg_lower:
@@ -264,20 +268,21 @@ async def stream_agent_response(
 
             m_tool_calls = [{"name": tc["name"]} for tc in m.tool_calls] if hasattr(m, "tool_calls") and m.tool_calls else None
 
-            await messages_col().insert_one({
-                "chat_id": chat_id,
-                "user_id": user_id,
-                "role": role,
-                "content": m.content,
-                "tool_calls": m_tool_calls,
-                "tool_call_id": getattr(m, "tool_call_id", None),
-                "created_at": datetime.utcnow(),
-            })
+            await MessageRepository.create(
+                session,
+                chat_id=chat_id,
+                user_id=user_id,
+                role=role,
+                content=m.content,
+                tool_calls=m_tool_calls,
+            )
 
-        user_msg_count = await messages_col().count_documents({"chat_id": chat_id, "role": "user"})
+        # Count user messages and update title if first message
+        messages = await MessageRepository.list_by_chat(session, chat_id, limit=1000)
+        user_msg_count = sum(1 for m in messages if m.role == "user")
         if user_msg_count == 1 and user_message:
-            title = await generate_chat_title(user_message, user_id)
-            await chats_col().update_one({"_id": ObjectId(chat_id)}, {"$set": {"title": title, "updated_at": datetime.utcnow()}})
+            title = await generate_chat_title(user_message, user_id, session)
+            await ChatRepository.update_title(session, chat_id, organization_id, title)
             yield f"data: {json.dumps({'type': 'title_update', 'chat_id': chat_id, 'title': title})}\n\n"
 
     yield f"data: {json.dumps({'type': 'done'})}\n\n"

@@ -2,15 +2,16 @@ import hashlib
 import io
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from qdrant_client import models
 
 from app.config import get_settings
-from app.database import documents_col
+from app.repositories import DocumentRepository
 from app.services.qdrant_service import ensure_qdrant_collection, get_qdrant_client, qdrant_filter, qdrant_match_filter
 from app.services.user_settings_service import require_user_openai_api_key
 
@@ -25,13 +26,13 @@ def get_documents_collection_name() -> str:
 def _ensure_documents_collection() -> None:
     ensure_qdrant_collection(
         get_documents_collection_name(),
-        keyword_indexes=("user_id", "filename"),
+        keyword_indexes=("organization_id", "document_id", "filename"),
     )
 
 
-def build_document_point_id(*, user_id: str, filename: str, chunk_index: int, chunk_text: str) -> str:
+def build_document_point_id(*, organization_id: str, document_id: str, chunk_index: int, chunk_text: str) -> str:
     digest = hashlib.sha256(
-        f"{user_id}\n{filename}\n{chunk_index}\n{chunk_text}".encode("utf-8")
+        f"{organization_id}\n{document_id}\n{chunk_index}\n{chunk_text}".encode("utf-8")
     ).hexdigest()
     return str(uuid.uuid5(uuid.NAMESPACE_URL, f"bizassist-doc:{digest}"))
 
@@ -65,10 +66,12 @@ async def ingest_document(
     filename: str,
     file_type: str,
     user_id: str,
+    organization_id: str,
+    session: AsyncSession,
 ) -> dict:
     """
     Extract text -> chunk -> embed -> store in Qdrant.
-    Also records the document in MongoDB.
+    Also records the document in PostgreSQL.
     """
     text = _extract_text(file_bytes, file_type, filename)
     if not text.strip():
@@ -77,28 +80,38 @@ async def ingest_document(
     splitter = RecursiveCharacterTextSplitter(chunk_size=settings.chunk_size, chunk_overlap=settings.chunk_overlap)
     chunks = splitter.split_text(text)
 
-    api_key = await require_user_openai_api_key(user_id)
+    api_key = await require_user_openai_api_key(user_id, session)
     embeddings_model = _get_embeddings_model(api_key)
     embeddings = await embeddings_model.aembed_documents(chunks)
+
+    # Create document record in PostgreSQL
+    document = await DocumentRepository.create(
+        session,
+        organization_id=organization_id,
+        uploaded_by_user_id=user_id,
+        filename=filename,
+        file_type=file_type,
+        chunk_count=len(chunks),
+        status="processing",
+    )
 
     collection_name = get_documents_collection_name()
     _ensure_documents_collection()
     client = get_qdrant_client()
-    vector_ids = [
-        build_document_point_id(
-            user_id=user_id,
-            filename=filename,
-            chunk_index=i,
-            chunk_text=chunks[i],
-        )
-        for i in range(len(chunks))
-    ]
+
     points = [
         models.PointStruct(
-            id=vector_ids[i],
+            id=build_document_point_id(
+                organization_id=organization_id,
+                document_id=document.id,
+                chunk_index=i,
+                chunk_text=chunks[i],
+            ),
             vector=embeddings[i],
             payload={
-                "user_id": user_id,
+                "organization_id": organization_id,
+                "document_id": document.id,
+                "uploaded_by_user_id": user_id,
                 "filename": filename,
                 "chunk_index": i,
                 "text": chunks[i],
@@ -112,40 +125,47 @@ async def ingest_document(
         wait=True,
     )
 
-    doc_record = {
-        "user_id": user_id,
-        "filename": filename,
-        "file_type": file_type,
-        "chunk_count": len(chunks),
-        "vector_ids": vector_ids,
-        "created_at": datetime.utcnow(),
-    }
-    result = await documents_col().insert_one(doc_record)
+    # Update document status to ready
+    await DocumentRepository.update_status(
+        session,
+        document.id,
+        organization_id,
+        status="ready",
+        chunk_count=len(chunks),
+    )
 
-    logger.info("Ingested '%s' -> %s chunks for user %s", filename, len(chunks), user_id)
-    return {"id": str(result.inserted_id), "chunk_count": len(chunks)}
-
-
-async def list_user_documents(user_id: str) -> list[dict]:
-    """List all RAG-ingested documents for a user."""
-    cursor = documents_col().find({"user_id": user_id}, {"filename": 1, "_id": 1, "created_at": 1})
-    docs = await cursor.to_list(length=100)
-    return [{"id": str(d["_id"]), "filename": d["filename"], "created_at": d["created_at"]} for d in docs]
+    logger.info("Ingested '%s' -> %s chunks for org %s", filename, len(chunks), organization_id)
+    return {"id": document.id, "chunk_count": len(chunks)}
 
 
-def _build_query_filter(user_id: str, filename: Optional[str] = None) -> models.Filter:
-    conditions = [qdrant_match_filter("user_id", user_id)]
+async def list_organization_documents(organization_id: str, session: AsyncSession) -> list[dict]:
+    """List all RAG-ingested documents for an organization."""
+    documents = await DocumentRepository.list_by_organization(session, organization_id)
+    return [
+        {
+            "id": doc.id,
+            "filename": doc.filename,
+            "file_type": doc.file_type,
+            "chunk_count": doc.chunk_count,
+            "created_at": doc.created_at,
+        }
+        for doc in documents
+    ]
+
+
+def _build_query_filter(organization_id: str, filename: Optional[str] = None) -> models.Filter:
+    conditions = [qdrant_match_filter("organization_id", organization_id)]
     if filename:
         conditions.append(qdrant_match_filter("filename", filename))
     return qdrant_filter(*conditions)
 
 
-async def retrieve(query: str, user_id: str, k: int = 5, filename: Optional[str] = None) -> str:
-    """Semantic search over the user's documents. Returns concatenated passages."""
+async def retrieve(query: str, organization_id: str, user_id: str, session: AsyncSession, k: int = 5, filename: Optional[str] = None) -> str:
+    """Semantic search over the organization's documents. Returns concatenated passages."""
     collection_name = get_documents_collection_name()
     _ensure_documents_collection()
     client = get_qdrant_client()
-    api_key = await require_user_openai_api_key(user_id)
+    api_key = await require_user_openai_api_key(user_id, session)
     embeddings_model = _get_embeddings_model(api_key)
     query_embedding = await embeddings_model.aembed_query(query)
 
@@ -153,7 +173,7 @@ async def retrieve(query: str, user_id: str, k: int = 5, filename: Optional[str]
         collection_name=collection_name,
         query=query_embedding,
         limit=int(k or 5),
-        query_filter=_build_query_filter(user_id=user_id, filename=filename),
+        query_filter=_build_query_filter(organization_id=organization_id, filename=filename),
         with_payload=True,
         with_vectors=False,
     )
@@ -170,12 +190,12 @@ async def retrieve(query: str, user_id: str, k: int = 5, filename: Optional[str]
     return "\n\n---\n\n".join(passages)
 
 
-async def retrieve_top_filenames(query: str, user_id: str, k: int = 5) -> list[str]:
+async def retrieve_top_filenames(query: str, organization_id: str, user_id: str, session: AsyncSession, k: int = 5) -> list[str]:
     """Return the top-matching document filenames for a query (no passages)."""
     collection_name = get_documents_collection_name()
     _ensure_documents_collection()
     client = get_qdrant_client()
-    api_key = await require_user_openai_api_key(user_id)
+    api_key = await require_user_openai_api_key(user_id, session)
     embeddings_model = _get_embeddings_model(api_key)
     query_embedding = await embeddings_model.aembed_query(query)
 
@@ -183,7 +203,7 @@ async def retrieve_top_filenames(query: str, user_id: str, k: int = 5) -> list[s
         collection_name=collection_name,
         query=query_embedding,
         limit=int(k or 5),
-        query_filter=_build_query_filter(user_id=user_id),
+        query_filter=_build_query_filter(organization_id=organization_id),
         with_payload=True,
         with_vectors=False,
     )
@@ -197,18 +217,23 @@ async def retrieve_top_filenames(query: str, user_id: str, k: int = 5) -> list[s
     return filenames
 
 
-async def delete_document_chunks(vector_ids: list[str]):
-    """Remove specific vector IDs from Qdrant."""
-    if not vector_ids:
-        return
+async def delete_document_chunks(document_id: str, organization_id: str):
+    """Remove all vectors for a document from Qdrant."""
     collection_name = get_documents_collection_name()
     _ensure_documents_collection()
     client = get_qdrant_client()
+
+    # Delete by document_id filter
     client.delete(
         collection_name=collection_name,
-        points_selector=models.PointIdsList(
-            points=vector_ids,
+        points_selector=models.Filter(
+            must=[
+                models.FieldCondition(
+                    key="document_id",
+                    match=models.MatchValue(value=document_id),
+                )
+            ]
         ),
         wait=True,
     )
-    logger.info("Deleted %s vectors from Qdrant", len(vector_ids))
+    logger.info("Deleted vectors for document %s from Qdrant", document_id)

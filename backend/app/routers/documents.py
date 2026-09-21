@@ -2,9 +2,10 @@ import logging
 from fastapi import APIRouter, UploadFile, File, HTTPException
 
 from app.dependencies import CurrentUser
-from app.database import documents_col
+from app.db.base import get_db_session
 from app.models.document import DocumentPublic
-from app.services.rag_service import ingest_document
+from app.repositories import DocumentRepository
+from app.services.rag_service import ingest_document, delete_document_chunks
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 logger = logging.getLogger(__name__)
@@ -17,7 +18,7 @@ ALLOWED_TYPES = {
 
 
 @router.post("/upload")
-async def upload_document(user: CurrentUser, file: UploadFile = File(...)):
+async def upload_document(user: CurrentUser, file: UploadFile = File(...), session = Depends(get_db_session)):
     """Upload a business document and ingest it into the RAG vector store."""
     from app.services.user_settings_service import UserSettingsError
 
@@ -30,7 +31,9 @@ async def upload_document(user: CurrentUser, file: UploadFile = File(...)):
             file_bytes=file_bytes,
             filename=file.filename,
             file_type=file.content_type,
-            user_id=user.id,
+            user_id=user.user.id,
+            organization_id=user.organization.id,
+            session=session,
         )
     except UserSettingsError as e:
         raise HTTPException(status_code=403, detail=str(e))
@@ -42,30 +45,27 @@ async def upload_document(user: CurrentUser, file: UploadFile = File(...)):
 
 
 @router.get("", response_model=list[DocumentPublic])
-async def list_documents(user: CurrentUser):
-    """List all ingested documents for the current user."""
-    cursor = documents_col().find({"user_id": user.id}, sort=[("created_at", -1)])
-    docs = await cursor.to_list(length=100)
+async def list_documents(user: CurrentUser, session = Depends(get_db_session)):
+    """List all ingested documents for the current user's organization."""
+    documents = await DocumentRepository.list_by_organization(session, user.organization.id)
     return [
         DocumentPublic(
-            id=str(d["_id"]),
-            filename=d["filename"],
-            file_type=d["file_type"],
-            chunk_count=d["chunk_count"],
-            created_at=d["created_at"],
+            id=doc.id,
+            filename=doc.filename,
+            file_type=doc.file_type,
+            chunk_count=doc.chunk_count,
+            created_at=doc.created_at,
         )
-        for d in docs
+        for doc in documents
     ]
 
 
 @router.delete("/{doc_id}")
-async def delete_document(doc_id: str, user: CurrentUser):
-    """Remove a document from MongoDB and the vector store."""
-    from bson import ObjectId
-    from app.services.rag_service import delete_document_chunks
-    doc = await documents_col().find_one({"_id": ObjectId(doc_id), "user_id": user.id})
+async def delete_document(doc_id: str, user: CurrentUser, session = Depends(get_db_session)):
+    """Remove a document from PostgreSQL and the vector store."""
+    doc = await DocumentRepository.get_by_id(session, doc_id, user.organization.id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
-    await delete_document_chunks(doc.get("vector_ids") or doc.get("chroma_ids", []))
-    await documents_col().delete_one({"_id": ObjectId(doc_id)})
+    await delete_document_chunks(doc_id, user.organization.id)
+    await DocumentRepository.delete(session, doc_id, user.organization.id)
     return {"ok": True}

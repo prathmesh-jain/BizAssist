@@ -1,0 +1,182 @@
+import uuid
+from typing import Optional
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models import User, UserIdentity, Organization, OrganizationMember, UserAISettings
+
+
+class UserRepository:
+    """Repository for user-related operations."""
+
+    @staticmethod
+    async def get_by_id(session: AsyncSession, user_id: str) -> Optional[User]:
+        """Get user by ID."""
+        result = await session.execute(select(User).where(User.id == user_id))
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_by_email(session: AsyncSession, email: str) -> Optional[User]:
+        """Get user by email (case-insensitive)."""
+        result = await session.execute(
+            select(User).where(User.email == email.lower())
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def create(
+        session: AsyncSession,
+        email: str,
+        full_name: str,
+    ) -> User:
+        """Create a new user."""
+        user = User(
+            id=str(uuid.uuid4()),
+            email=email.lower(),
+            full_name=full_name,
+            is_active=True,
+        )
+        session.add(user)
+        await session.flush()
+        return user
+
+    @staticmethod
+    async def get_identity_by_provider(
+        session: AsyncSession,
+        provider: str,
+        provider_user_id: str,
+    ) -> Optional[UserIdentity]:
+        """Get user identity by provider and provider user ID."""
+        result = await session.execute(
+            select(UserIdentity).where(
+                UserIdentity.provider == provider,
+                UserIdentity.provider_user_id == provider_user_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def create_identity(
+        session: AsyncSession,
+        user_id: str,
+        provider: str,
+        provider_user_id: str,
+    ) -> UserIdentity:
+        """Create a new user identity."""
+        identity = UserIdentity(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            provider=provider,
+            provider_user_id=provider_user_id,
+        )
+        session.add(identity)
+        await session.flush()
+        return identity
+
+    @staticmethod
+    async def get_user_organization(
+        session: AsyncSession,
+        user_id: str,
+    ) -> Optional[Organization]:
+        """Get the user's primary organization (for now, assumes single org)."""
+        result = await session.execute(
+            select(Organization)
+            .join(OrganizationMember)
+            .where(OrganizationMember.user_id == user_id)
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def create_organization(
+        session: AsyncSession,
+        name: str,
+        slug: str,
+    ) -> Organization:
+        """Create a new organization."""
+        org = Organization(
+            id=str(uuid.uuid4()),
+            name=name,
+            slug=slug,
+            is_active=True,
+        )
+        session.add(org)
+        await session.flush()
+        return org
+
+    @staticmethod
+    async def create_organization_member(
+        session: AsyncSession,
+        organization_id: str,
+        user_id: str,
+        role: str = "owner",
+    ) -> OrganizationMember:
+        """Create a new organization member."""
+        member = OrganizationMember(
+            id=str(uuid.uuid4()),
+            organization_id=organization_id,
+            user_id=user_id,
+            role=role,
+            status="active",
+        )
+        session.add(member)
+        await session.flush()
+        return member
+
+    @staticmethod
+    async def get_ai_settings(
+        session: AsyncSession,
+        user_id: str,
+    ) -> Optional[UserAISettings]:
+        """Get user AI settings."""
+        result = await session.execute(
+            select(UserAISettings).where(UserAISettings.user_id == user_id)
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def create_ai_settings(
+        session: AsyncSession,
+        user_id: str,
+        provider: str = "openai",
+        primary_model: str = "gpt-4.1-mini",
+        fast_model: str = "gpt-4.1-mini",
+        nano_model: str = "gpt-4.1-nano",
+    ) -> UserAISettings:
+        """Create default AI settings for a user."""
+        settings = UserAISettings(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            provider=provider,
+            primary_model=primary_model,
+            fast_model=fast_model,
+            nano_model=nano_model,
+            guardrail_enabled=False,
+        )
+        session.add(settings)
+        await session.flush()
+        return settings
+
+    @staticmethod
+    async def update_ai_settings(
+        session: AsyncSession,
+        user_id: str,
+        **updates,
+    ) -> UserAISettings:
+        """Update user AI settings."""
+        result = await session.execute(
+            select(UserAISettings).where(UserAISettings.user_id == user_id)
+        )
+        settings = result.scalar_one_or_none()
+        if settings:
+            for key, value in updates.items():
+                if hasattr(settings, key) and value is not None:
+                    setattr(settings, key, value)
+        else:
+            # Create if doesn't exist
+            settings = await UserRepository.create_ai_settings(session, user_id)
+            for key, value in updates.items():
+                if hasattr(settings, key) and value is not None:
+                    setattr(settings, key, value)
+        await session.flush()
+        return settings

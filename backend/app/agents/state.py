@@ -9,11 +9,12 @@ class AgentState(TypedDict, total=False):
     """
     messages: Annotated[list[BaseMessage], add_messages]  # message accumulation
     message_summary: str  # summarized older messages for context
-    
+
     # Infrastructure / Auth
     user_id: str
     chat_id: str
-    
+    organization_id: str  # Added for multi-tenancy
+
     # Observability
     tool_calls_made: list[str]
 
@@ -33,7 +34,7 @@ class AgentState(TypedDict, total=False):
     last_tool_search_category: str
     consecutive_tool_searches: int
     last_tool_search_query: str
-    
+
     # Guardrail (transient state for the safety node)
     is_safe: bool
     guardrail_reason: str

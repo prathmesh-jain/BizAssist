@@ -4,8 +4,9 @@ python-multipart
 pydantic[email]
 
 # Database
-motor
-pymongo
+sqlalchemy[asyncio]
+asyncpg
+alembic
 
 # Auth (Firebase)
 firebase-admin
@@ -16,7 +17,7 @@ langchain
 langchain-openai
 langchain-community
 langgraph
-langgraph-checkpoint-mongodb
+langgraph-checkpoint-postgres
 langchain-text-splitters
 
 # Vector Store

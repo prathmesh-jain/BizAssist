@@ -15,8 +15,7 @@ class Settings(BaseSettings):
     chunk_overlap: float = 120
 
     # Database
-    mongodb_uri: str = "mongodb://localhost:27017"
-    db_name: str = "bizassist"
+    database_url: str = "postgresql+asyncpg://user:password@localhost:5432/bizassist"
 
     # Auth (Firebase)
     firebase_project_id: str = ""
