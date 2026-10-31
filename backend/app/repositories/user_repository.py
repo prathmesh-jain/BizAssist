@@ -27,7 +27,7 @@ class UserRepository:
     async def create(
         session: AsyncSession,
         email: str,
-        full_name: str,
+        full_name: Optional[str],
     ) -> User:
         """Create a new user."""
         user = User(

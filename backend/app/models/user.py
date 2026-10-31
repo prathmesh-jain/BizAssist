@@ -1,11 +1,14 @@
 from datetime import datetime, timezone
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 
 class User(BaseModel):
     id: Optional[str] = None
-    email: EmailStr
+    # Plain str: this comes from the identity provider's verified token, not user input.
+    # Re-validating with EmailStr rejected valid provider emails (e.g. reserved TLDs) and
+    # turned every authenticated request into a 500.
+    email: str
     full_name: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     is_active: bool = True
@@ -25,7 +28,7 @@ class UserInDB(User):
 
 class UserPublic(BaseModel):
     id: str
-    email: EmailStr
+    email: str
     full_name: Optional[str] = None
     created_at: datetime
 

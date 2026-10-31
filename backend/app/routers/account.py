@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api", tags=["account"])
 
 
 @router.get("/me")
-async def get_me(user: CurrentUser, session = Depends(get_db_session)):
+async def get_me(user: CurrentUser, session = Depends(get_db_session, scope="function")):
     """Current user, the organization this request resolved to, and all memberships.
 
     Clients switch organizations by sending X-Organization-Id with one of the

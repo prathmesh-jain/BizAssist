@@ -149,3 +149,32 @@ async def test_agent_stream_runs_graph_and_persists_user_message(make_user, clie
     finally:
         get_compiled_graph.cache_clear()
         await close_checkpointer()
+
+
+async def test_provider_emails_are_not_revalidated(make_user, client_for):
+    """Emails come from the verified token; a reserved TLD must not turn auth into a 500."""
+    ctx = await make_user("uid-t", "owner@bizassist.test")
+    me = await client_for(ctx).get("/api/me")
+    assert me.status_code == 200
+    assert me.json()["user"]["email"] == "owner@bizassist.test"
+
+
+async def test_concurrent_first_requests_provision_one_account(make_user):
+    """A new client sends several requests at once; they must share one user and workspace."""
+    import asyncio
+
+    from app.db.base import session_scope
+    from app.repositories import UserRepository
+
+    results = await asyncio.gather(*[make_user("uid-new", "new@acme.com") for _ in range(6)])
+
+    assert len({r.user.id for r in results}) == 1
+    assert len({r.organization.id for r in results}) == 1
+    async with session_scope() as session:
+        assert len(await UserRepository.list_memberships(session, results[0].user.id)) == 1
+
+
+async def test_nameless_signup_gets_distinguishable_workspace(make_user):
+    ctx = await make_user("uid-p", "priya@acme.com", name=None)
+    assert ctx.organization.name == "priya's Workspace"
+    assert ctx.user.full_name is None

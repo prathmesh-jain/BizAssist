@@ -52,7 +52,7 @@ def _invitation_public(invitation) -> dict:
 
 
 @router.patch("/organization")
-async def rename_organization(body: RenameOrganizationRequest, user: OrganizationManager, session = Depends(get_db_session)):
+async def rename_organization(body: RenameOrganizationRequest, user: OrganizationManager, session = Depends(get_db_session, scope="function")):
     try:
         organization = await svc.rename_organization(session, user, body.name)
     except svc.MembershipError as exc:
@@ -61,12 +61,12 @@ async def rename_organization(body: RenameOrganizationRequest, user: Organizatio
 
 
 @router.get("/organization/members")
-async def list_members(user: MemberReader, session = Depends(get_db_session)):
+async def list_members(user: MemberReader, session = Depends(get_db_session, scope="function")):
     return {"members": await svc.list_members(session, user)}
 
 
 @router.patch("/organization/members/{user_id}")
-async def update_member(user_id: str, body: UpdateMemberRequest, user: MemberManager, session = Depends(get_db_session)):
+async def update_member(user_id: str, body: UpdateMemberRequest, user: MemberManager, session = Depends(get_db_session, scope="function")):
     if body.role is None and body.status is None:
         raise HTTPException(status_code=400, detail="Provide a role or status to change.")
     try:
@@ -77,7 +77,7 @@ async def update_member(user_id: str, body: UpdateMemberRequest, user: MemberMan
 
 
 @router.delete("/organization/members/{user_id}")
-async def remove_member(user_id: str, user: MemberManager, session = Depends(get_db_session)):
+async def remove_member(user_id: str, user: MemberManager, session = Depends(get_db_session, scope="function")):
     try:
         await svc.remove_member(session, user, user_id)
     except svc.MembershipError as exc:
@@ -86,7 +86,7 @@ async def remove_member(user_id: str, user: MemberManager, session = Depends(get
 
 
 @router.post("/organization/leave")
-async def leave_organization(user: CurrentUser, session = Depends(get_db_session)):
+async def leave_organization(user: CurrentUser, session = Depends(get_db_session, scope="function")):
     try:
         await svc.leave_organization(session, user)
     except svc.MembershipError as exc:
@@ -95,13 +95,13 @@ async def leave_organization(user: CurrentUser, session = Depends(get_db_session
 
 
 @router.get("/organization/invitations")
-async def list_invitations(user: MemberManager, session = Depends(get_db_session)):
+async def list_invitations(user: MemberManager, session = Depends(get_db_session, scope="function")):
     invitations = await svc.list_invitations(session, user)
     return {"invitations": [_invitation_public(i) for i in invitations]}
 
 
 @router.post("/organization/invitations")
-async def create_invitation(body: CreateInvitationRequest, user: MemberManager, session = Depends(get_db_session)):
+async def create_invitation(body: CreateInvitationRequest, user: MemberManager, session = Depends(get_db_session, scope="function")):
     """Create an invitation. The link is returned once; only its hash is stored.
 
     There is no email delivery yet, so the inviter shares the link themselves.
@@ -114,7 +114,7 @@ async def create_invitation(body: CreateInvitationRequest, user: MemberManager, 
 
 
 @router.delete("/organization/invitations/{invitation_id}")
-async def revoke_invitation(invitation_id: str, user: MemberManager, session = Depends(get_db_session)):
+async def revoke_invitation(invitation_id: str, user: MemberManager, session = Depends(get_db_session, scope="function")):
     try:
         await svc.revoke_invitation(session, user, invitation_id)
     except svc.MembershipError as exc:
@@ -125,7 +125,7 @@ async def revoke_invitation(invitation_id: str, user: MemberManager, session = D
 # Invitation acceptance needs only an authenticated caller: the invitee may not
 # have an active membership anywhere yet.
 @router.post("/invitations/preview")
-async def preview_invitation(body: InvitationTokenRequest, caller: AuthenticatedCaller, session = Depends(get_db_session)):
+async def preview_invitation(body: InvitationTokenRequest, caller: AuthenticatedCaller, session = Depends(get_db_session, scope="function")):
     try:
         return await svc.preview_invitation(session, caller, body.token)
     except svc.MembershipError as exc:
@@ -133,7 +133,7 @@ async def preview_invitation(body: InvitationTokenRequest, caller: Authenticated
 
 
 @router.post("/invitations/accept")
-async def accept_invitation(body: InvitationTokenRequest, caller: AuthenticatedCaller, session = Depends(get_db_session)):
+async def accept_invitation(body: InvitationTokenRequest, caller: AuthenticatedCaller, session = Depends(get_db_session, scope="function")):
     try:
         return await svc.accept_invitation(session, caller, body.token)
     except svc.MembershipError as exc:

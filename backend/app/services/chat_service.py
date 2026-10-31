@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.repositories import ChatRepository, MessageRepository
-from app.db.base import get_db_session
+from app.db.base import session_scope
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -98,6 +98,23 @@ async def generate_chat_title(first_message: str, user_id: str, session: AsyncSe
 
 
 async def stream_agent_response(
+    user_message: str | None,
+    chat_id: str,
+    user_id: str,
+    organization_id: str,
+    role: str = "viewer",
+    **kwargs,
+) -> AsyncGenerator[str, None]:
+    """SSE generator for an agent run. It owns its DB session: the request's session is
+    committed before the response starts, so work done while streaming needs its own."""
+    async with session_scope() as session:
+        async for event in _stream_agent_response(
+            user_message, chat_id, user_id, organization_id, session, role=role, **kwargs
+        ):
+            yield event
+
+
+async def _stream_agent_response(
     user_message: str | None,
     chat_id: str,
     user_id: str,

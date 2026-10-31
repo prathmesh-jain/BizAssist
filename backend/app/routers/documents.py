@@ -19,7 +19,7 @@ ALLOWED_TYPES = {
 
 
 @router.post("/upload")
-async def upload_document(user: DocumentUploader, file: UploadFile = File(...), session = Depends(get_db_session)):
+async def upload_document(user: DocumentUploader, file: UploadFile = File(...), session = Depends(get_db_session, scope="function")):
     """Upload a business document and ingest it into the RAG vector store."""
     from app.services.user_settings_service import UserSettingsError
 
@@ -46,7 +46,7 @@ async def upload_document(user: DocumentUploader, file: UploadFile = File(...), 
 
 
 @router.get("", response_model=list[DocumentPublic])
-async def list_documents(user: DocumentReader, session = Depends(get_db_session)):
+async def list_documents(user: DocumentReader, session = Depends(get_db_session, scope="function")):
     """List all ingested documents for the current user's organization."""
     documents = await DocumentRepository.list_by_organization(session, user.organization.id)
     return [
@@ -62,7 +62,7 @@ async def list_documents(user: DocumentReader, session = Depends(get_db_session)
 
 
 @router.delete("/{doc_id}")
-async def delete_document(doc_id: str, user: DocumentReader, session = Depends(get_db_session)):
+async def delete_document(doc_id: str, user: DocumentReader, session = Depends(get_db_session, scope="function")):
     """Remove a document from PostgreSQL and the vector store."""
     doc = await DocumentRepository.get_by_id(session, doc_id, user.organization.id)
     if not doc:

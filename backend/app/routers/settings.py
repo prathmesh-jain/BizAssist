@@ -9,12 +9,12 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 
 @router.get("/ai", response_model=AISettingsPublic)
-async def get_ai_settings(user: CurrentUser, session = Depends(get_db_session)):
+async def get_ai_settings(user: CurrentUser, session = Depends(get_db_session, scope="function")):
     return AISettingsPublic(**(await get_user_ai_settings(user.user.id, session)))
 
 
 @router.patch("/ai", response_model=AISettingsPublic)
-async def patch_ai_settings(body: AISettingsUpdate, user: CurrentUser, session = Depends(get_db_session)):
+async def patch_ai_settings(body: AISettingsUpdate, user: CurrentUser, session = Depends(get_db_session, scope="function")):
     updated = await update_user_ai_settings(
         user.user.id,
         session,

@@ -9,7 +9,9 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.authz import can
 from app.config import get_settings
-from app.db.base import get_db_session
+from sqlalchemy import text
+
+from app.db.base import get_db_session, session_scope
 from app.models.user import AuthenticatedUser, UserInDB, Organization, CurrentUserContext
 from app.repositories import UserRepository
 
@@ -89,34 +91,49 @@ def _verify_firebase_token(token: str) -> dict:
     return decoded
 
 
+async def _advisory_lock(session, key: str) -> None:
+    """Transaction-scoped Postgres lock: concurrent holders of the same key run one at a time."""
+    await session.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": key})
+
+
 async def _resolve_user(session, decoded: dict):
     """Map a verified Firebase identity to an application user, provisioning on first login."""
     firebase_uid = decoded["uid"]
     email = decoded["email"]
-    full_name = decoded.get("name") or "User"
+    full_name = decoded.get("name") or None  # email/password sign-ups have no display name
 
     identity = await UserRepository.get_identity_by_provider(session, "firebase", firebase_uid)
-    if identity:
-        user = await UserRepository.get_by_id(session, identity.user_id)
-        if not user:
-            logger.error("Identity found for %s but user %s is missing", firebase_uid, identity.user_id)
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User record not found")
-        return user
+    if not identity:
+        # First login. A new client fires several requests at once, so provision in a short
+        # transaction of its own, serialized per identity, and re-check under the lock.
+        async with session_scope() as provisioning:
+            await _advisory_lock(provisioning, f"identity:firebase:{firebase_uid}")
+            identity = await UserRepository.get_identity_by_provider(provisioning, "firebase", firebase_uid)
+            if identity:
+                user_id = identity.user_id
+            else:
+                existing_user = await UserRepository.get_by_email(provisioning, email)
+                if existing_user:
+                    # Linking a new identity to an existing account by email is only safe when
+                    # the provider has verified that the caller owns the address.
+                    if not decoded.get("email_verified"):
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Verify your email address to sign in to this existing account.",
+                        )
+                    user_id = existing_user.id
+                else:
+                    user_id = (await UserRepository.create(provisioning, email, full_name)).id
+                await UserRepository.create_identity(provisioning, user_id, "firebase", firebase_uid)
+            if not await UserRepository.get_ai_settings(provisioning, user_id):
+                await UserRepository.create_ai_settings(provisioning, user_id)
+    else:
+        user_id = identity.user_id
 
-    existing_user = await UserRepository.get_by_email(session, email)
-    if existing_user:
-        # Linking a new identity to an existing account by email is only safe when the
-        # provider has verified that the caller owns the address.
-        if not decoded.get("email_verified"):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Verify your email address to sign in to this existing account.",
-            )
-        await UserRepository.create_identity(session, existing_user.id, "firebase", firebase_uid)
-        return existing_user
-
-    user = await UserRepository.create(session, email, full_name)
-    await UserRepository.create_identity(session, user.id, "firebase", firebase_uid)
+    user = await UserRepository.get_by_id(session, user_id)
+    if not user:
+        logger.error("Identity found for %s but user %s is missing", firebase_uid, user_id)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User record not found")
     return user
 
 
@@ -136,24 +153,31 @@ async def _resolve_membership(session, user, organization_id: str | None):
     if found:
         return found
 
-    if await UserRepository.list_memberships(session, user.id):
-        # Memberships exist but all are suspended/invited or their orgs are inactive.
+    # No active membership. If the user has none at all (first login), give them a personal
+    # workspace they own. Decide under a per-user lock so parallel first requests create only
+    # one, and re-read afterwards rather than trusting a check made before another request
+    # may have committed.
+    async with session_scope() as provisioning:
+        await _advisory_lock(provisioning, f"membership:{user.id}")
+        if not await UserRepository.list_memberships(provisioning, user.id):
+            organization = await UserRepository.create_organization(
+                provisioning, f"{user.full_name or user.email.split('@')[0]}'s Workspace", _workspace_slug(user.email)
+            )
+            await UserRepository.create_organization_member(provisioning, organization.id, user.id, role="owner")
+
+    found = await UserRepository.get_active_membership(session, user.id)
+    if not found:
+        # Memberships exist but all are suspended or their organizations are inactive.
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You have no active organization membership.",
         )
-
-    # First login (or never had one): give the user a personal workspace they own.
-    organization = await UserRepository.create_organization(
-        session, f"{user.full_name or 'User'}'s Workspace", _workspace_slug(user.email)
-    )
-    member = await UserRepository.create_organization_member(session, organization.id, user.id, role="owner")
-    return member, organization
+    return found
 
 
 async def get_authenticated_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    session = Depends(get_db_session),
+    session = Depends(get_db_session, scope="function"),
 ) -> AuthenticatedUser:
     """Authenticate the caller only (no organization context).
 
@@ -164,9 +188,6 @@ async def get_authenticated_user(
     user = await _resolve_user(session, decoded)
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This account is disabled.")
-
-    if not await UserRepository.get_ai_settings(session, user.id):
-        await UserRepository.create_ai_settings(session, user.id)
 
     return AuthenticatedUser(
         user=UserInDB(
@@ -185,7 +206,7 @@ AuthenticatedCaller = Annotated[AuthenticatedUser, Depends(get_authenticated_use
 
 async def get_current_user(
     identity: AuthenticatedCaller,
-    session = Depends(get_db_session),
+    session = Depends(get_db_session, scope="function"),
     x_organization_id: str | None = Header(default=None),
 ) -> CurrentUserContext:
     """Resolve the authenticated caller's organization context and role.

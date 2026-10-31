@@ -208,7 +208,7 @@ def _should_expose_message(m) -> bool:
 
 
 @router.post("", response_model=ChatPublic)
-async def create_chat(data: ChatCreate, user: ChatUser, session = Depends(get_db_session)):
+async def create_chat(data: ChatCreate, user: ChatUser, session = Depends(get_db_session, scope="function")):
     """Create a new chat session."""
     chat = await ChatRepository.create(
         session,
@@ -220,7 +220,7 @@ async def create_chat(data: ChatCreate, user: ChatUser, session = Depends(get_db
 
 
 @router.get("", response_model=list[ChatPublic])
-async def list_chats(user: ChatUser, session = Depends(get_db_session)):
+async def list_chats(user: ChatUser, session = Depends(get_db_session, scope="function")):
     """List the current user's chats in their organization."""
     chats = await ChatRepository.list_for_user(session, user.organization.id, user.user.id)
     return [ChatPublic(**_chat_doc_to_public(c)) for c in chats]
@@ -232,7 +232,7 @@ async def get_messages(
     user: ChatUser,
     limit: int = 10,
     before: str | None = None,
-    session = Depends(get_db_session),
+    session = Depends(get_db_session, scope="function"),
 ):
     """
     Retrieve messages in a chat session with pagination.
@@ -275,7 +275,7 @@ async def get_messages(
 
 
 @router.post("/{chat_id}/message")
-async def send_message(chat_id: str, body: dict, user: ChatUser, session = Depends(get_db_session)):
+async def send_message(chat_id: str, body: dict, user: ChatUser, session = Depends(get_db_session, scope="function")):
     """
     Send a user message and stream back the AI response via SSE.
     Body: {"content": "..."}
@@ -293,7 +293,7 @@ async def send_message(chat_id: str, body: dict, user: ChatUser, session = Depen
 
     return StreamingResponse(
         stream_agent_response(
-            content, chat_id, user.user.id, user.organization.id, session, role=user.role
+            content, chat_id, user.user.id, user.organization.id, role=user.role
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
@@ -306,7 +306,7 @@ async def send_message_with_files(
     user: ChatUser,
     content: str = Form(""),
     files: list[UploadFile] = File(default=[]),
-    session = Depends(get_db_session),
+    session = Depends(get_db_session, scope="function"),
 ):
     """Send a user message with file attachments (multipart/form-data) and stream back the AI response via SSE."""
     content = (content or "").strip()
@@ -334,7 +334,6 @@ async def send_message_with_files(
             chat_id,
             user.user.id,
             user.organization.id,
-            session,
             role=user.role,
             user_message_context=upload_note if attachments else None,
         ),
@@ -344,7 +343,7 @@ async def send_message_with_files(
 
 
 @router.get("/{chat_id}/attachments/{attachment_id}")
-async def get_chat_attachment(chat_id: str, attachment_id: str, user: ChatUser, session = Depends(get_db_session)):
+async def get_chat_attachment(chat_id: str, attachment_id: str, user: ChatUser, session = Depends(get_db_session, scope="function")):
     """Serve an uploaded attachment for preview/download."""
     chat = await ChatRepository.get_by_id(session, chat_id, user.organization.id, user.user.id)
     if not chat:
@@ -383,7 +382,7 @@ async def get_chat_attachment(chat_id: str, attachment_id: str, user: ChatUser, 
 
 
 @router.delete("/{chat_id}")
-async def delete_chat(chat_id: str, user: ChatUser, session = Depends(get_db_session)):
+async def delete_chat(chat_id: str, user: ChatUser, session = Depends(get_db_session, scope="function")):
     """Hard-delete a chat session."""
     chat = await ChatRepository.get_by_id(session, chat_id, user.organization.id, user.user.id)
     if not chat:
@@ -410,7 +409,7 @@ class ResolveInterruptRequest(BaseModel):
     data: Optional[Any] = None
 
 @router.patch("/{chat_id}")
-async def rename_chat(chat_id: str, body: RenameChatRequest, user: ChatUser, session = Depends(get_db_session)):
+async def rename_chat(chat_id: str, body: RenameChatRequest, user: ChatUser, session = Depends(get_db_session, scope="function")):
     """Rename a chat session."""
     new_title = body.title.strip()
     if not new_title:
@@ -423,7 +422,7 @@ async def rename_chat(chat_id: str, body: RenameChatRequest, user: ChatUser, ses
     return ChatPublic(**_chat_doc_to_public(chat))
 
 @router.post("/{chat_id}/interrupt-resolve")
-async def resolve_chat_interrupt(chat_id: str, body: ResolveInterruptRequest, user: ChatUser, session = Depends(get_db_session)):
+async def resolve_chat_interrupt(chat_id: str, body: ResolveInterruptRequest, user: ChatUser, session = Depends(get_db_session, scope="function")):
     """
     Resolve a pending interrupt and resume the graph.
     """
@@ -461,7 +460,6 @@ async def resolve_chat_interrupt(chat_id: str, body: ResolveInterruptRequest, us
             chat_id,
             user.user.id,
             user.organization.id,
-            session,
             role=user.role,
             is_resume=True,
             resume_value=resume_value
@@ -477,7 +475,7 @@ async def resolve_chat_interrupt_with_files(
     user: ChatUser,
     content: str = Form(""),
     files: list[UploadFile] = File(default=[]),
-    session = Depends(get_db_session),
+    session = Depends(get_db_session, scope="function"),
 ):
     """Resolve a pending file-upload interrupt and resume the graph from the same checkpoint."""
     content = (content or "").strip()
@@ -523,7 +521,6 @@ async def resolve_chat_interrupt_with_files(
             chat_id,
             user.user.id,
             user.organization.id,
-            session,
             role=user.role,
             is_resume=True,
             resume_value=resume_value,

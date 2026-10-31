@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/integrations", tags=["integrations"])
 
 
 @router.get("/google-sheets/status")
-async def google_sheets_status(user: IntegrationReader, session = Depends(get_db_session)):
+async def google_sheets_status(user: IntegrationReader, session = Depends(get_db_session, scope="function")):
     """
     Check whether the current user's organization has Google Sheets connected.
     """
@@ -31,7 +31,7 @@ async def google_sheets_status(user: IntegrationReader, session = Depends(get_db
 
 
 @router.post("/google-sheets/connect")
-async def google_sheets_connect(user: IntegrationManager, body: dict = {}, session = Depends(get_db_session)):
+async def google_sheets_connect(user: IntegrationManager, body: dict = {}, session = Depends(get_db_session, scope="function")):
     """
     Create a Google OAuth authorization URL for Sheets.
     The frontend should open this URL in a popup.
@@ -59,7 +59,7 @@ async def google_sheets_connect(user: IntegrationManager, body: dict = {}, sessi
 
 
 @router.post("/google-sheets/callback")
-async def google_sheets_callback(user: IntegrationManager, body: dict, session = Depends(get_db_session)):
+async def google_sheets_callback(user: IntegrationManager, body: dict, session = Depends(get_db_session, scope="function")):
     """Handle OAuth callback by exchanging `code` and persisting tokens."""
     code = (body.get("code") or "").strip()
     state = (body.get("state") or "").strip()

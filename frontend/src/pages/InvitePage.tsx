@@ -34,6 +34,8 @@ export default function InvitePage() {
         try {
             const res = await apiClient.post<InvitationPreview>('/invitations/preview', { token });
             setPreview(res.data);
+            setError(''); // the effect can fire more than once; a later success wins
+
         } catch (e) {
             setError(errorDetail(e, 'This invitation could not be loaded.'));
         }
