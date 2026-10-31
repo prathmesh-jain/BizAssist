@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, DateTime, ForeignKey, JSON, Index
+from sqlalchemy import String, DateTime, ForeignKey, JSON, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
@@ -10,7 +10,7 @@ class OAuthConnection(Base, TimestampMixin):
     """OAuth connection tokens for external integrations."""
     __tablename__ = "oauth_connections"
 
-    id: Mapped[uuid.UUID] = mapped_column(
+    id: Mapped[str] = mapped_column(
         String, primary_key=True, default=lambda: str(uuid.uuid4())
     )
     organization_id: Mapped[str] = mapped_column(
@@ -29,4 +29,6 @@ class OAuthConnection(Base, TimestampMixin):
 
     __table_args__ = (
         Index("ix_oauth_connections_organization_provider", "organization_id", "provider"),
+        # One connection per provider per organization; the repository upserts on this pair.
+        UniqueConstraint("organization_id", "provider", name="uq_oauth_connection_organization_provider"),
     )

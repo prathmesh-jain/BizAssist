@@ -9,7 +9,7 @@ class Organization(Base, TimestampMixin):
     """Organization/tenant for multi-tenancy."""
     __tablename__ = "organizations"
 
-    id: Mapped[uuid.UUID] = mapped_column(
+    id: Mapped[str] = mapped_column(
         String, primary_key=True, default=lambda: str(uuid.uuid4())
     )
     name: Mapped[str] = mapped_column(String, nullable=False)

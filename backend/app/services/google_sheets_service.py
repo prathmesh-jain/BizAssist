@@ -184,7 +184,7 @@ async def handle_oauth_callback(
     """Validate OAuth state then exchange code and persist encrypted tokens."""
     state_hash = _hash_state(state)
 
-    oauth_state = await OAuthStateRepository.get_valid_state(session, user_id, state_hash)
+    oauth_state = await OAuthStateRepository.get_valid_state(session, user_id, organization_id, state_hash)
     if not oauth_state:
         raise GoogleOAuthError("Invalid or expired OAuth state")
 
@@ -223,8 +223,12 @@ async def handle_oauth_callback(
 
     # Update connection metadata with spreadsheet_id
     connection = await OAuthConnectionRepository.get_by_organization_and_provider(session, organization_id, "google")
-    if connection and connection.connection_metadata:
-        connection.connection_metadata["default_spreadsheet_id"] = default_spreadsheet_id
+    if connection:
+        # Reassign rather than mutate: plain JSON columns don't track in-place changes.
+        connection.connection_metadata = {
+            **(connection.connection_metadata or {}),
+            "default_spreadsheet_id": default_spreadsheet_id,
+        }
 
     return {"connected": True, "spreadsheet_id": default_spreadsheet_id}
 
@@ -250,9 +254,10 @@ async def set_default_spreadsheet_id(
     """Set the default spreadsheet ID in OAuth connection metadata."""
     connection = await OAuthConnectionRepository.get_by_organization_and_provider(session, organization_id, "google")
     if connection:
-        if not connection.connection_metadata:
-            connection.connection_metadata = {}
-        connection.connection_metadata["default_spreadsheet_id"] = spreadsheet_id
+        connection.connection_metadata = {
+            **(connection.connection_metadata or {}),
+            "default_spreadsheet_id": spreadsheet_id,
+        }
 
 
 async def ensure_default_spreadsheet(
@@ -552,4 +557,193 @@ async def update_values(
     url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/{encoded_range}"
     params = {"valueInputOption": value_input_option}
     body = {"values": _normalize_values_2d(values)}
-    return await _sheets_request(user_id, organization_id, session, "POST", url, params=params, json_body=body)
+    return await _sheets_request(user_id, organization_id, session, "PUT", url, params=params, json_body=body)
+
+
+async def clear_values(user_id: str, organization_id: str, session: AsyncSession, spreadsheet_id: str, range_a1: str) -> dict:
+    encoded_range = urllib.parse.quote(range_a1, safe="!:'(),-._~")
+    url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/{encoded_range}:clear"
+    return await _sheets_request(user_id, organization_id, session, "POST", url)
+
+
+async def _get_sheet_id_by_title(*, user_id: str, organization_id: str, session: AsyncSession, spreadsheet_id: str, sheet_title: str) -> int:
+    meta = await get_spreadsheet_metadata(user_id=user_id, organization_id=organization_id, session=session, spreadsheet_id=spreadsheet_id)
+    for s in meta.get("sheets", []) or []:
+        props = (s.get("properties") or {}) if isinstance(s, dict) else {}
+        if props.get("title") == sheet_title:
+            sid = props.get("sheetId")
+            if isinstance(sid, int):
+                return sid
+    raise GoogleOAuthError(f"Sheet tab '{sheet_title}' not found")
+
+
+async def batch_update(
+    *,
+    user_id: str,
+    organization_id: str,
+    session: AsyncSession,
+    spreadsheet_id: str,
+    requests: list[dict[str, Any]],
+    include_spreadsheet_in_response: bool = False,
+    response_include_grid_data: bool = False,
+) -> dict:
+    url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}:batchUpdate"
+    body: dict[str, Any] = {
+        "requests": requests,
+        "includeSpreadsheetInResponse": include_spreadsheet_in_response,
+        "responseIncludeGridData": response_include_grid_data,
+    }
+    return await _sheets_request(user_id, organization_id, session, "POST", url, json_body=body)
+
+
+async def create_sheet_tab(*, user_id: str, organization_id: str, session: AsyncSession, spreadsheet_id: str, title: str) -> dict:
+    return await batch_update(
+        user_id=user_id,
+        organization_id=organization_id,
+        session=session,
+        spreadsheet_id=spreadsheet_id,
+        requests=[{"addSheet": {"properties": {"title": title}}}],
+    )
+
+
+async def delete_sheet_tab(*, user_id: str, organization_id: str, session: AsyncSession, spreadsheet_id: str, sheet_title: str) -> dict:
+    sheet_id = await _get_sheet_id_by_title(user_id=user_id, organization_id=organization_id, session=session, spreadsheet_id=spreadsheet_id, sheet_title=sheet_title)
+    return await batch_update(
+        user_id=user_id,
+        organization_id=organization_id,
+        session=session,
+        spreadsheet_id=spreadsheet_id,
+        requests=[{"deleteSheet": {"sheetId": sheet_id}}],
+    )
+
+
+async def rename_sheet_tab(*, user_id: str, organization_id: str, session: AsyncSession, spreadsheet_id: str, sheet_title: str, new_title: str) -> dict:
+    sheet_id = await _get_sheet_id_by_title(user_id=user_id, organization_id=organization_id, session=session, spreadsheet_id=spreadsheet_id, sheet_title=sheet_title)
+    return await batch_update(
+        user_id=user_id,
+        organization_id=organization_id,
+        session=session,
+        spreadsheet_id=spreadsheet_id,
+        requests=[
+            {
+                "updateSheetProperties": {
+                    "properties": {"sheetId": sheet_id, "title": new_title},
+                    "fields": "title",
+                }
+            }
+        ],
+    )
+
+
+async def resize_sheet_grid(
+    *,
+    user_id: str,
+    organization_id: str,
+    session: AsyncSession,
+    spreadsheet_id: str,
+    sheet_title: str,
+    row_count: int | None = None,
+    column_count: int | None = None,
+) -> dict:
+    sheet_id = await _get_sheet_id_by_title(user_id=user_id, organization_id=organization_id, session=session, spreadsheet_id=spreadsheet_id, sheet_title=sheet_title)
+
+    grid_props: dict[str, Any] = {}
+    fields: list[str] = []
+    if row_count is not None:
+        grid_props["rowCount"] = int(row_count)
+        fields.append("gridProperties.rowCount")
+    if column_count is not None:
+        grid_props["columnCount"] = int(column_count)
+        fields.append("gridProperties.columnCount")
+
+    if not fields:
+        raise GoogleOAuthError("resize_sheet_grid requires row_count and/or column_count")
+
+    return await batch_update(
+        user_id=user_id,
+        organization_id=organization_id,
+        session=session,
+        spreadsheet_id=spreadsheet_id,
+        requests=[
+            {
+                "updateSheetProperties": {
+                    "properties": {"sheetId": sheet_id, "gridProperties": grid_props},
+                    "fields": ",".join(fields),
+                }
+            }
+        ],
+    )
+
+
+async def insert_dimension(
+    *,
+    user_id: str,
+    organization_id: str,
+    session: AsyncSession,
+    spreadsheet_id: str,
+    sheet_title: str,
+    dimension: str,
+    start_index: int,
+    end_index: int,
+    inherit_from_before: bool = False,
+) -> dict:
+    sheet_id = await _get_sheet_id_by_title(user_id=user_id, organization_id=organization_id, session=session, spreadsheet_id=spreadsheet_id, sheet_title=sheet_title)
+    dim = (dimension or "").upper().strip()
+    if dim not in {"ROWS", "COLUMNS"}:
+        raise GoogleOAuthError("dimension must be 'ROWS' or 'COLUMNS'")
+
+    return await batch_update(
+        user_id=user_id,
+        organization_id=organization_id,
+        session=session,
+        spreadsheet_id=spreadsheet_id,
+        requests=[
+            {
+                "insertDimension": {
+                    "range": {
+                        "sheetId": sheet_id,
+                        "dimension": dim,
+                        "startIndex": int(start_index),
+                        "endIndex": int(end_index),
+                    },
+                    "inheritFromBefore": bool(inherit_from_before),
+                }
+            }
+        ],
+    )
+
+
+async def delete_dimension(
+    *,
+    user_id: str,
+    organization_id: str,
+    session: AsyncSession,
+    spreadsheet_id: str,
+    sheet_title: str,
+    dimension: str,
+    start_index: int,
+    end_index: int,
+) -> dict:
+    sheet_id = await _get_sheet_id_by_title(user_id=user_id, organization_id=organization_id, session=session, spreadsheet_id=spreadsheet_id, sheet_title=sheet_title)
+    dim = (dimension or "").upper().strip()
+    if dim not in {"ROWS", "COLUMNS"}:
+        raise GoogleOAuthError("dimension must be 'ROWS' or 'COLUMNS'")
+
+    return await batch_update(
+        user_id=user_id,
+        organization_id=organization_id,
+        session=session,
+        spreadsheet_id=spreadsheet_id,
+        requests=[
+            {
+                "deleteDimension": {
+                    "range": {
+                        "sheetId": sheet_id,
+                        "dimension": dim,
+                        "startIndex": int(start_index),
+                        "endIndex": int(end_index),
+                    }
+                }
+            }
+        ],
+    )

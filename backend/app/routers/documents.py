@@ -1,7 +1,8 @@
 import logging
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 
-from app.dependencies import CurrentUser
+from app.authz import can
+from app.dependencies import DocumentReader, DocumentUploader
 from app.db.base import get_db_session
 from app.models.document import DocumentPublic
 from app.repositories import DocumentRepository
@@ -18,7 +19,7 @@ ALLOWED_TYPES = {
 
 
 @router.post("/upload")
-async def upload_document(user: CurrentUser, file: UploadFile = File(...), session = Depends(get_db_session)):
+async def upload_document(user: DocumentUploader, file: UploadFile = File(...), session = Depends(get_db_session)):
     """Upload a business document and ingest it into the RAG vector store."""
     from app.services.user_settings_service import UserSettingsError
 
@@ -45,7 +46,7 @@ async def upload_document(user: CurrentUser, file: UploadFile = File(...), sessi
 
 
 @router.get("", response_model=list[DocumentPublic])
-async def list_documents(user: CurrentUser, session = Depends(get_db_session)):
+async def list_documents(user: DocumentReader, session = Depends(get_db_session)):
     """List all ingested documents for the current user's organization."""
     documents = await DocumentRepository.list_by_organization(session, user.organization.id)
     return [
@@ -61,11 +62,14 @@ async def list_documents(user: CurrentUser, session = Depends(get_db_session)):
 
 
 @router.delete("/{doc_id}")
-async def delete_document(doc_id: str, user: CurrentUser, session = Depends(get_db_session)):
+async def delete_document(doc_id: str, user: DocumentReader, session = Depends(get_db_session)):
     """Remove a document from PostgreSQL and the vector store."""
     doc = await DocumentRepository.get_by_id(session, doc_id, user.organization.id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
+    own = doc.uploaded_by_user_id == user.user.id
+    if not can(user.role, "document.delete_own" if own else "document.delete_any"):
+        raise HTTPException(status_code=403, detail=f"Your role ({user.role}) can't delete this document.")
     await delete_document_chunks(doc_id, user.organization.id)
     await DocumentRepository.delete(session, doc_id, user.organization.id)
     return {"ok": True}

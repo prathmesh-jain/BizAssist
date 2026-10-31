@@ -1,7 +1,7 @@
 import uuid
 from typing import Optional
 from datetime import datetime, timezone, timedelta
-from sqlalchemy import select, delete, and_
+from sqlalchemy import select, delete, update, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import OAuthConnection, OAuthState
@@ -154,13 +154,15 @@ class OAuthStateRepository:
     async def get_valid_state(
         session: AsyncSession,
         user_id: str,
+        organization_id: str,
         state_hash: str,
     ) -> Optional[OAuthState]:
-        """Get a valid, unused, non-expired OAuth state."""
+        """Get a valid, unused, non-expired OAuth state issued to this user in this organization."""
         now = datetime.now(timezone.utc)
         result = await session.execute(
             select(OAuthState).where(
                 OAuthState.user_id == user_id,
+                OAuthState.organization_id == organization_id,
                 OAuthState.state_hash == state_hash,
                 OAuthState.used == False,
                 OAuthState.expires_at > now,
@@ -183,6 +185,16 @@ class OAuthStateRepository:
             await session.flush()
             return True
         return False
+
+    @staticmethod
+    async def clear_chat_reference(
+        session: AsyncSession,
+        chat_id: str,
+    ) -> None:
+        """Detach OAuth states from a chat that is about to be deleted."""
+        await session.execute(
+            update(OAuthState).where(OAuthState.chat_id == chat_id).values(chat_id=None)
+        )
 
     @staticmethod
     async def cleanup_expired(

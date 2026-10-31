@@ -14,6 +14,7 @@ class AgentState(TypedDict, total=False):
     user_id: str
     chat_id: str
     organization_id: str  # Added for multi-tenancy
+    role: str  # caller's organization role; tools enforce app.authz rules with it
 
     # Observability
     tool_calls_made: list[str]

@@ -10,7 +10,7 @@ class OAuthState(Base, TimestampMixin):
     """OAuth state management for OAuth flows."""
     __tablename__ = "oauth_states"
 
-    id: Mapped[uuid.UUID] = mapped_column(
+    id: Mapped[str] = mapped_column(
         String, primary_key=True, default=lambda: str(uuid.uuid4())
     )
     user_id: Mapped[str] = mapped_column(

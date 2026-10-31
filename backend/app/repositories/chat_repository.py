@@ -15,12 +15,14 @@ class ChatRepository:
         session: AsyncSession,
         chat_id: str,
         organization_id: str,
+        created_by_user_id: str,
     ) -> Optional[Chat]:
-        """Get chat by ID with organization scoping."""
+        """Get a chat owned by this user in this organization (chats are private to their creator)."""
         result = await session.execute(
             select(Chat).where(
                 Chat.id == chat_id,
                 Chat.organization_id == organization_id,
+                Chat.created_by_user_id == created_by_user_id,
                 Chat.is_deleted == False,
             )
         )
@@ -46,16 +48,18 @@ class ChatRepository:
         return chat
 
     @staticmethod
-    async def list_by_organization(
+    async def list_for_user(
         session: AsyncSession,
         organization_id: str,
+        created_by_user_id: str,
         limit: int = 100,
     ) -> List[Chat]:
-        """List chats for an organization."""
+        """List the user's own chats in an organization."""
         result = await session.execute(
             select(Chat)
             .where(
                 Chat.organization_id == organization_id,
+                Chat.created_by_user_id == created_by_user_id,
                 Chat.is_deleted == False,
             )
             .order_by(Chat.updated_at.desc())
@@ -68,6 +72,7 @@ class ChatRepository:
         session: AsyncSession,
         chat_id: str,
         organization_id: str,
+        created_by_user_id: str,
         title: str,
     ) -> Optional[Chat]:
         """Update chat title."""
@@ -75,6 +80,7 @@ class ChatRepository:
             select(Chat).where(
                 Chat.id == chat_id,
                 Chat.organization_id == organization_id,
+                Chat.created_by_user_id == created_by_user_id,
             )
         )
         chat = result.scalar_one_or_none()
@@ -89,12 +95,14 @@ class ChatRepository:
         session: AsyncSession,
         chat_id: str,
         organization_id: str,
+        created_by_user_id: str,
     ) -> bool:
         """Soft delete a chat."""
         result = await session.execute(
             select(Chat).where(
                 Chat.id == chat_id,
                 Chat.organization_id == organization_id,
+                Chat.created_by_user_id == created_by_user_id,
             )
         )
         chat = result.scalar_one_or_none()
@@ -110,12 +118,14 @@ class ChatRepository:
         session: AsyncSession,
         chat_id: str,
         organization_id: str,
+        created_by_user_id: str,
     ) -> bool:
         """Hard delete a chat and its messages."""
         result = await session.execute(
             delete(Chat).where(
                 Chat.id == chat_id,
                 Chat.organization_id == organization_id,
+                Chat.created_by_user_id == created_by_user_id,
             )
         )
         await session.flush()
@@ -178,7 +188,7 @@ class MessageRepository:
         if before_id:
             # Get the timestamp of the before_id message
             before_result = await session.execute(
-                select(Message.created_at).where(Message.id == before_id)
+                select(Message.created_at).where(Message.id == before_id, Message.chat_id == chat_id)
             )
             before_timestamp = before_result.scalar_one_or_none()
             if before_timestamp:
@@ -189,6 +199,21 @@ class MessageRepository:
         )
         messages = list(result.scalars().all())
         return messages
+
+    @staticmethod
+    async def list_attachments(
+        session: AsyncSession,
+        chat_id: str,
+        limit: int = 100,
+    ) -> List[list]:
+        """Return the attachment lists of messages in a chat, oldest first."""
+        result = await session.execute(
+            select(Message.attachments)
+            .where(Message.chat_id == chat_id, Message.attachments.isnot(None))
+            .order_by(Message.created_at.asc())
+            .limit(limit)
+        )
+        return [atts for atts in result.scalars().all() if isinstance(atts, list)]
 
     @staticmethod
     async def mark_interrupts_resolved(
@@ -207,9 +232,13 @@ class MessageRepository:
         count = 0
         for msg in messages:
             if msg.interrupt and msg.interrupt.get("is_pending"):
-                msg.interrupt["is_pending"] = False
-                msg.interrupt["resolution"] = resolution
-                msg.interrupt["resolved_at"] = datetime.now(timezone.utc).isoformat()
+                # Reassign rather than mutate: plain JSON columns don't track in-place changes.
+                msg.interrupt = {
+                    **msg.interrupt,
+                    "is_pending": False,
+                    "resolution": resolution,
+                    "resolved_at": datetime.now(timezone.utc).isoformat(),
+                }
                 count += 1
         await session.flush()
         return count

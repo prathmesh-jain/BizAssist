@@ -103,6 +103,7 @@ async def stream_agent_response(
     user_id: str,
     organization_id: str,
     session: AsyncSession,
+    role: str = "viewer",
     user_message_context: str | None = None,
     is_resume: bool = False,
     resume_value: str | bool | dict | None = None,
@@ -125,6 +126,7 @@ async def stream_agent_response(
         "user_id": user_id,
         "chat_id": chat_id,
         "organization_id": organization_id,
+        "role": role,
     }
 
     full_response = ""
@@ -139,14 +141,17 @@ async def stream_agent_response(
     pre_run_msgs_count = len(pre_run_state.values.get("messages") or [])
 
     # Use Command(resume=...) if resuming, otherwise use initial_state
-    input_data = initial_state if not is_resume else Command(resume=resume_value)
+    # On resume, refresh the role too so a demotion during a pending interrupt takes effect.
+    input_data = initial_state if not is_resume else Command(resume=resume_value, update={"role": role})
 
     max_attempts = 1 if is_resume else max(int(getattr(settings, "agent_run_retries", 2) or 2), 1)
 
     for attempt in range(1, max_attempts + 1):
+        # A retry resumes from the last checkpoint; re-sending the input would duplicate the user message.
+        attempt_input = input_data if attempt == 1 else None
         try:
             async for part in graph.astream(
-                input_data,
+                attempt_input,
                 config=config,
                 stream_mode=["messages", "updates"],
                 version="v2"
@@ -251,9 +256,9 @@ async def stream_agent_response(
 
     if new_msgs:
         for m in new_msgs:
-            # Skip persisting the very first human message of a run if it was already persisted
-            # in the router before calling this function.
-            if not is_resume and m == graph_messages[0]:
+            # Skip the run's own human message: the router already persisted it.
+            # Compare by content, since the checkpointed copy has a LangGraph-assigned id.
+            if not is_resume and m.type == "human" and m.content == combined_user:
                 continue
             if m.type == "tool":
                 continue
@@ -281,8 +286,13 @@ async def stream_agent_response(
         messages = await MessageRepository.list_by_chat(session, chat_id, limit=1000)
         user_msg_count = sum(1 for m in messages if m.role == "user")
         if user_msg_count == 1 and user_message:
-            title = await generate_chat_title(user_message, user_id, session)
-            await ChatRepository.update_title(session, chat_id, organization_id, title)
-            yield f"data: {json.dumps({'type': 'title_update', 'chat_id': chat_id, 'title': title})}\n\n"
+            try:
+                title = await generate_chat_title(user_message, user_id, session)
+            except Exception:
+                # A missing title must not break the stream; the chat keeps its default title.
+                logger.warning("Chat title generation failed for chat %s", chat_id, exc_info=True)
+            else:
+                await ChatRepository.update_title(session, chat_id, organization_id, user_id, title)
+                yield f"data: {json.dumps({'type': 'title_update', 'chat_id': chat_id, 'title': title})}\n\n"
 
     yield f"data: {json.dumps({'type': 'done'})}\n\n"

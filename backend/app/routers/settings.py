@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.dependencies import CurrentUser
 from app.db.base import get_db_session

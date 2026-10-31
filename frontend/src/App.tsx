@@ -3,8 +3,10 @@ import { setTokenGetter, setUnauthorizedHandler } from './api/client';
 import React from 'react';
 import { ThemeProvider } from './components/ThemeProvider';
 import { useAuth } from './context/AuthContext';
+import { postLoginPath } from './lib/session';
 
 const Login = React.lazy(() => import('./pages/Login'));
+const InvitePage = React.lazy(() => import('./pages/InvitePage'));
 const Signup = React.lazy(() => import('./pages/Signup'));
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const OAuthCallback = React.lazy(() => import('./pages/OAuthCallback'));
@@ -55,8 +57,11 @@ function App() {
           </div>
         )}
         <Routes>
-          <Route path="/login" element={user ? <Navigate to="/app" replace /> : <RouteSuspense><Login /></RouteSuspense>} />
-          <Route path="/signup" element={user ? <Navigate to="/app" replace /> : <RouteSuspense><Signup /></RouteSuspense>} />
+          <Route path="/login" element={user ? <Navigate to={postLoginPath()} replace /> : <RouteSuspense><Login /></RouteSuspense>} />
+          <Route path="/signup" element={user ? <Navigate to={postLoginPath()} replace /> : <RouteSuspense><Signup /></RouteSuspense>} />
+
+          {/* Invitation links; redirects to login (and back) when signed out */}
+          <Route path="/invite" element={<BackendWarmupGate><RouteSuspense><InvitePage /></RouteSuspense></BackendWarmupGate>} />
 
           {/* OAuth popup callback — must be accessible without auth */}
           <Route path="/oauth-callback" element={<RouteSuspense><OAuthCallback /></RouteSuspense>} />

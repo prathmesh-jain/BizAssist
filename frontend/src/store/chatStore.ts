@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import apiClient, { getAuthHeader } from '../api/client';
+import apiClient, { getRequestHeaders } from '../api/client';
 import { triggerUnauthorized } from '../api/client';
 import type { Chat, Message, ToolStatus, ToolCall } from '../types';
 
@@ -231,9 +231,9 @@ async function handleStream(
 
     if (finalChatId) {
         try {
-            const authHeader = await getAuthHeader();
+            const requestHeaders = await getRequestHeaders();
             const r = await fetch(`${getApiBase()}/chat/${finalChatId}/messages?limit=10`, {
-                headers: { 'Authorization': authHeader }
+                headers: { ...requestHeaders }
             });
             if (r.ok) {
                 const d = await r.json();
@@ -278,9 +278,9 @@ const useChatStore = create<ChatState>((set, get) => ({
     setActiveChat: async (id: string) => {
         set({ activeChatId: id, messages: [], streamingMessage: '', activeTools: [], agentStatus: null, hasMoreMessages: true });
         try {
-            const authHeader = await getAuthHeader();
+            const requestHeaders = await getRequestHeaders();
             const response = await fetch(`${getApiBase()}/chat/${id}/messages?limit=10`, {
-                headers: { 'Authorization': authHeader }
+                headers: { ...requestHeaders }
             });
             if (response.ok) {
                 const data = await response.json();
@@ -328,7 +328,7 @@ const useChatStore = create<ChatState>((set, get) => ({
         set((state) => ({ messages: [...state.messages, userMsg] }));
 
         try {
-            const authHeader = await getAuthHeader();
+            const requestHeaders = await getRequestHeaders();
             const hasFiles = (attachments || []).length > 0;
             const url = hasFiles
                 ? `${getApiBase()}/chat/${activeChatId}/message_with_files`
@@ -336,7 +336,7 @@ const useChatStore = create<ChatState>((set, get) => ({
 
             const fetchInit: RequestInit = {
                 method: 'POST',
-                headers: { 'Authorization': authHeader }
+                headers: { ...requestHeaders }
             };
 
             if (hasFiles) {
@@ -377,9 +377,9 @@ const useChatStore = create<ChatState>((set, get) => ({
         try {
             const oldestMsg = messages[0];
             const query = oldestMsg?.id ? `?before=${encodeURIComponent(oldestMsg.id)}&limit=10` : `?limit=10`;
-            const authHeader = await getAuthHeader();
+            const requestHeaders = await getRequestHeaders();
             const response = await fetch(`${getApiBase()}/chat/${activeChatId}/messages${query}`, {
-                headers: { 'Authorization': authHeader }
+                headers: { ...requestHeaders }
             });
             if (response.ok) {
                 const data = await response.json();
@@ -426,11 +426,11 @@ const useChatStore = create<ChatState>((set, get) => ({
             messages: state.messages.filter(m => !m.interrupt)
         }));
         try {
-            const authHeader = await getAuthHeader();
+            const requestHeaders = await getRequestHeaders();
             const response = await fetch(`${getApiBase()}/chat/${chatId}/interrupt-resolve`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': authHeader,
+                    ...requestHeaders,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ action, data })
@@ -462,14 +462,14 @@ const useChatStore = create<ChatState>((set, get) => ({
             streamingMessage: '',
         }));
         try {
-            const authHeader = await getAuthHeader();
+            const requestHeaders = await getRequestHeaders();
             const form = new FormData();
             form.append('content', content);
             for (const file of files) form.append('files', file);
 
             const response = await fetch(`${getApiBase()}/chat/${chatId}/interrupt-resolve-with-files`, {
                 method: 'POST',
-                headers: { 'Authorization': authHeader },
+                headers: { ...requestHeaders },
                 body: form,
             });
             if (!response.ok) {

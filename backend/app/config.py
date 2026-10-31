@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: list[str] = ["http://localhost:5173"]
 
+    # Public URL of the web app, used to build links such as invitations
+    frontend_url: str = "http://localhost:5173"
+    invitation_ttl_days: int = 7
+
     # Guardrails
     use_guardrail: bool = False
 

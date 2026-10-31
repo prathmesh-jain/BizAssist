@@ -35,13 +35,15 @@ async def get_llm(
         ChatOpenAI: A configured LangChain LLM instance.
     """
     if user_id:
+        # BYOK: user-scoped calls must always use the user's own key, never the server key.
         if session is None:
-            # For memory node and other cases where session isn't available,
-            # fall back to default settings
-            api_key = settings.openai_api_key
-            if model_name is None:
-                model_name = settings.primary_model
-            logger.warning(f"Using default API key for user {user_id} (no session provided)")
+            # Graph nodes have no request session; open a short-lived one.
+            from app.db.base import session_scope
+
+            async with session_scope() as own_session:
+                api_key = await require_user_openai_api_key(user_id, own_session)
+                if model_name is None:
+                    model_name = await get_user_model_for_purpose(user_id, purpose, own_session)
         else:
             api_key = await require_user_openai_api_key(user_id, session)
             if model_name is None:

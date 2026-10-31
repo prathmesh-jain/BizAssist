@@ -9,7 +9,7 @@ class Message(Base, TimestampMixin):
     """Chat messages."""
     __tablename__ = "messages"
 
-    id: Mapped[uuid.UUID] = mapped_column(
+    id: Mapped[str] = mapped_column(
         String, primary_key=True, default=lambda: str(uuid.uuid4())
     )
     chat_id: Mapped[str] = mapped_column(

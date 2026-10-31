@@ -149,6 +149,7 @@ def _tool_search_interrupt_question(category: str, query: str) -> str:
 def get_core_tools(state: AgentState) -> list:
     """Build the core tools that remain available across execution turns."""
     user_id, _ = _state_ids(state)
+    organization_id = state.get("organization_id", "")
 
     @tool("request_clarification")
     async def request_clarification(
@@ -176,9 +177,18 @@ def get_core_tools(state: AgentState) -> list:
         Use this for direct knowledge-base lookup and single-step document questions.
         Optionally filter by a specific filename to focus the search.
         """
+        from app.db.base import session_scope
         from app.services.rag_service import retrieve
 
-        ctx = await retrieve(query=query, user_id=user_id, k=int(k or 5), filename=filename)
+        async with session_scope() as session:
+            ctx = await retrieve(
+                query=query,
+                organization_id=organization_id,
+                user_id=user_id,
+                session=session,
+                k=int(k or 5),
+                filename=filename,
+            )
         return {"ok": True, "query": query, "k": int(k or 5), "filename": filename, "context": ctx}
 
     return [request_clarification, rag_retrieve]
@@ -194,6 +204,7 @@ def get_rag_tools(state: AgentState) -> list:
 
 def get_document_listing_tools(state: AgentState) -> list:
     user_id, chat_id = _state_ids(state)
+    organization_id = state.get("organization_id", "")
 
     @tool("list_documents", args_schema=ListDocumentsInput)
     async def list_documents(filename: str | None = None, limit: int = 5) -> dict:
@@ -203,14 +214,16 @@ def get_document_listing_tools(state: AgentState) -> list:
         Results include the document source so you know whether a file is a chat upload or an indexed document.
         If you later need to read an indexed knowledge-base document, route that task to the planner.
         """
-        from app.services.rag_service import list_user_documents
+        from app.db.base import session_scope
+        from app.services.rag_service import list_organization_documents
         from app.tools.chat_attachments_tools import list_chat_attachments_metadata
 
         max_results = max(1, min(int(limit or 5), 10))
         search_value = (filename or "").strip().lower()
 
         chat_documents = await list_chat_attachments_metadata(user_id=user_id, chat_id=chat_id)
-        indexed_documents = await list_user_documents(user_id=user_id)
+        async with session_scope() as session:
+            indexed_documents = await list_organization_documents(organization_id, session)
 
         combined: list[dict[str, Any]] = []
         for document in chat_documents:

@@ -226,13 +226,9 @@ async def delete_document_chunks(document_id: str, organization_id: str):
     # Delete by document_id filter
     client.delete(
         collection_name=collection_name,
-        points_selector=models.Filter(
-            must=[
-                models.FieldCondition(
-                    key="document_id",
-                    match=models.MatchValue(value=document_id),
-                )
-            ]
+        points_selector=qdrant_filter(
+            qdrant_match_filter("organization_id", organization_id),
+            qdrant_match_filter("document_id", document_id),
         ),
         wait=True,
     )

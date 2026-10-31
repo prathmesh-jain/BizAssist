@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useThemeStore from '../store/themeStore';
 import { useAuth } from '../context/AuthContext';
+import { postLoginPath } from '../lib/session';
 
 export default function Signup() {
     useThemeStore();
@@ -18,7 +19,7 @@ export default function Signup() {
         setLoading(true);
         try {
             await signUpWithEmail(email.trim(), password);
-            navigate('/app', { replace: true });
+            navigate(postLoginPath(), { replace: true });
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : 'Signup failed');
         } finally {
@@ -31,7 +32,7 @@ export default function Signup() {
         setLoading(true);
         try {
             await signInWithGoogle();
-            navigate('/app', { replace: true });
+            navigate(postLoginPath(), { replace: true });
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : 'Google sign-in failed');
         } finally {

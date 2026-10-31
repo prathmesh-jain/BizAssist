@@ -9,7 +9,7 @@ class Document(Base, TimestampMixin):
     """Document metadata for RAG."""
     __tablename__ = "documents"
 
-    id: Mapped[uuid.UUID] = mapped_column(
+    id: Mapped[str] = mapped_column(
         String, primary_key=True, default=lambda: str(uuid.uuid4())
     )
     organization_id: Mapped[str] = mapped_column(

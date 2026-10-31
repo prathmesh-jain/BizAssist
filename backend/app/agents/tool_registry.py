@@ -270,6 +270,8 @@ def get_tool_registry() -> ToolRegistry:
     def sheets_loader(state: AgentState) -> list:
         return get_sheets_tools(
             user_id=state.get("user_id", ""),
+            organization_id=state.get("organization_id", ""),
+            role=state.get("role"),
             chat_id=state.get("chat_id"),
         )
 

@@ -59,3 +59,50 @@ export interface DocumentMetadata {
     chunk_count: number;
     created_at: string;
 }
+
+export type OrgRole = 'viewer' | 'member' | 'admin' | 'owner';
+
+export interface Membership {
+    organization_id: string;
+    organization_name: string;
+    role: OrgRole;
+    status: 'active' | 'suspended' | 'invited';
+    organization_active: boolean;
+}
+
+export interface Me {
+    user: { id: string; email: string; full_name: string | null };
+    organization: { id: string; name: string; slug: string };
+    role: OrgRole;
+    permissions: string[];
+    memberships: Membership[];
+}
+
+export interface OrgMember {
+    user_id: string;
+    email: string;
+    full_name: string | null;
+    role: OrgRole;
+    status: 'active' | 'suspended';
+    joined_at: string;
+    is_you: boolean;
+    can_manage: boolean;
+}
+
+export interface OrgInvitation {
+    id: string;
+    email: string;
+    role: OrgRole;
+    status: string;
+    expires_at: string;
+    created_at: string;
+}
+
+export interface InvitationPreview {
+    organization_id: string;
+    organization_name: string;
+    role: OrgRole;
+    email: string;
+    email_matches: boolean;
+    expires_at: string;
+}

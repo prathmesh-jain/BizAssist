@@ -8,6 +8,7 @@ const Sidebar = React.lazy(() => import('../components/layout/Sidebar'));
 const ChatWindow = React.lazy(() => import('../components/chat/ChatWindow'));
 const DocumentView = React.lazy(() => import('../components/documents/DocumentView'));
 const SettingsView = React.lazy(() => import('../components/settings/SettingsView'));
+const TeamView = React.lazy(() => import('../components/team/TeamView'));
 
 export default function Dashboard() {
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
@@ -17,6 +18,7 @@ export default function Dashboard() {
 
     const currentView = React.useMemo(() => {
         if (location.pathname.startsWith('/app/settings')) return 'settings';
+        if (location.pathname.startsWith('/app/team')) return 'team';
         if (location.pathname.startsWith('/app/documents')) return 'documents';
         return 'chat';
     }, [location.pathname]);
@@ -74,6 +76,7 @@ export default function Dashboard() {
 
                     <Route path="documents" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><DocumentView /></FeatureView>} />
                     <Route path="settings" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><SettingsView /></FeatureView>} />
+                    <Route path="team" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><TeamView /></FeatureView>} />
 
                     <Route path="*" element={<Navigate to="chat" replace />} />
                 </Routes>

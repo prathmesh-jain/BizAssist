@@ -1,6 +1,7 @@
 import logging
-from fastapi import APIRouter, HTTPException
-from app.dependencies import CurrentUser
+from fastapi import APIRouter, Depends, HTTPException
+from app.dependencies import IntegrationManager, IntegrationReader
+from app.repositories import ChatRepository
 from app.db.base import get_db_session
 
 from app.services.google_sheets_service import (
@@ -16,7 +17,7 @@ router = APIRouter(prefix="/api/integrations", tags=["integrations"])
 
 
 @router.get("/google-sheets/status")
-async def google_sheets_status(user: CurrentUser, session = Depends(get_db_session)):
+async def google_sheets_status(user: IntegrationReader, session = Depends(get_db_session)):
     """
     Check whether the current user's organization has Google Sheets connected.
     """
@@ -30,13 +31,15 @@ async def google_sheets_status(user: CurrentUser, session = Depends(get_db_sessi
 
 
 @router.post("/google-sheets/connect")
-async def google_sheets_connect(user: CurrentUser, body: dict = {}, session = Depends(get_db_session)):
+async def google_sheets_connect(user: IntegrationManager, body: dict = {}, session = Depends(get_db_session)):
     """
     Create a Google OAuth authorization URL for Sheets.
     The frontend should open this URL in a popup.
     """
     try:
         chat_id = body.get("chat_id")
+        if chat_id and not await ChatRepository.get_by_id(session, chat_id, user.organization.id, user.user.id):
+            raise HTTPException(status_code=404, detail="Chat not found")
         result = await create_oauth_authorization_url(
             user_id=user.user.id,
             organization_id=user.organization.id,
@@ -56,7 +59,7 @@ async def google_sheets_connect(user: CurrentUser, body: dict = {}, session = De
 
 
 @router.post("/google-sheets/callback")
-async def google_sheets_callback(user: CurrentUser, body: dict, session = Depends(get_db_session)):
+async def google_sheets_callback(user: IntegrationManager, body: dict, session = Depends(get_db_session)):
     """Handle OAuth callback by exchanging `code` and persisting tokens."""
     code = (body.get("code") or "").strip()
     state = (body.get("state") or "").strip()

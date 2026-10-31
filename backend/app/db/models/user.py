@@ -9,7 +9,7 @@ class User(Base, TimestampMixin):
     """Application-level user identity/profile."""
     __tablename__ = "users"
 
-    id: Mapped[uuid.UUID] = mapped_column(
+    id: Mapped[str] = mapped_column(
         String, primary_key=True, default=lambda: str(uuid.uuid4())
     )
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)

@@ -9,7 +9,7 @@ class OrganizationMember(Base, TimestampMixin):
     """Relationship between users and organizations."""
     __tablename__ = "organization_members"
 
-    id: Mapped[uuid.UUID] = mapped_column(
+    id: Mapped[str] = mapped_column(
         String, primary_key=True, default=lambda: str(uuid.uuid4())
     )
     organization_id: Mapped[str] = mapped_column(

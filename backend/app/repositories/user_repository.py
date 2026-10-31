@@ -1,5 +1,5 @@
 import uuid
-from typing import Optional
+from typing import List, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -74,17 +74,50 @@ class UserRepository:
         return identity
 
     @staticmethod
-    async def get_user_organization(
+    async def get_active_membership(
         session: AsyncSession,
         user_id: str,
-    ) -> Optional[Organization]:
-        """Get the user's primary organization (for now, assumes single org)."""
-        result = await session.execute(
-            select(Organization)
-            .join(OrganizationMember)
-            .where(OrganizationMember.user_id == user_id)
-            .limit(1)
+        organization_id: Optional[str] = None,
+    ) -> Optional[tuple[OrganizationMember, Organization]]:
+        """Active membership in an active organization.
+
+        With organization_id, returns that membership; otherwise the user's default
+        (oldest) one. Returns None when there is no usable membership.
+        """
+        query = (
+            select(OrganizationMember, Organization)
+            .join(Organization, Organization.id == OrganizationMember.organization_id)
+            .where(
+                OrganizationMember.user_id == user_id,
+                OrganizationMember.status == "active",
+                Organization.is_active == True,
+            )
         )
+        if organization_id:
+            query = query.where(OrganizationMember.organization_id == organization_id)
+        result = await session.execute(
+            query.order_by(OrganizationMember.created_at.asc(), OrganizationMember.id.asc()).limit(1)
+        )
+        row = result.first()
+        return (row[0], row[1]) if row else None
+
+    @staticmethod
+    async def list_memberships(
+        session: AsyncSession,
+        user_id: str,
+    ) -> List[tuple[OrganizationMember, Organization]]:
+        """All of a user's memberships with their organizations, oldest first."""
+        result = await session.execute(
+            select(OrganizationMember, Organization)
+            .join(Organization, Organization.id == OrganizationMember.organization_id)
+            .where(OrganizationMember.user_id == user_id)
+            .order_by(OrganizationMember.created_at.asc(), OrganizationMember.id.asc())
+        )
+        return [(row[0], row[1]) for row in result.all()]
+
+    @staticmethod
+    async def get_organization(session: AsyncSession, organization_id: str) -> Optional[Organization]:
+        result = await session.execute(select(Organization).where(Organization.id == organization_id))
         return result.scalar_one_or_none()
 
     @staticmethod

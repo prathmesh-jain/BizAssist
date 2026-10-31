@@ -65,7 +65,10 @@ def compute_tool_metadata_hash(metadata: Any) -> str:
 
 async def resolve_embedding_api_key(user_id: str | None = None) -> str:
     if user_id:
-        user_key = await get_user_openai_api_key(user_id)
+        from app.db.base import session_scope
+
+        async with session_scope() as session:
+            user_key = await get_user_openai_api_key(user_id, session)
         if user_key:
             return user_key
     if settings.openai_api_key:

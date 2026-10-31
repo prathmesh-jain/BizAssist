@@ -2,15 +2,15 @@ import logging
 from pathlib import Path
 from uuid import uuid4
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel
 from typing import Literal,Optional,Any
-from app.dependencies import CurrentUser
+from app.dependencies import ChatUser
 from app.db.base import get_db_session
 from app.models.chat import ChatCreate, ChatPublic
 from app.models.message import MessagePublic
-from app.repositories import ChatRepository, MessageRepository
+from app.repositories import ChatRepository, MessageRepository, OAuthStateRepository
 from app.services.chat_service import (
     build_attachment_event_text,
     extract_text_from_image_bytes,
@@ -184,19 +184,19 @@ def _chat_doc_to_public(chat) -> dict:
     }
 
 
-def _should_expose_message(m: dict) -> bool:
-    if m.get("role") == "tool":
+def _should_expose_message(m) -> bool:
+    if m.role == "tool":
         return False
 
-    interrupt = m.get("interrupt") or {}
+    interrupt = m.interrupt or {}
     if interrupt and not interrupt.get("is_pending"):
         return False
 
-    content = str(m.get("content") or "").strip()
-    attachments = m.get("attachments") or []
-    tool_calls = m.get("tool_calls") or []
+    content = str(m.content or "").strip()
+    attachments = m.attachments or []
+    tool_calls = m.tool_calls or []
     is_tool_only_assistant = (
-        m.get("role") == "assistant"
+        m.role == "assistant"
         and not content
         and not attachments
         and bool(tool_calls)
@@ -208,7 +208,7 @@ def _should_expose_message(m: dict) -> bool:
 
 
 @router.post("", response_model=ChatPublic)
-async def create_chat(data: ChatCreate, user: CurrentUser, session = Depends(get_db_session)):
+async def create_chat(data: ChatCreate, user: ChatUser, session = Depends(get_db_session)):
     """Create a new chat session."""
     chat = await ChatRepository.create(
         session,
@@ -220,16 +220,16 @@ async def create_chat(data: ChatCreate, user: CurrentUser, session = Depends(get
 
 
 @router.get("", response_model=list[ChatPublic])
-async def list_chats(user: CurrentUser, session = Depends(get_db_session)):
-    """List all chats for the current user's organization."""
-    chats = await ChatRepository.list_by_organization(session, user.organization.id)
+async def list_chats(user: ChatUser, session = Depends(get_db_session)):
+    """List the current user's chats in their organization."""
+    chats = await ChatRepository.list_for_user(session, user.organization.id, user.user.id)
     return [ChatPublic(**_chat_doc_to_public(c)) for c in chats]
 
 
 @router.get("/{chat_id}/messages")
 async def get_messages(
     chat_id: str,
-    user: CurrentUser,
+    user: ChatUser,
     limit: int = 10,
     before: str | None = None,
     session = Depends(get_db_session),
@@ -240,7 +240,7 @@ async def get_messages(
     - before: message ID to fetch messages before (for infinite scroll)
     Returns: {"messages": [...], "has_more": bool}
     """
-    chat = await ChatRepository.get_by_id(session, chat_id, user.organization.id)
+    chat = await ChatRepository.get_by_id(session, chat_id, user.organization.id, user.user.id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 
@@ -275,7 +275,7 @@ async def get_messages(
 
 
 @router.post("/{chat_id}/message")
-async def send_message(chat_id: str, body: dict, user: CurrentUser, session = Depends(get_db_session)):
+async def send_message(chat_id: str, body: dict, user: ChatUser, session = Depends(get_db_session)):
     """
     Send a user message and stream back the AI response via SSE.
     Body: {"content": "..."}
@@ -284,7 +284,7 @@ async def send_message(chat_id: str, body: dict, user: CurrentUser, session = De
     if not content:
         raise HTTPException(status_code=400, detail="Message content is required")
 
-    chat = await ChatRepository.get_by_id(session, chat_id, user.organization.id)
+    chat = await ChatRepository.get_by_id(session, chat_id, user.organization.id, user.user.id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 
@@ -293,7 +293,7 @@ async def send_message(chat_id: str, body: dict, user: CurrentUser, session = De
 
     return StreamingResponse(
         stream_agent_response(
-            content, chat_id, user.user.id, user.organization.id, session
+            content, chat_id, user.user.id, user.organization.id, session, role=user.role
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
@@ -303,7 +303,7 @@ async def send_message(chat_id: str, body: dict, user: CurrentUser, session = De
 @router.post("/{chat_id}/message_with_files")
 async def send_message_with_files(
     chat_id: str,
-    user: CurrentUser,
+    user: ChatUser,
     content: str = Form(""),
     files: list[UploadFile] = File(default=[]),
     session = Depends(get_db_session),
@@ -313,7 +313,7 @@ async def send_message_with_files(
     if not content and not files:
         raise HTTPException(status_code=400, detail="Message content or files are required")
 
-    chat = await ChatRepository.get_by_id(session, chat_id, user.organization.id)
+    chat = await ChatRepository.get_by_id(session, chat_id, user.organization.id, user.user.id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 
@@ -335,6 +335,7 @@ async def send_message_with_files(
             user.user.id,
             user.organization.id,
             session,
+            role=user.role,
             user_message_context=upload_note if attachments else None,
         ),
         media_type="text/event-stream",
@@ -343,9 +344,9 @@ async def send_message_with_files(
 
 
 @router.get("/{chat_id}/attachments/{attachment_id}")
-async def get_chat_attachment(chat_id: str, attachment_id: str, user: CurrentUser, session = Depends(get_db_session)):
+async def get_chat_attachment(chat_id: str, attachment_id: str, user: ChatUser, session = Depends(get_db_session)):
     """Serve an uploaded attachment for preview/download."""
-    chat = await ChatRepository.get_by_id(session, chat_id, user.organization.id)
+    chat = await ChatRepository.get_by_id(session, chat_id, user.organization.id, user.user.id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 
@@ -382,17 +383,16 @@ async def get_chat_attachment(chat_id: str, attachment_id: str, user: CurrentUse
 
 
 @router.delete("/{chat_id}")
-async def delete_chat(chat_id: str, user: CurrentUser, session = Depends(get_db_session)):
+async def delete_chat(chat_id: str, user: ChatUser, session = Depends(get_db_session)):
     """Hard-delete a chat session."""
-    success = await ChatRepository.hard_delete(session, chat_id, user.organization.id)
-    if not success:
+    chat = await ChatRepository.get_by_id(session, chat_id, user.organization.id, user.user.id)
+    if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 
-    # Also delete all messages belonging to this chat.
-    try:
-        await MessageRepository.delete_by_chat(session, chat_id)
-    except Exception:
-        logger.exception("Failed to delete messages for chat_id=%s", chat_id)
+    # Messages and OAuth states reference the chat, so remove them first.
+    await MessageRepository.delete_by_chat(session, chat_id)
+    await OAuthStateRepository.clear_chat_reference(session, chat_id)
+    await ChatRepository.hard_delete(session, chat_id, user.organization.id, user.user.id)
 
     try:
         from app.services.tmp_cleanup_service import delete_chat_tmp_dir
@@ -410,27 +410,27 @@ class ResolveInterruptRequest(BaseModel):
     data: Optional[Any] = None
 
 @router.patch("/{chat_id}")
-async def rename_chat(chat_id: str, body: RenameChatRequest, user: CurrentUser, session = Depends(get_db_session)):
+async def rename_chat(chat_id: str, body: RenameChatRequest, user: ChatUser, session = Depends(get_db_session)):
     """Rename a chat session."""
     new_title = body.title.strip()
     if not new_title:
         raise HTTPException(status_code=400, detail="Title is required")
 
-    chat = await ChatRepository.update_title(session, chat_id, user.organization.id, new_title)
+    chat = await ChatRepository.update_title(session, chat_id, user.organization.id, user.user.id, new_title)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 
     return ChatPublic(**_chat_doc_to_public(chat))
 
 @router.post("/{chat_id}/interrupt-resolve")
-async def resolve_chat_interrupt(chat_id: str, body: ResolveInterruptRequest, user: CurrentUser, session = Depends(get_db_session)):
+async def resolve_chat_interrupt(chat_id: str, body: ResolveInterruptRequest, user: ChatUser, session = Depends(get_db_session)):
     """
     Resolve a pending interrupt and resume the graph.
     """
     action = body.action
     data = body.data
 
-    chat = await ChatRepository.get_by_id(session, chat_id, user.organization.id)
+    chat = await ChatRepository.get_by_id(session, chat_id, user.organization.id, user.user.id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 
@@ -462,6 +462,7 @@ async def resolve_chat_interrupt(chat_id: str, body: ResolveInterruptRequest, us
             user.user.id,
             user.organization.id,
             session,
+            role=user.role,
             is_resume=True,
             resume_value=resume_value
         ),
@@ -473,7 +474,7 @@ async def resolve_chat_interrupt(chat_id: str, body: ResolveInterruptRequest, us
 @router.post("/{chat_id}/interrupt-resolve-with-files")
 async def resolve_chat_interrupt_with_files(
     chat_id: str,
-    user: CurrentUser,
+    user: ChatUser,
     content: str = Form(""),
     files: list[UploadFile] = File(default=[]),
     session = Depends(get_db_session),
@@ -483,7 +484,7 @@ async def resolve_chat_interrupt_with_files(
     if not files:
         raise HTTPException(status_code=400, detail="At least one file is required")
 
-    chat = await ChatRepository.get_by_id(session, chat_id, user.organization.id)
+    chat = await ChatRepository.get_by_id(session, chat_id, user.organization.id, user.user.id)
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
 
@@ -523,6 +524,7 @@ async def resolve_chat_interrupt_with_files(
             user.user.id,
             user.organization.id,
             session,
+            role=user.role,
             is_resume=True,
             resume_value=resume_value,
         ),

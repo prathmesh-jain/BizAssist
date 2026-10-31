@@ -39,6 +39,12 @@ class Organization(BaseModel):
     updated_at: datetime
 
 
+class AuthenticatedUser(BaseModel):
+    """Authenticated caller before any organization is resolved."""
+    user: UserInDB
+    email_verified: bool = False
+
+
 class CurrentUserContext(BaseModel):
     """Extended user context including organization information."""
     user: UserInDB
