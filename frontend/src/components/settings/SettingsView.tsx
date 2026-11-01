@@ -10,7 +10,7 @@ interface ConnectionStatus {
 }
 
 // gpt-4.1-nano was retired by OpenAI (requests now fail with model_not_found).
-const MODEL_OPTIONS = ['gpt-4.1', 'gpt-4.1-mini'];
+const MODEL_OPTIONS = ['gpt-4.1', 'gpt-4.1-mini', 'gpt-5-nano'];
 
 export default function SettingsView() {
     const [sheetsStatus, setSheetsStatus] = React.useState<ConnectionStatus | null>(null);

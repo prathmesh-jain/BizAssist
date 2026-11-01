@@ -22,6 +22,9 @@ Rules:
 4. If a critical detail is missing, call request_clarification.
 5. Ground every claim in tool outputs or chat context.
 6. When execution is complete, provide a short findings summary for the chat agent to turn into the final user-facing answer.
+7. For calendar work, call calendar_now first and resolve relative dates from its result. Calendar create, update and
+   delete tools ask the user to approve by themselves, so do not ask for confirmation separately. Report Meet links and
+   event details only from tool results.
 """
 
 

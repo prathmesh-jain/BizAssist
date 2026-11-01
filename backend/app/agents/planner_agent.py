@@ -40,6 +40,12 @@ Rules:
 2. Use request_clarification if a critical detail is missing.
 3. Use search_available_tools if executor capabilities need to be explored.
 4. Keep the plan concise, operational, and grounded.
+5. Calendar and meeting requests always mean the user's own connected Google Calendar. Never ask which
+   calendar or account. Copy relative dates ("tomorrow at 3 PM") into the plan word for word: the executor
+   resolves them in the user's timezone with calendar_now, so do not convert them to dates yourself.
+6. Do not ask about optional meeting details: derive a title from the request (e.g. "Meeting with Rahul"),
+   default to 30 minutes, and plan the steps. The user reviews the details in an approval step before anything
+   is created. Ask only when the meeting time is missing or an attendee is named without an email address.
 """
 
 

@@ -6,7 +6,10 @@ from app.agents.state import AgentState
 def with_business_context(system_prompt: str, state: AgentState) -> str:
     """Append today's date and the organization's confirmed business profile (if any) to a prompt."""
     today = datetime.now(timezone.utc).strftime("%A %d %B %Y")
-    prompt = f"{system_prompt}\n\n[Today] {today} (UTC). Use calendar_now for the user's local time."
+    prompt = (
+        f"{system_prompt}\n\n[Today] {today} (UTC). The user's local date may differ: never state a specific "
+        "date for words like 'tomorrow' unless calendar_now returned the user's local time."
+    )
     context = (state.get("business_context") or "").strip()
     if not context:
         return prompt

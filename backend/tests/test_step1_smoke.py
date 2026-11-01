@@ -178,3 +178,16 @@ async def test_nameless_signup_gets_distinguishable_workspace(make_user):
     ctx = await make_user("uid-p", "priya@acme.com", name=None)
     assert ctx.organization.name == "priya's Workspace"
     assert ctx.user.full_name is None
+
+
+async def test_new_users_get_the_configured_default_models(make_user, monkeypatch):
+    from app.config import get_settings
+    from app.db.base import session_scope
+    from app.repositories import UserRepository
+
+    monkeypatch.setattr(get_settings(), "fast_model", "configured-fast")
+    monkeypatch.setattr(get_settings(), "nano_model", "configured-nano")
+    ctx = await make_user("uid-m", "models@acme.com")
+    async with session_scope() as session:
+        stored = await UserRepository.get_ai_settings(session, ctx.user.id)
+    assert (stored.fast_model, stored.nano_model) == ("configured-fast", "configured-nano")

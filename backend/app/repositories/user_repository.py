@@ -3,6 +3,7 @@ from typing import List, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.db.models import User, UserIdentity, Organization, OrganizationMember, UserAISettings
 
 
@@ -172,18 +173,19 @@ class UserRepository:
         session: AsyncSession,
         user_id: str,
         provider: str = "openai",
-        primary_model: str = "gpt-4.1-mini",
-        fast_model: str = "gpt-4.1-mini",
-        nano_model: str = "gpt-4.1-mini",
+        primary_model: Optional[str] = None,
+        fast_model: Optional[str] = None,
+        nano_model: Optional[str] = None,
     ) -> UserAISettings:
-        """Create default AI settings for a user."""
+        """Create AI settings for a user; models default to the server's configured ones."""
+        defaults = get_settings()
         settings = UserAISettings(
             id=str(uuid.uuid4()),
             user_id=user_id,
             provider=provider,
-            primary_model=primary_model,
-            fast_model=fast_model,
-            nano_model=nano_model,
+            primary_model=primary_model or defaults.primary_model,
+            fast_model=fast_model or defaults.fast_model,
+            nano_model=nano_model or defaults.nano_model,
             guardrail_enabled=False,
         )
         session.add(settings)
