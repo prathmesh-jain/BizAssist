@@ -71,6 +71,7 @@
     --shadow-color: 215 40% 30%;
     --wash-1: 150 70% 90%;
     --wash-2: 205 90% 92%;
+    --wash-strength: 1;
 
     /* Pastel chips (background / foreground). */
     --tint-green: 145 60% 94%;  --tint-green-fg: 150 62% 32%;
@@ -83,44 +84,48 @@
     --radius: 0.875rem;
   }
 
+  /* Dark: deep blue-slate with clear elevation steps
+     (page 7% → sidebar 8.5% → card 10.5% → raised 13% → border 18%),
+     a calmer green, and light-catching card edges instead of shadows. */
   .dark {
-    --background: 215 28% 7%;
-    --foreground: 210 25% 93%;
-    --card: 215 25% 10%;
-    --card-foreground: 210 25% 93%;
-    --popover: 215 25% 11%;
-    --popover-foreground: 210 25% 93%;
+    --background: 218 26% 7%;
+    --foreground: 210 20% 92%;
+    --card: 218 22% 10.5%;
+    --card-foreground: 210 20% 92%;
+    --popover: 218 22% 12%;
+    --popover-foreground: 210 20% 92%;
 
-    --primary: 150 55% 48%;
-    --primary-foreground: 215 30% 7%;
-    --secondary: 215 20% 14%;
-    --secondary-foreground: 210 25% 93%;
-    --muted: 215 20% 13%;
-    --muted-foreground: 215 12% 63%;
-    --accent: 150 55% 48%;
-    --accent-foreground: 215 30% 7%;
-    --destructive: 0 75% 62%;
-    --destructive-foreground: 215 30% 7%;
+    --primary: 152 48% 50%;
+    --primary-foreground: 160 45% 7%;
+    --secondary: 218 18% 13.5%;
+    --secondary-foreground: 210 20% 92%;
+    --muted: 218 18% 13%;
+    --muted-foreground: 215 12% 64%;
+    --accent: 152 48% 50%;
+    --accent-foreground: 160 45% 7%;
+    --destructive: 0 70% 63%;
+    --destructive-foreground: 218 30% 7%;
 
-    --success: 150 55% 50%;
-    --warning: 38 90% 60%;
-    --highlight: 150 40% 14%;
-    --sidebar: 215 26% 8.5%;
+    --success: 152 48% 55%;
+    --warning: 38 85% 62%;
+    --highlight: 154 32% 14%;
+    --sidebar: 218 24% 8.5%;
 
-    --border: 215 18% 17%;
-    --input: 215 16% 23%;
-    --ring: 150 55% 48%;
+    --border: 218 16% 18%;
+    --input: 218 14% 24%;
+    --ring: 152 48% 50%;
 
-    --shadow-color: 0 0% 0%;
-    --wash-1: 150 60% 20%;
-    --wash-2: 210 70% 22%;
+    --shadow-color: 220 40% 2%;
+    --wash-1: 155 45% 30%;
+    --wash-2: 212 55% 32%;
+    --wash-strength: 0.28;
 
-    --tint-green: 150 40% 15%;  --tint-green-fg: 150 55% 60%;
-    --tint-blue: 214 45% 17%;   --tint-blue-fg: 212 85% 70%;
-    --tint-violet: 262 35% 19%; --tint-violet-fg: 262 80% 78%;
-    --tint-amber: 34 45% 16%;   --tint-amber-fg: 38 90% 65%;
-    --tint-teal: 182 40% 14%;   --tint-teal-fg: 178 60% 58%;
-    --tint-rose: 350 35% 17%;   --tint-rose-fg: 350 85% 72%;
+    --tint-green: 152 30% 15%;  --tint-green-fg: 152 50% 64%;
+    --tint-blue: 214 35% 17%;   --tint-blue-fg: 212 80% 74%;
+    --tint-violet: 262 28% 19%; --tint-violet-fg: 262 75% 80%;
+    --tint-amber: 34 35% 16%;   --tint-amber-fg: 38 85% 68%;
+    --tint-teal: 182 32% 15%;   --tint-teal-fg: 178 55% 62%;
+    --tint-rose: 350 30% 18%;   --tint-rose-fg: 350 80% 76%;
   }
 }
 
@@ -201,8 +206,8 @@
   .app-wash {
     background-color: hsl(var(--background));
     background-image:
-      radial-gradient(60rem 30rem at 0% -10%, hsl(var(--wash-1) / 0.85), transparent 62%),
-      radial-gradient(52rem 28rem at 100% -10%, hsl(var(--wash-2) / 0.75), transparent 62%);
+      radial-gradient(70rem 34rem at 0% -12%, hsl(var(--wash-1) / calc(0.85 * var(--wash-strength))), transparent 65%),
+      radial-gradient(60rem 32rem at 100% -12%, hsl(var(--wash-2) / calc(0.75 * var(--wash-strength))), transparent 65%);
     background-attachment: local;
   }
 
@@ -237,6 +242,16 @@
       0 1px 2px hsl(var(--shadow-color) / 0.04),
       0 8px 24px -6px hsl(var(--shadow-color) / 0.08);
   }
+  .dark .shadow-soft,
+  .dark .spotlight,
+  .dark .glass {
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.045),
+      0 1px 2px hsl(var(--shadow-color) / 0.5),
+      0 10px 28px -10px hsl(var(--shadow-color) / 0.7);
+  }
+  .dark .glass { background: hsl(var(--card) / 0.75); }
+
   .shadow-lifted {
     box-shadow:
       0 1px 2px hsl(var(--shadow-color) / 0.06),
@@ -260,7 +275,30 @@
     background: radial-gradient(360px circle at var(--mx, 50%) var(--my, 50%), hsl(var(--foreground) / 0.035), transparent 65%);
   }
   .spotlight:hover { border-color: hsl(var(--foreground) / 0.18); }
+  .dark .spotlight::before {
+    background: radial-gradient(360px circle at var(--mx, 50%) var(--my, 50%), hsl(var(--primary) / 0.06), transparent 65%);
+  }
   .spotlight:hover::before { opacity: 1; }
+
+  /* Every bordered card in dark mode catches a little light on its top edge. */
+  :where(.dark) .bg-card.border:not(.shadow-soft):not(.shadow-lifted):not(.spotlight) {
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.035), 0 8px 24px -14px hsl(var(--shadow-color) / 0.6);
+  }
+  :where(.dark) [class*="chip-"] { box-shadow: inset 0 0 0 1px hsl(0 0% 100% / 0.05); }
+
+  .dark .shadow-lifted {
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.05),
+      0 0 0 1px hsl(0 0% 100% / 0.02),
+      0 30px 70px -20px hsl(var(--shadow-color) / 0.85);
+  }
+
+  .dark .btn-glow {
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.25),
+      0 1px 2px hsl(var(--shadow-color) / 0.6),
+      0 4px 14px -4px hsl(var(--primary) / 0.35);
+  }
 
   /* Bordered surface that picks up the accent on focus. */
   .beam-border {
