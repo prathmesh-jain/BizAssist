@@ -7,7 +7,6 @@ import {
 import { useAuth } from '../context/AuthContext';
 import useThemeStore from '../store/themeStore';
 import Logo, { LogoMark } from '../components/ui/Logo';
-import Aurora from '../components/fx/Aurora';
 import Reveal from '../components/fx/Reveal';
 import RotatingWords from '../components/fx/RotatingWords';
 import Marquee from '../components/fx/Marquee';
@@ -46,7 +45,7 @@ export default function Landing() {
         <div className="min-h-screen overflow-x-clip bg-background text-foreground">
             {/* Floating pill navigation */}
             <header className="fixed inset-x-0 top-3 z-50 px-3">
-                <nav className="glass mx-auto flex h-14 max-w-5xl items-center justify-between rounded-full pl-4 pr-2 shadow-[0_8px_30px_-12px_hsl(var(--foreground)/0.25)]">
+                <nav className="glass mx-auto flex h-14 max-w-5xl items-center justify-between rounded-full pl-4 pr-2 shadow-soft">
                     <Link to="/" aria-label="BizAssist home"><Logo size="sm" /></Link>
                     <div className="hidden items-center gap-1 md:flex">
                         {[['#features', 'Features'], ['#how', 'How it works'], ['#trust', 'Trust']].map(([href, label]) => (
@@ -80,22 +79,21 @@ export default function Landing() {
             <main>
                 {/* Hero */}
                 <section className="relative isolate px-4 pt-36 pb-10 sm:pt-44">
-                    <Aurora />
                     <div className="dot-grid absolute inset-0 -z-10" aria-hidden="true" />
 
                     <div className="mx-auto max-w-4xl text-center">
-                        <div className="rise-in inline-flex items-center gap-2 rounded-full border border-foreground/10 bg-card/60 py-1 pl-1 pr-3 text-xs font-medium backdrop-blur">
-                            <span className="rounded-full bg-highlight px-2 py-0.5 font-semibold text-[hsl(245_40%_8%)]">New</span>
+                        <div className="rise-in shadow-soft group inline-flex items-center gap-2 rounded-full border border-border bg-card py-1 pl-1 pr-3 text-xs font-medium">
+                            <span className="rounded-full bg-highlight px-2 py-0.5 font-semibold text-primary">New</span>
                             Google Calendar &amp; Meet, right inside the chat
                             <ArrowRight className="h-3 w-3" />
                         </div>
 
-                        <h1 className="rise-in font-display mt-7 text-[2.9rem] font-bold leading-[0.98] sm:text-7xl md:text-[5.4rem]" style={{ animationDelay: '80ms' }}>
+                        <h1 className="rise-in font-display mt-7 text-[2.6rem] font-semibold leading-[1.02] sm:text-6xl md:text-7xl" style={{ animationDelay: '80ms' }}>
                             Run your business,
                             <br />
                             not your{' '}
                             <RotatingWords
-                                className="text-gradient pb-2"
+                                className="text-primary"
                                 words={['spreadsheets.', 'calendar.', 'paperwork.', 'inbox of invoices.', 'guesswork.']}
                             />
                         </h1>
@@ -122,13 +120,13 @@ export default function Landing() {
                     </div>
 
                     <div className="relative mx-auto mt-16 max-w-5xl">
-                        <FloatingChip className="-left-4 top-24 hidden lg:flex" delay="0s" icon={<FileSpreadsheet className="h-3.5 w-3.5" />} tone="success">
+                        <FloatingChip className="-left-4 top-24 hidden lg:flex" delay="900ms" icon={<FileSpreadsheet className="h-3.5 w-3.5" />} tone="success">
                             Read “Expenses › March”
                         </FloatingChip>
-                        <FloatingChip className="-right-6 top-10 hidden lg:flex" delay="1.2s" icon={<CalendarDays className="h-3.5 w-3.5" />} tone="primary">
+                        <FloatingChip className="-right-6 top-10 hidden lg:flex" delay="1100ms" icon={<CalendarDays className="h-3.5 w-3.5" />} tone="primary">
                             Meet link ready
                         </FloatingChip>
-                        <FloatingChip className="-right-2 bottom-24 hidden lg:flex" delay="2.4s" icon={<TrendingUp className="h-3.5 w-3.5" />} tone="accent">
+                        <FloatingChip className="-right-2 bottom-24 hidden lg:flex" delay="1300ms" icon={<TrendingUp className="h-3.5 w-3.5" />} tone="accent">
                             3 competitors found
                         </FloatingChip>
                         <ScrollTilt>
@@ -153,7 +151,7 @@ export default function Landing() {
                 <section id="features" className="mx-auto max-w-6xl scroll-mt-24 px-4 py-20 sm:px-6">
                     <Reveal className="mx-auto max-w-2xl text-center">
                         <p className="eyebrow">Features</p>
-                        <h2 className="font-display mt-3 text-4xl font-bold leading-tight sm:text-5xl">
+                        <h2 className="font-display mt-3 text-4xl font-semibold leading-tight sm:text-5xl">
                             One chat. <span className="text-gradient">Your whole business.</span>
                         </h2>
                         <p className="mt-4 text-lg text-muted-foreground">
@@ -194,12 +192,12 @@ export default function Landing() {
                     <div className="mx-auto max-w-6xl">
                         <Reveal className="max-w-2xl">
                             <p className="eyebrow">How it works</p>
-                            <h2 className="font-display mt-3 text-4xl font-bold leading-tight sm:text-5xl">
+                            <h2 className="font-display mt-3 text-4xl font-semibold leading-tight sm:text-5xl">
                                 Set up over coffee.<br />Useful by lunch.
                             </h2>
                         </Reveal>
                         <div className="relative mt-16 grid gap-10 md:grid-cols-3">
-                            <div className="absolute left-0 right-0 top-6 hidden h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent md:block" aria-hidden="true" />
+                            <div className="absolute left-0 right-0 top-6 hidden h-px bg-border md:block" aria-hidden="true" />
                             {[
                                 { n: '01', title: 'Tell it about the business', body: 'Name, website, what you sell. It researches the rest and shows its sources. Keep what’s right, fix what isn’t.' },
                                 { n: '02', title: 'Connect your tools', body: 'Drop in key documents, connect Google Sheets and Calendar, and invite your team when you’re ready.' },
@@ -207,8 +205,8 @@ export default function Landing() {
                             ].map((s, i) => (
                                 <Reveal key={s.n} delay={i * 120}>
                                     <div className="relative">
-                                        <span className="font-display relative z-10 flex h-12 w-12 items-center justify-center rounded-2xl bg-card text-lg font-bold shadow-[0_0_0_1px_hsl(var(--border)),0_10px_30px_-10px_hsl(var(--primary)/0.5)]">
-                                            <span className="text-gradient">{s.n}</span>
+                                        <span className="font-display relative z-10 flex h-12 w-12 items-center justify-center rounded-2xl bg-card text-lg font-semibold shadow-soft border border-border">
+                                            <span className="font-mono text-sm text-primary">{s.n}</span>
                                         </span>
                                         <h3 className="font-display mt-6 text-xl font-semibold">{s.title}</h3>
                                         <p className="mt-2 leading-relaxed text-muted-foreground">{s.body}</p>
@@ -224,7 +222,7 @@ export default function Landing() {
                     <div className="grid gap-12 lg:grid-cols-[1fr_1.2fr] lg:items-center">
                         <Reveal>
                             <p className="eyebrow">Ground rules</p>
-                            <h2 className="font-display mt-3 text-4xl font-bold leading-tight sm:text-5xl">
+                            <h2 className="font-display mt-3 text-4xl font-semibold leading-tight sm:text-5xl">
                                 Powerful, <span className="text-gradient">on a short leash.</span>
                             </h2>
                             <p className="mt-4 max-w-md text-lg text-muted-foreground">
@@ -255,13 +253,12 @@ export default function Landing() {
                 {/* Closing CTA */}
                 <section className="px-4 pb-24 sm:px-6">
                     <Reveal className="mx-auto max-w-6xl">
-                        <div className="beam-border relative isolate overflow-hidden rounded-[2rem] bg-card px-6 py-20 text-center">
-                            <Aurora intensity={1.2} />
+                        <div className="relative isolate overflow-hidden rounded-2xl border border-border bg-sidebar px-6 py-20 text-center">
                             <div className="dot-grid absolute inset-0 -z-10" aria-hidden="true" />
-                            <LogoMark className="float-slow mx-auto h-14 w-14 drop-shadow-[0_10px_30px_hsl(var(--glow-1)/0.6)]" />
-                            <h2 className="font-display mx-auto mt-8 max-w-3xl text-4xl font-bold leading-tight sm:text-6xl">
+                            <LogoMark className="mx-auto h-11 w-11" />
+                            <h2 className="font-display mx-auto mt-8 max-w-3xl text-4xl font-semibold leading-tight sm:text-6xl">
                                 Give it one slow afternoon.<br />
-                                <span className="text-gradient">See what it takes off your plate.</span>
+                                <span className="text-muted-foreground">See what it takes off your plate.</span>
                             </h2>
                             {!loading && (
                                 <Link to={cta.to} className="btn-glow group mt-10 inline-flex items-center gap-2 rounded-full px-7 py-4 text-base font-semibold">
@@ -302,13 +299,13 @@ function ProductPreview() {
     const done = b === ANSWER[1].length;
 
     return (
-        <div className="beam-border rounded-[1.4rem] bg-card/80 p-1.5 shadow-[0_40px_120px_-40px_hsl(var(--glow-1)/0.55)] backdrop-blur">
+        <div className="shadow-lifted rounded-2xl border border-border bg-muted/60 p-1.5">
             <div className="overflow-hidden rounded-[1.1rem] border border-border bg-background">
                 {/* Window chrome */}
                 <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
-                    <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
-                    <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
-                    <span className="h-3 w-3 rounded-full bg-[#28c840]" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-foreground/15" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-foreground/15" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-foreground/15" />
                     <span className="mx-auto rounded-md bg-muted px-3 py-0.5 font-mono text-[11px] text-muted-foreground">app.bizassist · Supplier payments</span>
                 </div>
                 <div className="grid min-h-[340px] text-left md:grid-cols-[200px_1fr]">
@@ -320,7 +317,7 @@ function ProductPreview() {
                         ))}
                     </aside>
                     <div className="space-y-4 p-4 sm:p-6">
-                        <div className="ml-auto max-w-[80%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-sm text-primary-foreground">
+                        <div className="ml-auto max-w-[80%] rounded-2xl rounded-br-md bg-foreground px-4 py-2.5 text-sm text-background">
                             Which suppliers did we pay late in March? And book a call with Meera on Thursday.
                         </div>
                         <div className="flex gap-3">
@@ -332,11 +329,11 @@ function ProductPreview() {
                                 </div>
                                 <p className={a < ANSWER[0].length ? 'caret' : ''}>{ANSWER[0].slice(0, a)}</p>
                                 {b > 0 && <p className={!done ? 'caret' : ''}>{ANSWER[1].slice(0, b)}</p>}
-                                <div className={`max-w-sm rounded-xl border border-accent/40 bg-accent/10 p-3 transition-all duration-500 ${done ? 'opacity-100' : 'translate-y-2 opacity-0'}`}>
+                                <div className={`relative max-w-sm overflow-hidden rounded-lg border border-border bg-card p-3 pl-4 transition-all duration-500 before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-primary ${done ? 'opacity-100' : 'translate-y-2 opacity-0'}`}>
                                     <p className="eyebrow !text-accent !text-[10px]">Needs your OK</p>
                                     <p className="mt-1 text-[13px] font-medium">Sharma invoice: catch-up · Thu 3:00 PM</p>
                                     <div className="mt-2 flex gap-2">
-                                        <span className="btn-glow rounded-full px-3 py-1 text-xs font-semibold">Go ahead</span>
+                                        <span className="btn-glow rounded-md px-3 py-1 text-xs font-medium">Go ahead</span>
                                         <span className="rounded-full border border-border bg-card px-3 py-1 text-xs">Not now</span>
                                     </div>
                                 </div>
@@ -352,7 +349,7 @@ function ProductPreview() {
 function FloatingChip({ children, icon, className, delay, tone }: { children: React.ReactNode; icon: React.ReactNode; className: string; delay: string; tone: 'success' | 'primary' | 'accent' }) {
     const toneClass = { success: 'text-success', primary: 'text-primary', accent: 'text-accent' }[tone];
     return (
-        <div className={`glass float-slow absolute z-10 items-center gap-2 rounded-full px-3.5 py-2 text-xs font-medium shadow-lg ${className}`} style={{ animationDelay: delay }}>
+        <div className={`rise-in shadow-lifted absolute z-10 items-center gap-2 rounded-full border border-border bg-card px-3.5 py-2 text-xs font-medium ${className}`} style={{ animationDelay: delay }}>
             <span className={toneClass}>{icon}</span>
             {children}
         </div>
@@ -363,8 +360,8 @@ function FloatingChip({ children, icon, className, delay, tone }: { children: Re
 
 function Bento({ title, body, visual, className = '' }: { title: string; body: string; visual: React.ReactNode; className?: string }) {
     return (
-        <SpotlightCard className={`group flex h-full flex-col rounded-3xl border border-border bg-card p-6 transition-transform duration-300 hover:-translate-y-0.5 ${className}`}>
-            <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl bg-muted/50 p-4">{visual}</div>
+        <SpotlightCard className={`group shadow-soft flex h-full flex-col rounded-2xl border border-border bg-card p-6 hover:-translate-y-0.5 ${className}`}>
+            <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-muted/40 p-4">{visual}</div>
             <h3 className="font-display mt-5 text-xl font-semibold">{title}</h3>
             <p className="mt-1.5 text-[15px] leading-relaxed text-muted-foreground">{body}</p>
         </SpotlightCard>
@@ -381,11 +378,11 @@ function OrbitVisual() {
     ];
     return (
         <div className="relative h-[300px] w-[300px] sm:h-[340px] sm:w-[340px]">
-            <div className="absolute inset-[12%] rounded-full border border-dashed border-primary/30" />
-            <div className="absolute inset-[32%] rounded-full border border-primary/20" />
+            <div className="absolute inset-[12%] rounded-full border border-dashed border-border" />
+            <div className="absolute inset-[32%] rounded-full border border-border" />
             <div className="absolute inset-0 flex items-center justify-center">
                 <div className="relative">
-                    <div className="absolute -inset-6 rounded-full bg-primary/30 blur-2xl" />
+                    
                     <LogoMark className="relative h-16 w-16" />
                 </div>
             </div>
@@ -469,14 +466,14 @@ function CalendarVisual() {
 }
 
 function TeamVisual() {
-    const people = [['PJ', 'from-violet-500 to-fuchsia-500'], ['AK', 'from-orange-400 to-rose-500'], ['RS', 'from-cyan-400 to-blue-500'], ['MN', 'from-lime-400 to-emerald-500']];
+    const people = [['PJ', 'bg-foreground text-background'], ['AK', 'bg-highlight text-primary'], ['RS', 'bg-muted text-foreground'], ['MN', 'bg-card text-muted-foreground']];
     return (
         <div className="flex flex-col items-center gap-3">
             <div className="flex -space-x-3">
                 {people.map(([n, g], i) => (
                     <span
                         key={n}
-                        className={`flex h-11 w-11 items-center justify-center rounded-full border-2 border-card bg-gradient-to-br ${g} text-xs font-bold text-white transition-transform duration-300 group-hover:-translate-y-1`}
+                        className={`flex h-11 w-11 items-center justify-center rounded-full border-2 border-card ring-1 ring-border ${g} text-xs font-semibold transition-transform duration-300 group-hover:-translate-y-0.5`}
                         style={{ transitionDelay: `${i * 50}ms` }}
                     >
                         {n}
@@ -494,11 +491,11 @@ function TeamVisual() {
 
 function ApprovalVisual() {
     return (
-        <div className="beam-border w-full max-w-[230px] rounded-xl bg-card p-3 shadow-sm">
+        <div className="relative w-full max-w-[230px] overflow-hidden rounded-lg border border-border bg-card p-3 pl-4 shadow-sm before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-primary">
             <p className="eyebrow !text-[10px] !text-accent">Needs your OK</p>
             <p className="mt-1 text-xs font-medium">Move “Team review” to Fri 4 PM?</p>
             <div className="mt-2.5 flex gap-1.5">
-                <span className="btn-glow rounded-full px-2.5 py-1 text-[11px] font-semibold">Go ahead</span>
+                <span className="btn-glow rounded-md px-2.5 py-1 text-[11px] font-medium">Go ahead</span>
                 <span className="rounded-full border border-border px-2.5 py-1 text-[11px]">Not now</span>
             </div>
         </div>

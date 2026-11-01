@@ -38,7 +38,7 @@ function App() {
         {sessionExpiredOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4">
             <div role="alertdialog" aria-modal="true" className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-xl">
-              <h2 className="font-display text-xl font-bold text-foreground">You've been signed out</h2>
+              <h2 className="font-display text-xl font-semibold text-foreground">You've been signed out</h2>
               <p className="mt-2 text-sm text-muted-foreground">
                 Your session ended, so we couldn't confirm it's you. Sign in again to carry on.
               </p>
@@ -185,7 +185,7 @@ function BackendWarmupGate({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-6">
       <div className="w-full max-w-sm text-center rise-in">
         <LogoMark className="mx-auto w-10 h-10 animate-pulse" />
-        <h1 className="mt-6 font-display text-2xl font-bold">
+        <h1 className="mt-6 font-display text-2xl font-semibold">
           {slow ? 'Still waking up…' : 'Getting things ready'}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">

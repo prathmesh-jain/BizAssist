@@ -4,7 +4,6 @@ import MessageBubble from './MessageBubble';
 import InterruptBubble from './InterruptBubble';
 import useChatStore from '../../store/chatStore';
 import { ArrowUpRight, CalendarDays, FileSpreadsheet, FileText, Loader2, TrendingUp } from 'lucide-react';
-import Aurora from '../fx/Aurora';
 import SpotlightCard from '../fx/SpotlightCard';
 import ToolLine from './ToolLine';
 import { useAuth } from '../../context/AuthContext';
@@ -19,10 +18,10 @@ interface ChatWindowProps {
 }
 
 const SUGGESTIONS = [
-    { text: 'What’s on my calendar this week?', hint: 'Calendar', icon: CalendarDays, tint: 'from-violet-500 to-indigo-500' },
-    { text: 'Which documents have I uploaded, and what’s in them?', hint: 'Documents', icon: FileText, tint: 'from-orange-400 to-rose-500' },
-    { text: 'Who are our closest competitors, and what do they do better?', hint: 'Business', icon: TrendingUp, tint: 'from-cyan-400 to-blue-500' },
-    { text: 'Summarise last month’s biggest expenses from my sheet', hint: 'Sheets', icon: FileSpreadsheet, tint: 'from-lime-400 to-emerald-500' },
+    { text: 'What’s on my calendar this week?', hint: 'Calendar', icon: CalendarDays },
+    { text: 'Which documents have I uploaded, and what’s in them?', hint: 'Documents', icon: FileText },
+    { text: 'Who are our closest competitors, and what do they do better?', hint: 'Business', icon: TrendingUp },
+    { text: 'Summarise last month’s biggest expenses from my sheet', hint: 'Sheets', icon: FileSpreadsheet },
 ];
 
 function greeting(): string {
@@ -45,14 +44,11 @@ function AgentActivity({
 
     return (
         <div className="flex gap-4 py-2 rise-in" aria-live="polite">
-            <span className="relative h-7 w-7 shrink-0">
-                <span className="absolute -inset-1.5 animate-ping rounded-full bg-primary/25 [animation-duration:1.8s]" />
-                <LogoMark className="relative w-7 h-7" />
-            </span>
+            <LogoMark className="w-7 h-7 shrink-0" />
             <div className="min-w-0 flex-1 pt-1 space-y-2.5">
-                <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
-                    <span className="typing-dots" aria-hidden="true"><span /><span /><span /></span>
-                    <span className="text-gradient">{hasActive ? 'Working on it' : 'Thinking'}</span>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span className="typing-dots text-primary" aria-hidden="true"><span /><span /><span /></span>
+                    {hasActive ? 'Working on it' : 'Thinking'}
                 </div>
 
                 {agentStatus && (
@@ -114,26 +110,25 @@ export default function ChatWindow({ messages, streamingMessage, activeTools, is
         const firstName = (user?.displayName || me?.user.full_name || '').trim().split(/\s+/)[0];
         return (
             <div className="relative isolate flex-1 overflow-y-auto bg-background">
-                <Aurora intensity={0.7} />
                 <div className="dot-grid absolute inset-0 -z-10" aria-hidden="true" />
                 <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-center px-5 py-12">
-                    <span className="rise-in eyebrow inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card/70 px-3 py-1 backdrop-blur">
-                        <span className="h-1.5 w-1.5 rounded-full bg-highlight shadow-[0_0_8px_hsl(var(--highlight))]" />
+                    <span className="rise-in eyebrow inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-success" />
                         {me?.organization.name ?? 'BizAssist'}
                     </span>
-                    <h1 className="rise-in font-display mt-5 text-4xl sm:text-6xl leading-[1.02] font-bold text-foreground" style={{ animationDelay: '80ms' }}>
+                    <h1 className="rise-in font-display mt-5 text-3xl sm:text-[2.75rem] leading-[1.1] font-semibold text-foreground" style={{ animationDelay: '60ms' }}>
                         {greeting()}{firstName ? `, ${firstName}` : ''}.
-                        <span className="block text-gradient pb-1">What can I take off your plate?</span>
+                        <span className="block text-muted-foreground">What can I take off your plate?</span>
                     </h1>
                     <div className="mt-10 grid gap-3 sm:grid-cols-2">
                         {SUGGESTIONS.map((s, i) => (
                             <SpotlightCard
                                 key={s.text}
-                                className="rise-in rounded-2xl border border-border bg-card/80 backdrop-blur transition-transform duration-300 hover:-translate-y-0.5"
-                                style={{ animationDelay: `${160 + i * 70}ms` }}
+                                className="rise-in shadow-soft rounded-xl border border-border bg-card hover:-translate-y-px"
+                                style={{ animationDelay: `${120 + i * 50}ms` }}
                             >
                                 <button onClick={() => handleSuggestion(s.text)} className="group flex h-full w-full items-start gap-3 p-4 text-left">
-                                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${s.tint} text-white shadow-md transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6`}>
+                                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground transition-colors duration-200 group-hover:border-primary/30 group-hover:bg-highlight group-hover:text-primary">
                                         <s.icon className="h-4 w-4" />
                                     </span>
                                     <span className="min-w-0 flex-1">

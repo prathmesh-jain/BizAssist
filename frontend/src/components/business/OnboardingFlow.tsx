@@ -211,7 +211,7 @@ export default function OnboardingFlow() {
 
             {step && (
                 <section className="bg-card border border-border rounded-2xl p-5 sm:p-7">
-                    <h3 className="font-display text-xl font-bold text-foreground">{step.title}</h3>
+                    <h3 className="font-display text-xl font-semibold text-foreground">{step.title}</h3>
                     {step.description && <p className="text-sm text-muted-foreground mt-1">{step.description}</p>}
                     <div className="mt-6 space-y-5">
                         {visibleQuestions.map((q) => (
@@ -291,7 +291,7 @@ function Shell({ title, subtitle, children }: { title: string; subtitle?: string
         <div className="flex-1 overflow-y-auto bg-background px-4 py-8 sm:px-8 lg:py-12">
             <div className="max-w-3xl mx-auto">
                 <p className="eyebrow mb-3 inline-flex items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1"><span className="h-1.5 w-1.5 rounded-full bg-brand-gradient" />Getting set up</p>
-                <h1 className="font-display text-3xl sm:text-[2.6rem] leading-[1.05] font-bold text-foreground">{title}</h1>
+                <h1 className="font-display text-3xl sm:text-[2.25rem] leading-[1.1] font-semibold text-foreground">{title}</h1>
                 {subtitle && <p className="text-muted-foreground text-[15px] mt-2 mb-8">{subtitle}</p>}
                 {!subtitle && <div className="mb-6" />}
                 {children}

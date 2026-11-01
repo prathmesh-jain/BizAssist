@@ -14,8 +14,8 @@ export default function ScrollTilt({ children, className = '' }: { children: Rea
             const vh = window.innerHeight;
             // 0 when the top sits at the bottom of the screen, 1 once it reaches 25% from the top.
             const p = Math.min(1, Math.max(0, (vh - r.top) / (vh * 0.75)));
-            el.style.transform = `perspective(1400px) rotateX(${(1 - p) * 22}deg) scale(${0.9 + p * 0.1})`;
-            el.style.opacity = String(0.55 + p * 0.45);
+            el.style.transform = `perspective(1400px) rotateX(${(1 - p) * 10}deg) scale(${0.96 + p * 0.04})`;
+            el.style.opacity = String(0.85 + p * 0.15);
         };
         const onScroll = () => { if (!frame) frame = requestAnimationFrame(update); };
         update();

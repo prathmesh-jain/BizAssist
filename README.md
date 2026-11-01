@@ -220,26 +220,25 @@ React 19 + Vite + TypeScript, Tailwind CSS v4, Zustand, and React Router. Routes
 
 ### Design system
 
-The UI is bright and alive: an electric violet, hot coral, and acid lime palette, a deep indigo night mode,
-bold grotesque headlines, and motion that rewards attention without getting in the way.
+Professional and quiet, with one confident accent: graphite neutrals plus persimmon (`#E8590C`). The accent marks
+what you can act on (primary buttons, the active page, focus rings, approvals) and nothing else, so it stays
+meaningful. Motion is limited to small micro-interactions.
 
-- **Tokens** live in `src/index.css` as HSL CSS variables (`--primary`, `--accent`, `--highlight`, `--success`,
-  `--warning`, `--sidebar`, and `--glow-1…4` for effects) with light and `.dark` sets, exposed to Tailwind via
-  `@theme`. Use the tokens, not raw palette colors, so both themes stay correct.
-- **Type**: Bricolage Grotesque (`.font-display`) for headings, Geist for body text, Geist Mono for `.eyebrow`
-  labels. All three load from Google Fonts in `index.html`.
-- **Effect classes** (`index.css`): `.text-gradient` (flowing gradient text), `.btn-glow` (gradient button with
-  a shimmer sweep), `.beam-border` (a light beam circling the border; add `.beam-on-focus` to show it only on
-  focus), `.spotlight` (cursor-following glow), `.glass`, `.dot-grid`, `.bg-brand-gradient`, `.rise-in`, and `.reveal`.
-- **Effect components** (`src/components/fx/`): `Aurora` (drifting blurred colour blobs), `SpotlightCard`,
-  `Reveal` (scroll-in animation), `RotatingWords`, `Marquee`, `ScrollTilt` (3D tilt that flattens on scroll),
-  and `useTypewriter`. All are plain CSS and React, with no animation library.
-- **Reduced motion**: every animation sits behind `prefers-reduced-motion: no-preference`. The typewriter,
-  word rotation, and scroll tilt also check it in JavaScript.
-- **Dark mode** is class-based (`@custom-variant dark`). The first visit follows the OS, the toggle is
-  remembered, and an inline script in `index.html` applies the theme before first paint.
+- **Tokens** live in `src/index.css` as HSL CSS variables (`--primary`, `--highlight` for the soft persimmon wash,
+  `--success`, `--warning`, `--sidebar`, `--shadow-color`, …) with light and `.dark` sets, exposed to Tailwind via
+  `@theme`. Use tokens, not raw palette colors or gradients.
+- **Type**: Geist for everything (tight tracking via `.font-display` on headings) and Geist Mono for `.eyebrow` labels.
+- **Surfaces**: hairline borders with `.shadow-soft` and `.shadow-lifted`. There are no glows and no gradients.
+- **Micro-interactions**: buttons scale slightly on press (global), the primary button (`.btn-glow`) lifts 1px on
+  hover, cards darken their border and get a faint cursor light (`.spotlight` / `SpotlightCard`), inputs get an
+  accent focus ring (`.beam-border.beam-on-focus`), icons nudge on hover, and `.link-underline` grows from the left.
+- **Entrance motion**: `.rise-in` (a short fade-up), `Reveal` (fades in on scroll), `RotatingWords`, `Marquee`,
+  `ScrollTilt` (a gentle 10° tilt that settles on scroll), and `useTypewriter`, all in `src/components/fx/`.
+  Everything respects `prefers-reduced-motion`.
+- **Dark mode** is class-based (`@custom-variant dark`). The first visit follows the OS and the toggle is
+  remembered; an inline script in `index.html` sets it before first paint.
 - **Shared pieces** in `src/components/ui/`: `Logo`/`LogoMark`, `PageHeader`, `StatusChip`, `GoogleIcon`.
-- **Markdown** in assistant replies is styled by the `.md` class (tables, lists, code, and quotes).
+- **Markdown** in assistant replies is styled by the `.md` class.
 
 ## Local setup
 

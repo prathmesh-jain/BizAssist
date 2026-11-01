@@ -45,7 +45,7 @@ export default function OAuthCallback() {
     return (
         <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-3 p-6 text-center">
             <LogoMark className="w-10 h-10" />
-            <h1 className="font-display mt-3 text-2xl font-bold text-foreground">
+            <h1 className="font-display mt-3 text-2xl font-semibold text-foreground">
                 {failed ? 'Google didn’t connect' : 'Connected to Google'}
             </h1>
             <p className="text-sm text-muted-foreground">

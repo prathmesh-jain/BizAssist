@@ -83,7 +83,7 @@ export default function InvitePage() {
     if (!token) {
         return (
             <Shell>
-                <h1 className="font-display text-2xl font-bold text-foreground">No invitation found</h1>
+                <h1 className="font-display text-2xl font-semibold text-foreground">No invitation found</h1>
                 <p className="mt-2 text-sm text-muted-foreground">Open the full invitation link you were sent.</p>
                 <button onClick={dismiss} className="mt-6 px-4 py-2 rounded-xl btn-glow text-sm font-semibold">Go to BizAssist</button>
             </Shell>
@@ -101,7 +101,7 @@ export default function InvitePage() {
             {preview && (
                 <>
                     <p className="eyebrow mt-6">You’re invited</p>
-                    <h1 className="font-display mt-2 text-3xl font-bold text-foreground">
+                    <h1 className="font-display mt-2 text-3xl font-semibold text-foreground">
                         Join {preview.organization_name}
                     </h1>
                     <p className="mt-2 text-sm text-muted-foreground">

@@ -101,7 +101,7 @@ export default function TeamView() {
     return (
         <div className="flex-1 overflow-y-auto bg-background px-4 py-8 sm:px-8 lg:py-12">
             <div className="max-w-3xl mx-auto space-y-6">
-                <div className="rise-in border-b border-primary/25 pb-6">
+                <div className="rise-in border-b border-border pb-6">
                     <p className="eyebrow mb-3 inline-flex items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1"><span className="h-1.5 w-1.5 rounded-full bg-brand-gradient" />Team</p>
                     <OrganizationName name={me.organization.name} editable={canRename} onSaved={fetchMe} />
                     <p className="text-muted-foreground mt-2 text-[15px]">
@@ -120,7 +120,7 @@ export default function TeamView() {
 
                 <section className="bg-card border border-border rounded-2xl">
                     <div className="px-5 sm:px-6 py-4 border-b border-border">
-                        <h3 className="font-display text-xl font-bold text-foreground">People <span className="font-sans text-sm text-muted-foreground tabular-nums">{members.length || ''}</span></h3>
+                        <h3 className="font-display text-xl font-semibold text-foreground">People <span className="font-sans text-sm text-muted-foreground tabular-nums">{members.length || ''}</span></h3>
                     </div>
                     {loading ? (
                         <div className="p-6 text-sm text-muted-foreground flex items-center gap-2">
@@ -196,7 +196,7 @@ export default function TeamView() {
                 {canManage && invitations.length > 0 && (
                     <section className="bg-card border border-border rounded-2xl">
                         <div className="px-5 sm:px-6 py-4 border-b border-border">
-                            <h3 className="font-display text-xl font-bold text-foreground">Waiting to join</h3>
+                            <h3 className="font-display text-xl font-semibold text-foreground">Waiting to join</h3>
                         </div>
                         <ul className="divide-y divide-border">
                             {invitations.map((inv) => {
@@ -295,7 +295,7 @@ function OrganizationName({ name, editable, onSaved }: { name: string; editable:
     if (!editing) {
         return (
             <div className="flex items-center gap-2">
-                <h1 className="font-display text-3xl sm:text-[2.6rem] leading-[1.05] font-bold text-foreground break-words">{name}</h1>
+                <h1 className="font-display text-3xl sm:text-[2.25rem] leading-[1.1] font-semibold text-foreground break-words">{name}</h1>
                 {editable && (
                     <button
                         onClick={() => setEditing(true)}
@@ -373,7 +373,7 @@ function InviteCard({ roles, onInvited }: { roles: OrgRole[]; onInvited: () => P
         <section className="bg-card border border-border rounded-2xl p-5 sm:p-6">
             <div className="flex items-center gap-2">
                 <UserPlus className="w-5 h-5 text-primary" />
-                <h3 className="font-display text-xl font-bold text-foreground">Invite someone</h3>
+                <h3 className="font-display text-xl font-semibold text-foreground">Invite someone</h3>
             </div>
             <form onSubmit={submit} className="mt-4 flex flex-wrap gap-3">
                 <input
@@ -446,7 +446,7 @@ function ConfirmDialog({ title, body, confirmLabel, busy, onCancel, onConfirm }:
     return (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-foreground/30 p-4">
             <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl p-6">
-                <h3 className="font-display text-xl font-bold text-foreground">{title}</h3>
+                <h3 className="font-display text-xl font-semibold text-foreground">{title}</h3>
                 <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{body}</p>
                 <div className="mt-6 flex items-center justify-end gap-3">
                     <button onClick={onCancel} disabled={busy} className="px-4 py-2 rounded-xl border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-50">

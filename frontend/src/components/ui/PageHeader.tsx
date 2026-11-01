@@ -21,11 +21,11 @@ export default function PageHeader({
                         {eyebrow}
                     </p>
                 )}
-                <h1 className="font-display text-3xl sm:text-[2.6rem] leading-[1.05] font-bold text-foreground break-words">{title}</h1>
+                <h1 className="font-display text-3xl sm:text-[2.25rem] leading-[1.1] font-semibold text-foreground break-words">{title}</h1>
                 {description && <p className="mt-3 text-[15px] text-muted-foreground leading-relaxed">{description}</p>}
             </div>
             {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
-            <span className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-primary/60 via-accent/40 to-transparent" aria-hidden="true" />
+            <span className="absolute inset-x-0 bottom-0 h-px bg-border" aria-hidden="true" />
         </header>
     );
 }

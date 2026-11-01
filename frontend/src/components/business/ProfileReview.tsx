@@ -203,7 +203,7 @@ function display(value: string | string[] | null, question: OnboardingQuestion):
 function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
     return (
         <section className="bg-card border border-border rounded-2xl p-5 sm:p-6">
-            <h3 className="font-display text-xl font-bold text-foreground">{title}</h3>
+            <h3 className="font-display text-xl font-semibold text-foreground">{title}</h3>
             {subtitle && <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>}
             <div className="mt-4">{children}</div>
         </section>

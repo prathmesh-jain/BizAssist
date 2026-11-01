@@ -4,7 +4,7 @@
 
 @theme {
   --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: "Bricolage Grotesque", "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Geist", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --color-background: hsl(var(--background));
@@ -34,77 +34,73 @@
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @layer base {
-  /* Light: crisp, with an electric violet, a hot coral, and an acid lime. */
+  /* Graphite neutrals with a single persimmon accent. */
   :root {
-    --background: 240 33% 99%;
-    --foreground: 245 30% 10%;
+    --background: 220 20% 99%;
+    --foreground: 222 14% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 245 30% 10%;
+    --card-foreground: 222 14% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 245 30% 10%;
+    --popover-foreground: 222 14% 10%;
 
-    --primary: 252 86% 60%;
+    --primary: 21 90% 48%;            /* persimmon #E8590C */
     --primary-foreground: 0 0% 100%;
-    --secondary: 245 40% 96%;
-    --secondary-foreground: 245 30% 14%;
-    --muted: 245 35% 95.5%;
-    --muted-foreground: 245 10% 44%;
-    --accent: 10 92% 60%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 14% 12%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 8% 42%;
+    --accent: 21 90% 48%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 352 78% 52%;
+    --destructive: 0 72% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 158 70% 36%;
-    --warning: 30 92% 46%;
-    --highlight: 78 85% 52%;
-    --sidebar: 245 40% 97.5%;
+    --success: 152 60% 34%;
+    --warning: 36 92% 42%;
+    --highlight: 24 100% 95%;         /* soft persimmon wash for selections and badges */
+    --sidebar: 220 16% 96.5%;
 
-    --border: 245 25% 90%;
-    --input: 245 22% 86%;
-    --ring: 252 86% 60%;
+    --border: 220 13% 90%;
+    --input: 220 12% 85%;
+    --ring: 21 90% 48%;
 
-    --glow-1: 252 95% 65%;
-    --glow-2: 10 95% 64%;
-    --glow-3: 190 95% 55%;
-    --glow-4: 78 90% 55%;
-    --glow-opacity: 0.35;
-
-    --radius: 0.875rem;
+    --shadow-color: 222 20% 20%;
+    --radius: 0.625rem;
   }
 
-  /* Dark: deep indigo night with neon light leaking in. */
   .dark {
-    --background: 245 32% 5.5%;
-    --foreground: 240 30% 96%;
-    --card: 245 28% 8.5%;
-    --card-foreground: 240 30% 96%;
-    --popover: 245 28% 9.5%;
-    --popover-foreground: 240 30% 96%;
+    --background: 220 16% 6%;
+    --foreground: 220 14% 92%;
+    --card: 220 14% 9%;
+    --card-foreground: 220 14% 92%;
+    --popover: 220 14% 10%;
+    --popover-foreground: 220 14% 92%;
 
-    --primary: 252 95% 70%;
-    --primary-foreground: 245 40% 6%;
-    --secondary: 245 22% 14%;
-    --secondary-foreground: 240 30% 96%;
-    --muted: 245 22% 12%;
-    --muted-foreground: 245 14% 66%;
-    --accent: 12 95% 66%;
-    --accent-foreground: 245 40% 6%;
-    --destructive: 352 85% 64%;
-    --destructive-foreground: 245 40% 6%;
+    --primary: 22 92% 57%;
+    --primary-foreground: 220 20% 6%;
+    --secondary: 220 12% 13%;
+    --secondary-foreground: 220 14% 92%;
+    --muted: 220 12% 12%;
+    --muted-foreground: 220 8% 62%;
+    --accent: 22 92% 57%;
+    --accent-foreground: 220 20% 6%;
+    --destructive: 0 75% 62%;
+    --destructive-foreground: 220 20% 6%;
 
-    --success: 155 65% 55%;
-    --warning: 38 95% 62%;
-    --highlight: 78 90% 60%;
-    --sidebar: 245 30% 7%;
+    --success: 152 50% 52%;
+    --warning: 38 90% 60%;
+    --highlight: 22 60% 14%;
+    --sidebar: 220 16% 7.5%;
 
-    --border: 245 20% 17%;
-    --input: 245 18% 22%;
-    --ring: 252 95% 70%;
+    --border: 220 10% 16%;
+    --input: 220 10% 22%;
+    --ring: 22 92% 57%;
 
-    --glow-opacity: 0.55;
+    --shadow-color: 0 0% 0%;
   }
 }
 
@@ -116,21 +112,39 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11";
   }
 
   h1, h2, h3 { text-wrap: balance; }
 
-  ::selection {
-    background: hsl(var(--primary) / 0.3);
-  }
+  ::selection { background: hsl(var(--primary) / 0.22); }
 
   :focus-visible {
-    outline: 2px solid hsl(var(--ring));
+    outline: 2px solid hsl(var(--ring) / 0.7);
     outline-offset: 2px;
+    border-radius: 6px;
   }
 
-  button { cursor: pointer; }
+  /* Micro-interaction: every button gives a small, quick press response. */
+  button, a {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button {
+    cursor: pointer;
+    transition:
+      transform 120ms var(--ease-out-soft),
+      background-color 150ms ease,
+      border-color 150ms ease,
+      color 150ms ease,
+      box-shadow 150ms ease,
+      opacity 150ms ease;
+  }
+  button:active:not(:disabled) { transform: scale(0.97); }
   button:disabled { cursor: not-allowed; }
+
+  input, textarea, select {
+    transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+  }
 
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-thumb {
@@ -145,63 +159,60 @@
 @layer components {
   .font-display {
     font-family: var(--font-display);
-    font-optical-sizing: auto;
-    letter-spacing: -0.03em;
+    letter-spacing: -0.035em;
   }
 
   .eyebrow {
     font-family: var(--font-mono);
     font-size: 0.6875rem;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     color: hsl(var(--muted-foreground));
   }
 
-  /* Flowing violet → coral → lime text. */
+  /* Emphasised words: the accent colour, nothing more. */
   .text-gradient,
   .marker {
-    background: linear-gradient(
-      100deg,
-      hsl(var(--glow-1)) 0%,
-      hsl(var(--glow-2)) 35%,
-      hsl(var(--glow-4)) 60%,
-      hsl(var(--glow-1)) 100%
-    );
-    background-size: 220% 100%;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: hsl(var(--primary));
   }
 
+  .bg-brand-gradient { background-color: hsl(var(--primary)); }
 
-  .bg-brand-gradient {
-    background-image: linear-gradient(120deg, hsl(var(--glow-1)), hsl(285 85% 60%) 55%, hsl(var(--glow-2)));
-  }
-
-  /* Faint dot grid that fades out at the edges. */
+  /* Very faint dot texture, only where a large surface needs it. */
   .dot-grid {
-    background-image: radial-gradient(hsl(var(--foreground) / 0.13) 1px, transparent 1px);
-    background-size: 22px 22px;
-    mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black 30%, transparent 75%);
+    background-image: radial-gradient(hsl(var(--foreground) / 0.08) 1px, transparent 1px);
+    background-size: 24px 24px;
+    mask-image: radial-gradient(ellipse 65% 55% at 50% 35%, black 20%, transparent 75%);
   }
 
-  /* Kept so older markup still renders; now a subtle dot grid. */
   .paper-lines { }
   .paper-grain { position: relative; isolation: isolate; }
 
-  /* Glassy surface. */
   .glass {
-    background: hsl(var(--card) / 0.65);
-    backdrop-filter: blur(16px) saturate(140%);
-    -webkit-backdrop-filter: blur(16px) saturate(140%);
-    border: 1px solid hsl(var(--foreground) / 0.08);
+    background: hsl(var(--background) / 0.8);
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    border: 1px solid hsl(var(--border));
   }
 
-  /* Cursor-following spotlight; set --mx/--my from JS (see useSpotlight). */
+  /* Soft, layered shadows instead of glows. */
+  .shadow-soft {
+    box-shadow:
+      0 1px 2px hsl(var(--shadow-color) / 0.06),
+      0 4px 12px -2px hsl(var(--shadow-color) / 0.06);
+  }
+  .shadow-lifted {
+    box-shadow:
+      0 1px 2px hsl(var(--shadow-color) / 0.06),
+      0 12px 32px -8px hsl(var(--shadow-color) / 0.14);
+  }
+
+  /* Cards that respond quietly: a hairline border darkens and a faint light follows the cursor. */
   .spotlight {
     position: relative;
     isolation: isolate;
     overflow: hidden;
+    transition: border-color 200ms ease, box-shadow 200ms ease, transform 200ms var(--ease-out-soft);
   }
   .spotlight::before {
     content: "";
@@ -209,91 +220,54 @@
     inset: 0;
     z-index: -1;
     opacity: 0;
-    transition: opacity 0.3s ease;
-    background: radial-gradient(
-      420px circle at var(--mx, 50%) var(--my, 50%),
-      hsl(var(--primary) / 0.16),
-      transparent 60%
-    );
+    transition: opacity 250ms ease;
+    background: radial-gradient(360px circle at var(--mx, 50%) var(--my, 50%), hsl(var(--foreground) / 0.035), transparent 65%);
   }
+  .spotlight:hover { border-color: hsl(var(--foreground) / 0.18); }
   .spotlight:hover::before { opacity: 1; }
-  .spotlight::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    border-radius: inherit;
-    padding: 1px;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    background: radial-gradient(
-      260px circle at var(--mx, 50%) var(--my, 50%),
-      hsl(var(--glow-1) / 0.9),
-      hsl(var(--glow-2) / 0.5) 40%,
-      transparent 70%
-    );
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-  }
-  .spotlight:hover::after { opacity: 1; }
 
-  /* A light beam that travels around the border. */
+  /* Bordered surface that picks up the accent on focus. */
   .beam-border {
     position: relative;
-    isolation: isolate;
+    border: 1px solid hsl(var(--border));
   }
-  .beam-border::before {
-    content: "";
-    position: absolute;
-    inset: -1px;
-    z-index: -1;
-    border-radius: inherit;
-    padding: 1px;
-    background: conic-gradient(
-      from var(--beam-angle, 0deg),
-      transparent 0deg,
-      hsl(var(--glow-1)) 50deg,
-      hsl(var(--glow-2)) 90deg,
-      transparent 140deg,
-      transparent 360deg
-    );
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
+  .beam-on-focus:focus-within {
+    border-color: hsl(var(--primary) / 0.55);
+    box-shadow: 0 0 0 4px hsl(var(--primary) / 0.1), 0 8px 24px -12px hsl(var(--shadow-color) / 0.18);
   }
 
-  .beam-on-focus::before { opacity: 0; transition: opacity 0.3s ease; }
-  .beam-on-focus:focus-within::before { opacity: 1; }
-
-  /* Primary call-to-action: gradient fill with a shimmer sweep. */
+  /* Primary button: solid persimmon, lifts a pixel on hover. */
   .btn-glow {
-    position: relative;
-    isolation: isolate;
-    overflow: hidden;
-    color: white;
-    background-image: linear-gradient(120deg, hsl(var(--glow-1)), hsl(268 90% 62%) 45%, hsl(var(--glow-2)));
+    color: hsl(var(--primary-foreground));
+    background-color: hsl(var(--primary));
     box-shadow:
-      0 0 0 1px hsl(var(--glow-1) / 0.4) inset,
-      0 10px 30px -10px hsl(var(--glow-1) / 0.7),
-      0 4px 14px -6px hsl(var(--glow-2) / 0.6);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+      0 1px 0 hsl(0 0% 100% / 0.18) inset,
+      0 1px 2px hsl(var(--shadow-color) / 0.12),
+      0 2px 6px -1px hsl(var(--primary) / 0.3);
+    transition:
+      transform 150ms var(--ease-out-soft),
+      background-color 150ms ease,
+      box-shadow 150ms ease;
   }
-  .btn-glow:hover {
+  .btn-glow:hover:not(:disabled) {
+    background-color: hsl(var(--primary) / 0.92);
     transform: translateY(-1px);
     box-shadow:
-      0 0 0 1px hsl(var(--glow-1) / 0.5) inset,
-      0 16px 40px -12px hsl(var(--glow-1) / 0.85),
-      0 6px 20px -6px hsl(var(--glow-2) / 0.7);
+      0 1px 0 hsl(0 0% 100% / 0.18) inset,
+      0 2px 4px hsl(var(--shadow-color) / 0.12),
+      0 6px 14px -4px hsl(var(--primary) / 0.4);
   }
-  .btn-glow::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    background: linear-gradient(110deg, transparent 35%, rgb(255 255 255 / 0.35) 50%, transparent 65%);
-    transform: translateX(-120%);
+  .btn-glow:active:not(:disabled) { transform: translateY(0) scale(0.97); }
+
+  /* Underline that grows from the left on hover. */
+  .link-underline {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-size: 0% 1px;
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    transition: background-size 250ms var(--ease-out-soft), color 150ms ease;
   }
+  .link-underline:hover { background-size: 100% 1px; }
 
   /* Rendered markdown in assistant replies. */
   .md {
@@ -306,21 +280,20 @@
   .md > :last-child { margin-bottom: 0; }
   .md p { margin: 0.6em 0; }
   .md h1, .md h2, .md h3, .md h4 {
-    font-family: var(--font-display);
     font-weight: 600;
-    line-height: 1.25;
+    line-height: 1.3;
     margin: 1.3em 0 0.45em;
     letter-spacing: -0.02em;
   }
-  .md h1 { font-size: 1.35rem; }
-  .md h2 { font-size: 1.2rem; }
-  .md h3 { font-size: 1.05rem; }
+  .md h1 { font-size: 1.3rem; }
+  .md h2 { font-size: 1.15rem; }
+  .md h3 { font-size: 1.02rem; }
   .md h4 { font-size: 0.95rem; }
   .md ul, .md ol { margin: 0.6em 0; padding-left: 1.35em; }
   .md ul { list-style: disc; }
   .md ol { list-style: decimal; }
   .md li { margin: 0.25em 0; }
-  .md li::marker { color: hsl(var(--primary)); }
+  .md li::marker { color: hsl(var(--muted-foreground)); }
   .md strong { font-weight: 600; }
   .md a {
     color: hsl(var(--primary));
@@ -331,10 +304,10 @@
   .md code {
     font-family: var(--font-mono);
     font-size: 0.85em;
-    background: hsl(var(--primary) / 0.1);
-    color: hsl(var(--primary));
-    border-radius: 6px;
-    padding: 0.1em 0.4em;
+    background: hsl(var(--muted));
+    border: 1px solid hsl(var(--border));
+    border-radius: 5px;
+    padding: 0.05em 0.35em;
   }
   .md pre {
     margin: 0.9em 0;
@@ -346,13 +319,11 @@
     font-size: 0.85em;
     line-height: 1.55;
   }
-  .md pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+  .md pre code { background: none; border: 0; padding: 0; font-size: inherit; }
   .md blockquote {
     margin: 0.9em 0;
-    padding: 0.4em 1em;
-    border-left: 3px solid hsl(var(--primary));
-    background: hsl(var(--primary) / 0.06);
-    border-radius: 0 8px 8px 0;
+    padding-left: 1em;
+    border-left: 2px solid hsl(var(--primary));
     color: hsl(var(--muted-foreground));
   }
   .md hr { margin: 1.4em 0; border: 0; border-top: 1px solid hsl(var(--border)); }
@@ -365,7 +336,7 @@
     border-collapse: separate;
     border-spacing: 0;
     border: 1px solid hsl(var(--border));
-    border-radius: 10px;
+    border-radius: 8px;
     font-size: 0.875em;
     font-variant-numeric: tabular-nums;
   }
@@ -378,81 +349,45 @@
   .md th { font-weight: 600; background: hsl(var(--muted)); }
 }
 
-/* ---------- Motion (all of it opts out under reduced motion) ---------- */
-
-@property --beam-angle {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
-}
+/* ---------- Motion: short, quiet, and off for reduced-motion users ---------- */
 
 @media (prefers-reduced-motion: no-preference) {
   .rise-in,
   .interrupt-bubble-enter {
-    animation: riseIn 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation: riseIn 360ms var(--ease-out-soft) both;
   }
 
-  .text-gradient, .marker { animation: gradientFlow 8s ease-in-out infinite; }
-
-  .beam-border::before { animation: beamSpin 4s linear infinite; }
-
-  .btn-glow::after { animation: shimmer 3.2s ease-in-out infinite; }
-
-  .aurora-blob { animation: auroraDrift var(--dur, 18s) ease-in-out infinite alternate; }
-
-  .float-slow { animation: floatY 6s ease-in-out infinite; }
-
-  .marquee-track { animation: marquee var(--marquee-duration, 40s) linear infinite; }
+  .marquee-track { animation: marquee var(--marquee-duration, 60s) linear infinite; }
   .marquee:hover .marquee-track { animation-play-state: paused; }
 
-  .orbit { animation: orbitSpin var(--orbit-duration, 24s) linear infinite; }
-  .orbit-counter { animation: orbitSpin var(--orbit-duration, 24s) linear infinite reverse; }
+  .orbit { animation: orbitSpin var(--orbit-duration, 60s) linear infinite; }
+  .orbit-counter { animation: orbitSpin var(--orbit-duration, 60s) linear infinite reverse; }
 
   .pulse-ring::after {
     content: "";
     position: absolute;
-    inset: -4px;
+    inset: -3px;
     border-radius: inherit;
-    border: 2px solid currentColor;
-    animation: pulseRing 1.8s ease-out infinite;
+    border: 1.5px solid hsl(var(--primary));
+    animation: pulseRing 2.4s ease-out infinite;
   }
 
   .reveal {
     opacity: 0;
-    transform: translateY(18px);
-    filter: blur(6px);
+    transform: translateY(12px);
     transition:
-      opacity 700ms cubic-bezier(0.2, 0.8, 0.2, 1),
-      transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1),
-      filter 700ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      opacity 600ms var(--ease-out-soft),
+      transform 600ms var(--ease-out-soft);
     transition-delay: var(--reveal-delay, 0ms);
   }
-  .reveal.is-visible { opacity: 1; transform: none; filter: none; }
+  .reveal.is-visible { opacity: 1; transform: none; }
 
-  .word-swap-enter { animation: wordIn 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .word-swap-enter { animation: wordIn 420ms var(--ease-out-soft) both; }
 }
 
 @keyframes riseIn {
-  from { opacity: 0; transform: translateY(10px); filter: blur(4px); }
-  to { opacity: 1; transform: none; filter: none; }
-}
-@keyframes gradientFlow {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-}
-@keyframes beamSpin { to { --beam-angle: 360deg; } }
-@keyframes shimmer {
-  0%, 55% { transform: translateX(-120%); }
-  100% { transform: translateX(120%); }
-}
-@keyframes auroraDrift {
-  0% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); }
-  50% { transform: translate3d(var(--dx, 40px), var(--dy, -30px), 0) scale(1.15) rotate(25deg); }
-  100% { transform: translate3d(calc(var(--dx, 40px) * -0.6), calc(var(--dy, -30px) * -0.8), 0) scale(0.95) rotate(-15deg); }
-}
-@keyframes floatY {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
 }
 @keyframes marquee {
   from { transform: translateX(0); }
@@ -460,37 +395,37 @@
 }
 @keyframes orbitSpin { to { transform: rotate(360deg); } }
 @keyframes pulseRing {
-  0% { opacity: 0.7; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.6); }
+  0% { opacity: 0.6; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.35); }
 }
 @keyframes wordIn {
-  from { opacity: 0; transform: translateY(0.45em) rotateX(-60deg); filter: blur(6px); }
-  to { opacity: 1; transform: none; filter: none; }
+  from { opacity: 0; transform: translateY(0.3em); }
+  to { opacity: 1; transform: none; }
 }
 
 /* Thinking dots. */
 .typing-dots span {
   display: inline-block;
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   margin-right: 3px;
   border-radius: 999px;
   background: currentColor;
   opacity: 0.3;
-  animation: typingDot 1.1s infinite ease-in-out;
+  animation: typingDot 1.2s infinite ease-in-out;
 }
 .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
 .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
 @keyframes typingDot {
-  0%, 60%, 100% { opacity: 0.3; transform: translateY(0) scale(1); }
-  30% { opacity: 1; transform: translateY(-3px) scale(1.15); }
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-2px); }
 }
 
 /* Blinking caret for typed text. */
 .caret::after {
   content: "";
   display: inline-block;
-  width: 2px;
+  width: 1.5px;
   height: 1em;
   margin-left: 2px;
   vertical-align: -0.12em;

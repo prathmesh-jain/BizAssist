@@ -49,7 +49,7 @@ export default function BusinessProfileView() {
             <Page>
                 <div className="bg-card border border-border rounded-2xl p-8 text-center">
                     <Briefcase className="w-7 h-7 mx-auto text-muted-foreground" />
-                    <h2 className="font-display mt-3 text-2xl font-bold text-foreground">No business profile yet</h2>
+                    <h2 className="font-display mt-3 text-2xl font-semibold text-foreground">No business profile yet</h2>
                     <p className="mt-1 text-muted-foreground max-w-md mx-auto">
                         {manager
                             ? 'Tell BizAssist about your business. It researches public information and you confirm what is right.'
@@ -94,7 +94,7 @@ export default function BusinessProfileView() {
     if (editing) {
         return (
             <Page>
-                <h1 className="font-display text-3xl font-bold text-foreground mb-6">Edit business profile</h1>
+                <h1 className="font-display text-3xl font-semibold text-foreground mb-6">Edit business profile</h1>
                 <ProfileReview steps={steps} initial={draftFromProfile(profile)} busy={busy} error={actionError}
                     onConfirm={save} onBack={() => setEditing(false)} confirmLabel="Save changes" />
             </Page>
@@ -106,10 +106,10 @@ export default function BusinessProfileView() {
 
     return (
         <Page>
-            <div className="rise-in flex flex-wrap items-end justify-between gap-4 border-b border-primary/25 pb-6">
+            <div className="rise-in flex flex-wrap items-end justify-between gap-4 border-b border-border pb-6">
                 <div className="min-w-0">
                     <p className="eyebrow mb-3 inline-flex items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1"><span className="h-1.5 w-1.5 rounded-full bg-brand-gradient" />Your business</p>
-                    <h1 className="font-display text-3xl sm:text-[2.6rem] leading-[1.05] font-bold text-foreground break-words">{String(a.name ?? '')}</h1>
+                    <h1 className="font-display text-3xl sm:text-[2.25rem] leading-[1.1] font-semibold text-foreground break-words">{String(a.name ?? '')}</h1>
                     <p className="text-muted-foreground mt-1">
                         {[profile.subdomain, label('industry', a.industry)].filter(Boolean).join(' · ')}
                         {a.website && (
@@ -160,7 +160,7 @@ export default function BusinessProfileView() {
 
             {profile.competitors.length > 0 && (
                 <section className="mt-6 rounded-2xl border border-border bg-card p-5">
-                    <h3 className="font-display text-xl font-bold text-foreground">Competitors</h3>
+                    <h3 className="font-display text-xl font-semibold text-foreground">Competitors</h3>
                     <ul className="mt-3 divide-y divide-border">
                         {profile.competitors.map((c) => (
                             <li key={c.name} className="py-3">
@@ -178,7 +178,7 @@ export default function BusinessProfileView() {
 
             {profile.opportunities.length > 0 && (
                 <section className="mt-6 rounded-2xl border border-border bg-card p-5">
-                    <h3 className="font-display text-xl font-bold text-foreground">Focus areas</h3>
+                    <h3 className="font-display text-xl font-semibold text-foreground">Focus areas</h3>
                     <ul className="mt-3 space-y-3">
                         {profile.opportunities.map((o) => (
                             <li key={o.title}>

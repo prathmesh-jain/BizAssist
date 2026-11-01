@@ -1,8 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import GoogleIcon from '../ui/GoogleIcon';
-import Logo, { LogoMark } from '../ui/Logo';
-import Aurora from '../fx/Aurora';
+import Logo from '../ui/Logo';
 
 /** Two-column sign-in/sign-up frame: the form on the left, a quiet note on the right. */
 export default function AuthLayout({
@@ -19,11 +18,10 @@ export default function AuthLayout({
     return (
         <div className="min-h-screen bg-background lg:grid lg:grid-cols-[1fr_minmax(0,1fr)]">
             <div className="relative isolate flex min-h-screen flex-col px-5 py-6 sm:px-10">
-                <div className="lg:hidden"><Aurora intensity={0.6} /></div>
                 <Link to="/" aria-label="BizAssist home" className="w-fit"><Logo /></Link>
                 <div className="flex flex-1 items-center">
                     <div className="mx-auto w-full max-w-sm py-10 rise-in">
-                        <h1 className="font-display text-4xl font-bold">{title}</h1>
+                        <h1 className="font-display text-3xl font-semibold">{title}</h1>
                         <p className="mt-2 text-muted-foreground">{subtitle}</p>
                         <div className="mt-8">{children}</div>
                     </div>
@@ -36,22 +34,20 @@ export default function AuthLayout({
                 </p>
             </div>
 
-            <aside className="relative isolate m-3 hidden overflow-hidden rounded-[2rem] bg-[hsl(245_35%_7%)] text-white lg:flex lg:flex-col lg:justify-center lg:px-14">
-                <div className="dark absolute inset-0 -z-10"><Aurora intensity={1.3} /></div>
-                <div className="dot-grid absolute inset-0 -z-10 opacity-40 [--foreground:0_0%_100%]" aria-hidden="true" />
-                <LogoMark className="float-slow h-12 w-12 drop-shadow-[0_10px_30px_rgba(124,92,255,0.6)]" />
-                <p className="mt-8 font-mono text-[11px] uppercase tracking-[0.14em] text-white/60">{aside.heading}</p>
-                <ul className="mt-5 max-w-md space-y-3">
+            <aside className="relative isolate m-3 hidden overflow-hidden rounded-2xl border border-border bg-sidebar lg:flex lg:flex-col lg:justify-center lg:px-14">
+                <div className="dot-grid absolute inset-0 -z-10" aria-hidden="true" />
+                <p className="eyebrow">{aside.heading}</p>
+                <ul className="mt-6 max-w-md space-y-2.5">
                     {aside.points.map((p, i) => (
                         <li
                             key={p}
-                            className="rise-in flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-[15px] backdrop-blur-md"
-                            style={{ animationDelay: `${200 + i * 140}ms`, marginLeft: `${(i % 2) * 28}px` }}
+                            className="rise-in shadow-soft flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3 text-[15px]"
+                            style={{ animationDelay: `${120 + i * 90}ms` }}
                         >
-                            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-400 to-orange-400 text-[10px] font-bold">
+                            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-highlight font-mono text-[11px] font-medium text-primary">
                                 {i + 1}
                             </span>
-                            <span className="text-white/90">{p}</span>
+                            <span className="text-foreground">{p}</span>
                         </li>
                     ))}
                 </ul>
@@ -66,7 +62,7 @@ export function GoogleButton({ onClick, disabled }: { onClick: () => void; disab
             type="button"
             onClick={onClick}
             disabled={disabled}
-            className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-input bg-card px-4 py-3 text-sm font-medium text-foreground transition-all hover:-translate-y-px hover:shadow-md disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-input bg-card px-4 py-3 text-sm font-medium text-foreground hover:bg-muted hover:border-foreground/20 disabled:opacity-60"
         >
             <GoogleIcon />
             Continue with Google
@@ -92,7 +88,7 @@ export function Field({ label, ...props }: { label: string } & React.InputHTMLAt
             <input
                 id={id}
                 {...props}
-                className="mt-1.5 w-full rounded-xl border border-input bg-card px-3.5 py-3 text-foreground outline-none transition-all placeholder:text-muted-foreground/70 focus:border-primary focus:ring-4 focus:ring-primary/15"
+                className="mt-1.5 w-full rounded-xl border border-input bg-card px-3.5 py-3 text-foreground outline-none transition-all placeholder:text-muted-foreground/70 focus:border-primary focus:ring-4 focus:ring-primary/10"
             />
         </div>
     );

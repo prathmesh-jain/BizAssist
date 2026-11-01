@@ -173,7 +173,7 @@ export default function DocumentView() {
 
                 <section>
                     <div className="flex items-baseline justify-between border-b border-foreground/70 pb-2">
-                        <h2 className="font-display text-xl font-bold">On file</h2>
+                        <h2 className="font-display text-xl font-semibold">On file</h2>
                         <span className="text-sm text-muted-foreground tabular-nums">
                             {documents.length} {documents.length === 1 ? 'document' : 'documents'}
                         </span>
