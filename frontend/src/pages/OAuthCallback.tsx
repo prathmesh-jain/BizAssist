@@ -1,4 +1,5 @@
 import React from 'react';
+import { LogoMark } from '../components/ui/Logo';
 
 /**
  * OAuthCallback — minimal page rendered inside the OAuth popup window.
@@ -40,22 +41,15 @@ export default function OAuthCallback() {
         run();
     }, []);
 
+    const failed = new URLSearchParams(window.location.search).has('error');
     return (
-        <div style={{
-            minHeight: '100vh',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontFamily: 'system-ui, sans-serif',
-            background: '#0f172a',
-            color: '#f1f5f9',
-            gap: 16,
-        }}>
-            <div style={{ fontSize: 48 }}>✅</div>
-            <h2 style={{ margin: 0, fontWeight: 700, fontSize: 20 }}>Google account connected!</h2>
-            <p style={{ margin: 0, color: '#94a3b8', fontSize: 14 }}>
-                This window will close automatically…
+        <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-3 p-6 text-center">
+            <LogoMark className="w-10 h-10" />
+            <h1 className="font-display mt-3 text-2xl font-medium text-foreground">
+                {failed ? 'Google didn’t connect' : 'Connected to Google'}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+                {failed ? 'You can close this window and try again.' : 'This window will close on its own.'}
             </p>
         </div>
     );

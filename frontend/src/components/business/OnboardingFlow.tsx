@@ -170,10 +170,10 @@ export default function OnboardingFlow() {
                 <ResearchProgress run={run} />
                 {run.status === 'failed' && (
                     <div className="mt-6 space-y-3">
-                        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{run.error}</div>
+                        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{run.error}</div>
                         <div className="flex flex-wrap gap-3">
-                            <button onClick={research} disabled={busy} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-bold disabled:opacity-50">Try again</button>
-                            <button onClick={reviewWithoutResearch} disabled={busy} className="px-4 py-2 rounded-xl border border-border text-sm text-foreground hover:bg-muted">Continue without research</button>
+                            <button onClick={research} disabled={busy} className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50">Try again</button>
+                            <button onClick={reviewWithoutResearch} disabled={busy} className="px-4 py-2 rounded-md border border-border text-sm text-foreground hover:bg-muted">Continue without research</button>
                         </div>
                     </div>
                 )}
@@ -200,7 +200,7 @@ export default function OnboardingFlow() {
 
     const isLast = position === visibleSteps.length - 1;
     return (
-        <Shell title="Tell BizAssist about your business" subtitle="So answers, research, and suggestions fit your business instead of being generic.">
+        <Shell title="Tell BizAssist about your business" subtitle="A few questions so its answers and suggestions fit you, not some average company.">
             <ol className="flex flex-wrap gap-2 mb-6" aria-label="Onboarding steps">
                 {visibleSteps.map((s, i) => (
                     <li key={s.id} className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border ${i === position ? 'border-primary/40 bg-primary/10 text-primary' : i < position ? 'border-border text-foreground' : 'border-border text-muted-foreground'}`}>
@@ -210,8 +210,8 @@ export default function OnboardingFlow() {
             </ol>
 
             {step && (
-                <section className="bg-card border border-border rounded-2xl p-5 sm:p-7 shadow-sm">
-                    <h3 className="text-xl font-bold text-foreground">{step.title}</h3>
+                <section className="bg-card border border-border rounded-lg p-5 sm:p-7">
+                    <h3 className="font-display text-xl font-medium text-foreground">{step.title}</h3>
                     {step.description && <p className="text-sm text-muted-foreground mt-1">{step.description}</p>}
                     <div className="mt-6 space-y-5">
                         {visibleQuestions.map((q) => (
@@ -231,7 +231,7 @@ export default function OnboardingFlow() {
             )}
 
             {error && (
-                <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                     {error}
                     {error.includes('API key') && (
                         <button onClick={() => navigate('/app/settings')} className="block mt-1 font-semibold text-primary hover:underline">Add your OpenAI API key in Settings</button>
@@ -243,19 +243,19 @@ export default function OnboardingFlow() {
                 <button onClick={skip} className="text-sm text-muted-foreground hover:text-foreground">Skip for now</button>
                 <div className="flex flex-wrap gap-3">
                     {position > 0 && (
-                        <button onClick={() => goTo(-1)} disabled={busy} className="px-4 py-2.5 rounded-xl border border-border text-sm text-foreground hover:bg-muted disabled:opacity-50">Back</button>
+                        <button onClick={() => goTo(-1)} disabled={busy} className="px-4 py-2.5 rounded-md border border-border text-sm text-foreground hover:bg-muted disabled:opacity-50">Back</button>
                     )}
                     {isLast ? (
                         <>
-                            <button onClick={reviewWithoutResearch} disabled={busy || missing.length > 0} className="px-4 py-2.5 rounded-xl border border-border text-sm text-foreground hover:bg-muted disabled:opacity-50">
+                            <button onClick={reviewWithoutResearch} disabled={busy || missing.length > 0} className="px-4 py-2.5 rounded-md border border-border text-sm text-foreground hover:bg-muted disabled:opacity-50">
                                 Skip research
                             </button>
-                            <button onClick={research} disabled={busy || missing.length > 0} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold disabled:opacity-50">
+                            <button onClick={research} disabled={busy || missing.length > 0} className="flex items-center gap-2 px-5 py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50">
                                 {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} Research my business
                             </button>
                         </>
                     ) : (
-                        <button onClick={next} disabled={busy || missing.length > 0} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold disabled:opacity-50">
+                        <button onClick={next} disabled={busy || missing.length > 0} className="flex items-center gap-2 px-5 py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50">
                             {busy && <Loader2 className="w-4 h-4 animate-spin" />} Continue
                         </button>
                     )}
@@ -274,7 +274,7 @@ function ResearchProgress({ run }: { run: ResearchRun }) {
                 const current = active && i === steps.length - 1;
                 return (
                     <li key={`${p.message}-${i}`} className="flex items-center gap-3 text-sm">
-                        {current ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <Check className="w-4 h-4 text-green-500" />}
+                        {current ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <Check className="w-4 h-4 text-success" />}
                         <span className={current ? 'text-foreground font-medium' : 'text-muted-foreground'}>{p.message}</span>
                     </li>
                 );
@@ -288,10 +288,11 @@ function ResearchProgress({ run }: { run: ResearchRun }) {
 
 function Shell({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
     return (
-        <div className="flex-1 overflow-y-auto bg-background p-4 sm:p-6 lg:p-8">
+        <div className="flex-1 overflow-y-auto bg-background px-4 py-8 sm:px-8 lg:py-12">
             <div className="max-w-3xl mx-auto">
-                <h2 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">{title}</h2>
-                {subtitle && <p className="text-muted-foreground mt-1 mb-6">{subtitle}</p>}
+                <p className="eyebrow mb-2">Getting set up</p>
+                <h1 className="font-display text-3xl sm:text-[2.1rem] leading-tight font-medium text-foreground">{title}</h1>
+                {subtitle && <p className="text-muted-foreground text-[15px] mt-2 mb-8">{subtitle}</p>}
                 {!subtitle && <div className="mb-6" />}
                 {children}
             </div>

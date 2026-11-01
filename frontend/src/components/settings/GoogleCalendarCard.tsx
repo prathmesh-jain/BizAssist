@@ -1,5 +1,6 @@
 import React from 'react';
-import { CalendarDays, CheckCircle2, Loader2, Unplug, XCircle } from 'lucide-react';
+import { CalendarDays, Loader2, Unplug } from 'lucide-react';
+import StatusChip from '../ui/StatusChip';
 import apiClient, { apiErrorDetail } from '../../api/client';
 import { runGoogleOAuthPopup } from '../../lib/googleOAuth';
 
@@ -64,34 +65,30 @@ export default function GoogleCalendarCard() {
     };
 
     return (
-        <div className="bg-card border border-border rounded-2xl p-5 sm:p-7 shadow-sm">
+        <div className="bg-card border border-border rounded-lg p-5 sm:p-6">
             <div className="flex flex-col sm:flex-row sm:items-start gap-5">
-                <div className="w-14 h-14 rounded-2xl border border-border bg-muted flex items-center justify-center shrink-0">
-                    <CalendarDays className="w-7 h-7 text-blue-500" />
+                <div className="w-11 h-11 rounded-md border border-border bg-background flex items-center justify-center shrink-0">
+                    <CalendarDays className="w-5 h-5 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 flex-wrap">
-                        <h3 className="text-xl font-bold text-foreground">Google Calendar & Meet</h3>
+                        <h3 className="text-lg font-semibold text-foreground">Google Calendar & Meet</h3>
                         {status === null ? (
-                            <span className="px-2.5 py-1 bg-muted border border-border rounded-full text-[11px] font-bold text-muted-foreground">Checking…</span>
+                            <StatusChip tone="neutral">Checking…</StatusChip>
                         ) : status.connected ? (
-                            <span className="flex items-center gap-1.5 px-2.5 py-1 bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 rounded-full text-[11px] font-bold uppercase">
-                                <CheckCircle2 className="w-3.5 h-3.5" /> Connected
-                            </span>
+                            <StatusChip tone="success">Connected</StatusChip>
                         ) : (
-                            <span className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-full text-[11px] font-bold uppercase">
-                                <XCircle className="w-3.5 h-3.5" /> Not connected
-                            </span>
+                            <StatusChip tone="warning">Not connected</StatusChip>
                         )}
                     </div>
                     <p className="text-muted-foreground mt-2 text-sm leading-relaxed max-w-xl">
-                        Your own calendar (not shared with your team). BizAssist can check your schedule, find free time,
-                        and create meetings with Google Meet links. It always asks you to approve before creating,
-                        moving, or cancelling anything.
+                        Your own calendar; your team can’t see it. BizAssist can check your schedule, find free time,
+                        and set up meetings with Google Meet links. It asks for your OK before creating, moving, or
+                        cancelling anything.
                     </p>
 
                     {status?.connected && (status.email || status.timezone) && (
-                        <p className="mt-3 text-sm text-foreground">
+                        <p className="mt-3 font-mono text-xs text-muted-foreground">
                             {status.email}{status.email && status.timezone ? ' · ' : ''}{status.timezone}
                         </p>
                     )}
@@ -99,7 +96,7 @@ export default function GoogleCalendarCard() {
                     {status?.connected && (
                         <ul className="mt-3 flex flex-wrap gap-2">
                             {EXAMPLES.map((e) => (
-                                <li key={e} className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">“{e}”</li>
+                                <li key={e} className="rounded-md border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground">“{e}”</li>
                             ))}
                         </ul>
                     )}
@@ -111,7 +108,7 @@ export default function GoogleCalendarCard() {
                             <button
                                 onClick={disconnect}
                                 disabled={busy}
-                                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border text-sm text-foreground hover:bg-muted disabled:opacity-50"
+                                className="flex items-center gap-2 px-3.5 py-2 rounded-md border border-border text-sm text-foreground hover:bg-muted disabled:opacity-50"
                             >
                                 {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unplug className="w-4 h-4" />} Disconnect
                             </button>
@@ -119,7 +116,7 @@ export default function GoogleCalendarCard() {
                             <button
                                 onClick={connect}
                                 disabled={busy || status === null}
-                                className="flex items-center gap-2.5 px-5 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-bold text-sm disabled:opacity-60"
+                                className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md font-medium text-sm disabled:opacity-60"
                             >
                                 {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarDays className="w-4 h-4" />}
                                 {busy ? 'Waiting for Google…' : 'Connect Google Calendar'}

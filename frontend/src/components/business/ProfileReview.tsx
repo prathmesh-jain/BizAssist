@@ -63,8 +63,8 @@ export default function ProfileReview({ steps, initial, research, busy, error, o
     return (
         <div className="space-y-6">
             {research?.warnings?.length ? (
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-foreground">
-                    <p className="flex items-center gap-2 font-semibold"><AlertTriangle className="w-4 h-4 text-amber-500" /> Research was incomplete</p>
+                <div className="rounded-md border border-warning/30 bg-warning/10 p-4 text-sm text-foreground">
+                    <p className="flex items-center gap-2 font-semibold"><AlertTriangle className="w-4 h-4 text-warning" /> Research was incomplete</p>
                     <ul className="mt-1 list-disc pl-5 text-muted-foreground">
                         {research.warnings.map((w) => <li key={w}>{w}</li>)}
                     </ul>
@@ -157,7 +157,7 @@ export default function ProfileReview({ steps, initial, research, busy, error, o
             </Section>
 
             {research?.sources?.length ? (
-                <details className="rounded-2xl border border-border bg-card p-5 text-sm">
+                <details className="rounded-lg border border-border bg-card p-5 text-sm">
                     <summary className="cursor-pointer font-semibold text-foreground">
                         {research.sources.length} sources consulted
                     </summary>
@@ -172,11 +172,11 @@ export default function ProfileReview({ steps, initial, research, busy, error, o
                 </details>
             ) : null}
 
-            {error && <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
+            {error && <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
 
             <div className="flex flex-wrap justify-end gap-3 pb-6">
                 {onBack && (
-                    <button type="button" onClick={onBack} disabled={busy} className="px-4 py-2.5 rounded-xl border border-border text-foreground hover:bg-muted text-sm disabled:opacity-50">
+                    <button type="button" onClick={onBack} disabled={busy} className="px-4 py-2.5 rounded-md border border-border text-foreground hover:bg-muted text-sm disabled:opacity-50">
                         Back
                     </button>
                 )}
@@ -184,7 +184,7 @@ export default function ProfileReview({ steps, initial, research, busy, error, o
                     type="button"
                     disabled={busy || nameMissing}
                     onClick={() => onConfirm(draft)}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold disabled:opacity-50"
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50"
                 >
                     {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                     {confirmLabel || 'Confirm profile'}
@@ -202,8 +202,8 @@ function display(value: string | string[] | null, question: OnboardingQuestion):
 
 function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
     return (
-        <section className="bg-card border border-border rounded-2xl p-5 sm:p-6 shadow-sm">
-            <h3 className="text-lg font-bold text-foreground">{title}</h3>
+        <section className="bg-card border border-border rounded-lg p-5 sm:p-6">
+            <h3 className="font-display text-xl font-medium text-foreground">{title}</h3>
             {subtitle && <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>}
             <div className="mt-4">{children}</div>
         </section>
@@ -230,7 +230,7 @@ function CompetitorList({ items, onChange }: { items: Included<Competitor>[]; on
         <div className="space-y-3">
             {items.length === 0 && <p className="text-sm text-muted-foreground">No competitors yet.</p>}
             {items.map((c, i) => (
-                <label key={`${c.name}-${i}`} className={`flex gap-3 rounded-xl border p-3.5 cursor-pointer transition-colors ${c.include ? 'border-border bg-background' : 'border-border/60 opacity-60'}`}>
+                <label key={`${c.name}-${i}`} className={`flex gap-3 rounded-md border p-3.5 cursor-pointer transition-colors ${c.include ? 'border-border bg-background' : 'border-border/60 opacity-60'}`}>
                     <input
                         type="checkbox"
                         checked={c.include}
@@ -240,7 +240,7 @@ function CompetitorList({ items, onChange }: { items: Included<Competitor>[]; on
                     <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                             <span className="font-semibold text-foreground">{c.name}</span>
-                            <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase border ${c.competition === 'direct' ? 'border-primary/30 text-primary bg-primary/10' : 'border-border text-muted-foreground bg-muted'}`}>
+                            <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase border ${c.competition === 'direct' ? 'border-primary/30 text-primary bg-primary/10' : 'border-border text-muted-foreground bg-muted'}`}>
                                 {c.competition}
                             </span>
                             <span className="text-xs text-muted-foreground">{SCALE_LABEL[c.relative_scale]}</span>
@@ -254,10 +254,10 @@ function CompetitorList({ items, onChange }: { items: Included<Competitor>[]; on
             ))}
             <div className="flex flex-wrap gap-2 pt-1">
                 <input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} placeholder="Competitor name" aria-label="Competitor name"
-                    className="flex-1 min-w-40 rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground" />
+                    className="flex-1 min-w-40 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground" />
                 <input value={website} onChange={(e) => setWebsite(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} placeholder="Website (optional)" aria-label="Competitor website"
-                    className="flex-1 min-w-40 rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground" />
-                <button type="button" onClick={add} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm text-foreground hover:bg-muted">
+                    className="flex-1 min-w-40 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground" />
+                <button type="button" onClick={add} className="flex items-center gap-1.5 px-3 py-2 rounded-md border border-border text-sm text-foreground hover:bg-muted">
                     <Plus className="w-4 h-4" /> Add
                 </button>
             </div>
@@ -276,7 +276,7 @@ function OpportunityList({ items, onChange }: { items: Included<Opportunity>[]; 
         <div className="space-y-3">
             {items.length === 0 && <p className="text-sm text-muted-foreground">No suggestions yet.</p>}
             {items.map((o, i) => (
-                <label key={`${o.title}-${i}`} className={`flex gap-3 rounded-xl border p-3.5 cursor-pointer ${o.include ? 'border-border bg-background' : 'border-border/60 opacity-60'}`}>
+                <label key={`${o.title}-${i}`} className={`flex gap-3 rounded-md border p-3.5 cursor-pointer ${o.include ? 'border-border bg-background' : 'border-border/60 opacity-60'}`}>
                     <input
                         type="checkbox"
                         checked={o.include}
@@ -298,8 +298,8 @@ function OpportunityList({ items, onChange }: { items: Included<Opportunity>[]; 
             ))}
             <div className="flex flex-wrap gap-2 pt-1">
                 <input value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} placeholder="Add something you want to improve" aria-label="New opportunity"
-                    className="flex-1 min-w-48 rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground" />
-                <button type="button" onClick={add} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm text-foreground hover:bg-muted">
+                    className="flex-1 min-w-48 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground" />
+                <button type="button" onClick={add} className="flex items-center gap-1.5 px-3 py-2 rounded-md border border-border text-sm text-foreground hover:bg-muted">
                     <Plus className="w-4 h-4" /> Add
                 </button>
             </div>

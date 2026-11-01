@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, X, AlertCircle, Upload, Send } from 'lucide-react';
+import { Check, X, Upload, ArrowUp } from 'lucide-react';
 import type { Interrupt } from '../../types';
 import useChatStore from '../../store/chatStore';
 
@@ -33,97 +33,110 @@ const InterruptBubble: React.FC<InterruptBubbleProps> = ({ chatId, interrupt }) 
     };
 
     const interruptType = interrupt.interrupt_type || 'accept_decline';
-    const helperText = {
-        accept_decline: 'The AI agent needs your approval to proceed with this action.',
-        yes_no_confirmation: 'Please confirm how you want the agent to proceed.',
-        text_input: 'Please provide the missing detail so the agent can continue.',
-        file_upload: 'Please upload the file needed for this task.',
+    const label = {
+        accept_decline: 'Needs your OK',
+        yes_no_confirmation: 'Quick question',
+        text_input: 'Missing a detail',
+        file_upload: 'Needs a file',
     }[interruptType];
 
     return (
-        <div className="interrupt-bubble-enter my-4 mx-auto max-w-lg overflow-hidden rounded-2xl border border-white/20 bg-white/10 p-6 shadow-2xl backdrop-blur-md dark:bg-slate-900/40">
-            <div className="flex items-start gap-4">
-                <div className="shrink-0 rounded-full bg-blue-500/20 p-2 text-blue-500">
-                    <AlertCircle size={24} />
+        <div className="interrupt-bubble-enter mb-8 ml-11 max-w-xl rounded-lg border border-accent/40 bg-accent/[0.06] p-4 sm:p-5" role="group" aria-label={label}>
+            <p className="eyebrow !text-accent">{label}</p>
+            <h3 className="mt-1.5 text-[15px] font-medium leading-snug text-foreground">
+                {interrupt.question || 'Can I go ahead?'}
+            </h3>
+
+            {interrupt.data !== undefined && interrupt.data !== null && <InterruptDetails data={interrupt.data} />}
+
+            {interruptType === 'text_input' && (
+                <div className="mt-4 flex items-center gap-2">
+                    <input
+                        value={textValue}
+                        onChange={(event) => setTextValue(event.target.value)}
+                        onKeyDown={(event) => {
+                            if (event.key === 'Enter') handleTextSubmit();
+                        }}
+                        disabled={isLoading}
+                        className="min-w-0 flex-1 rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+                        placeholder="Type your answer"
+                        aria-label="Your answer"
+                    />
+                    <button
+                        onClick={handleTextSubmit}
+                        disabled={isLoading || !textValue.trim()}
+                        className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                        aria-label="Send answer"
+                    >
+                        <ArrowUp className="w-4 h-4" strokeWidth={2.5} />
+                    </button>
                 </div>
-                <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
-                        {interrupt.question || 'Confirmation Required'}
-                    </h3>
-                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                        {helperText}
-                    </p>
+            )}
 
-                    {interrupt.data && (
-                        <div className="mt-4 rounded-lg bg-slate-100/50 p-3 text-xs font-mono text-slate-700 dark:bg-slate-800/50 dark:text-slate-300">
-                            <pre className="whitespace-pre-wrap">
-                                {JSON.stringify(interrupt.data, null, 2)}
-                            </pre>
-                        </div>
-                    )}
+            {interruptType === 'file_upload' && (
+                <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-input bg-card px-4 py-5 text-center hover:border-primary">
+                    <Upload className="mb-1.5 h-5 w-5 text-muted-foreground" />
+                    <span className="text-sm text-foreground">{fileName || 'Choose a file'}</span>
+                    <input type="file" className="hidden" disabled={isLoading} onChange={handleFileChange} />
+                </label>
+            )}
 
-                    {interruptType === 'text_input' && (
-                        <div className="mt-6 flex items-center gap-2">
-                            <input
-                                value={textValue}
-                                onChange={(event) => setTextValue(event.target.value)}
-                                onKeyDown={(event) => {
-                                    if (event.key === 'Enter') handleTextSubmit();
-                                }}
-                                disabled={isLoading}
-                                className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                                placeholder="Type your answer"
-                            />
-                            <button
-                                onClick={handleTextSubmit}
-                                disabled={isLoading || !textValue.trim()}
-                                className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white transition hover:bg-blue-700 disabled:opacity-50"
-                                title="Submit"
-                            >
-                                <Send size={18} />
-                            </button>
-                        </div>
-                    )}
-
-                    {interruptType === 'file_upload' && (
-                        <label className="mt-6 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center transition hover:border-blue-500 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800/60 dark:hover:bg-slate-800">
-                            <Upload className="mb-2 h-6 w-6 text-blue-500" />
-                            <span className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                                {fileName || 'Choose a file'}
-                            </span>
-                            <input
-                                type="file"
-                                className="hidden"
-                                disabled={isLoading}
-                                onChange={handleFileChange}
-                            />
-                        </label>
-                    )}
-
-                    {(interruptType === 'accept_decline' || interruptType === 'yes_no_confirmation') && (
-                        <div className="mt-6 flex items-center gap-3">
-                            <button
-                                onClick={() => handleAction('accept')}
-                                disabled={isLoading}
-                                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg transition-all hover:bg-blue-700 hover:shadow-blue-500/25 active:scale-95 disabled:opacity-50"
-                            >
-                                <Check size={18} />
-                                {interruptType === 'yes_no_confirmation' ? 'Yes' : 'Accept'}
-                            </button>
-                            <button
-                                onClick={() => handleAction('reject')}
-                                disabled={isLoading}
-                                className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-all hover:bg-slate-50 active:scale-95 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                            >
-                                <X size={18} />
-                                {interruptType === 'yes_no_confirmation' ? 'No' : 'Reject'}
-                            </button>
-                        </div>
-                    )}
+            {(interruptType === 'accept_decline' || interruptType === 'yes_no_confirmation') && (
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <button
+                        onClick={() => handleAction('accept')}
+                        disabled={isLoading}
+                        className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                    >
+                        <Check className="w-4 h-4" />
+                        {interruptType === 'yes_no_confirmation' ? 'Yes' : 'Go ahead'}
+                    </button>
+                    <button
+                        onClick={() => handleAction('reject')}
+                        disabled={isLoading}
+                        className="flex items-center gap-1.5 rounded-md border border-border bg-card px-4 py-2 text-sm text-foreground hover:bg-muted disabled:opacity-50"
+                    >
+                        <X className="w-4 h-4" />
+                        {interruptType === 'yes_no_confirmation' ? 'No' : 'Not now'}
+                    </button>
                 </div>
-            </div>
+            )}
         </div>
     );
 };
+
+/** Show what the assistant is about to do as a readable list rather than raw JSON when possible. */
+function InterruptDetails({ data }: { data: unknown }) {
+    const isPlainRecord = (v: unknown): v is Record<string, unknown> =>
+        !!v && typeof v === 'object' && !Array.isArray(v);
+    const printable = (v: unknown) =>
+        v === null || ['string', 'number', 'boolean'].includes(typeof v) ||
+        (Array.isArray(v) && v.every((x) => ['string', 'number'].includes(typeof x)));
+
+    if (isPlainRecord(data) && Object.values(data).every(printable)) {
+        const entries = Object.entries(data).filter(([, v]) => v !== null && v !== '' && !(Array.isArray(v) && !v.length));
+        if (!entries.length) return null;
+        return (
+            <dl className="mt-3 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 rounded-md border border-border bg-card px-3.5 py-3 text-sm">
+                {entries.map(([k, v]) => (
+                    <React.Fragment key={k}>
+                        <dt className="text-muted-foreground capitalize">{k.replace(/_/g, ' ')}</dt>
+                        <dd className="min-w-0 break-words text-foreground">{Array.isArray(v) ? v.join(', ') : typeof v === 'boolean' ? (v ? 'Yes' : 'No') : String(v)}</dd>
+                    </React.Fragment>
+                ))}
+            </dl>
+        );
+    }
+
+    if (typeof data === 'string') {
+        return <p className="mt-3 text-sm text-muted-foreground whitespace-pre-wrap">{data}</p>;
+    }
+
+    return (
+        <pre className="mt-3 max-h-60 overflow-auto rounded-md border border-border bg-card p-3 font-mono text-xs text-muted-foreground whitespace-pre-wrap">
+            {JSON.stringify(data, null, 2)}
+        </pre>
+    );
+}
 
 export default InterruptBubble;

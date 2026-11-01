@@ -5,6 +5,8 @@ import useChatStore from '../store/chatStore';
 import useBusinessStore from '../store/businessStore';
 import useOrgStore, { hasPermission } from '../store/orgStore';
 import type { Message, ToolStatus } from '../types';
+import { Menu } from 'lucide-react';
+import Logo from '../components/ui/Logo';
 
 const Sidebar = React.lazy(() => import('../components/layout/Sidebar'));
 const ChatWindow = React.lazy(() => import('../components/chat/ChatWindow'));
@@ -59,7 +61,7 @@ export default function Dashboard() {
     };
 
     return (
-        <div className="flex h-screen bg-background overflow-hidden font-sans">
+        <div className="flex h-dvh bg-background overflow-hidden">
             <React.Suspense fallback={null}>
                 <Sidebar
                     isOpen={isSidebarOpen}
@@ -144,7 +146,7 @@ function ChatViewWrapper({
     }, [activeChatId, chatId]);
 
     return (
-        <div className="flex-1 flex flex-col h-screen overflow-hidden bg-background">
+        <div className="flex-1 flex flex-col h-dvh overflow-hidden bg-background">
             <MobileHeader onMenuClick={onMenuClick} />
             <React.Suspense fallback={<div className="flex-1 bg-background" />}>
                 <ChatWindow
@@ -163,7 +165,7 @@ function FeatureView({ children, onMenuClick }: { children: React.ReactNode; onM
     return (
         <div className="flex-1 h-full overflow-auto bg-background">
             <MobileHeader onMenuClick={onMenuClick} />
-            <React.Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading...</div>}>
+            <React.Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Loading…</div>}>
                 {children}
             </React.Suspense>
         </div>
@@ -172,16 +174,15 @@ function FeatureView({ children, onMenuClick }: { children: React.ReactNode; onM
 
 function MobileHeader({ onMenuClick }: { onMenuClick: () => void }) {
     return (
-        <header className="h-16 border-b border-border flex items-center px-6 bg-card lg:hidden shrink-0">
+        <header className="h-14 border-b border-border flex items-center gap-2 px-3 bg-sidebar lg:hidden shrink-0 sticky top-0 z-30">
             <button
                 onClick={onMenuClick}
-                className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Open menu"
+                className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
             >
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
+                <Menu className="w-5 h-5" />
             </button>
-            <h1 className="ml-4 font-bold text-foreground">BizAssist</h1>
+            <Logo size="sm" />
         </header>
     );
 }

@@ -1,6 +1,12 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: "Fraunces", ui-serif, Georgia, "Times New Roman", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
 
@@ -25,6 +31,11 @@
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
 
+  --color-success: hsl(var(--success));
+  --color-warning: hsl(var(--warning));
+  --color-highlight: hsl(var(--highlight));
+  --color-sidebar: hsl(var(--sidebar));
+
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
@@ -35,66 +46,78 @@
 }
 
 @layer base {
+  /* Light: warm paper and ink, a ledger green, and a clay accent. */
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 40 33% 97%;
+    --foreground: 30 14% 12%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 40 45% 99%;
+    --card-foreground: 30 14% 12%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 40 45% 99%;
+    --popover-foreground: 30 14% 12%;
 
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 160 40% 23%;
+    --primary-foreground: 40 40% 97%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 38 26% 92%;
+    --secondary-foreground: 30 14% 14%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 38 26% 92%;
+    --muted-foreground: 30 7% 40%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 15 62% 50%;
+    --accent-foreground: 40 40% 98%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 4 62% 46%;
+    --destructive-foreground: 40 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    --success: 150 45% 32%;
+    --warning: 32 85% 38%;
+    --highlight: 44 92% 62%;
+    --sidebar: 39 30% 94%;
 
-    --radius: 0.5rem;
+    --border: 36 18% 85%;
+    --input: 36 18% 82%;
+    --ring: 160 40% 23%;
+
+    --radius: 0.625rem;
   }
 
+  /* Dark: lamplit desk rather than a blue-black void. */
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 30 8% 8%;
+    --foreground: 38 22% 89%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 30 7% 11%;
+    --card-foreground: 38 22% 89%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 30 7% 12%;
+    --popover-foreground: 38 22% 89%;
 
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 150 30% 60%;
+    --primary-foreground: 150 30% 8%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 30 6% 16%;
+    --secondary-foreground: 38 22% 89%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 30 6% 15%;
+    --muted-foreground: 35 9% 60%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 16 68% 62%;
+    --accent-foreground: 30 10% 8%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 4 62% 58%;
+    --destructive-foreground: 30 10% 8%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    --success: 145 35% 58%;
+    --warning: 38 80% 60%;
+    --highlight: 44 70% 45%;
+    --sidebar: 30 7% 10%;
+
+    --border: 30 6% 20%;
+    --input: 30 6% 24%;
+    --ring: 150 30% 60%;
   }
 }
 
@@ -103,27 +126,233 @@
     @apply border-border;
   }
 
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
-    @apply bg-background text-foreground antialiased transition-colors duration-300;
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background: hsl(var(--highlight) / 0.45);
+    color: hsl(var(--foreground));
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
   }
 }
-button{
-  cursor: pointer;
+
+@layer components {
+  /* Serif display type with soft optical sizing. */
+  .font-display {
+    font-family: var(--font-serif);
+    font-optical-sizing: auto;
+    font-variation-settings: "SOFT" 50, "WONK" 0;
+    letter-spacing: -0.015em;
+  }
+
+  /* Small mono labels, like notes in a margin. */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* A hand-drawn highlighter stroke behind a word. */
+  .marker {
+    background-image: linear-gradient(
+      100deg,
+      transparent 0.4em,
+      hsl(var(--highlight) / 0.55) 0.5em,
+      hsl(var(--highlight) / 0.4) 92%,
+      transparent 96%
+    );
+    background-size: 100% 0.42em;
+    background-position: 0 88%;
+    background-repeat: no-repeat;
+    padding: 0 0.08em;
+  }
+
+  /* Faint ruled-paper lines for large empty surfaces. */
+  .paper-lines {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 31px,
+      hsl(var(--border) / 0.55) 31px,
+      hsl(var(--border) / 0.55) 32px
+    );
+  }
+
+  .paper-grain {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .paper-grain::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.35;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.38 0 0 0 0 0.3 0 0 0 0.07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .dark .paper-grain::before {
+    opacity: 0.5;
+  }
+
+  /* Rendered markdown in assistant replies (no typography plugin needed). */
+  .md {
+    font-size: 0.9375rem;
+    line-height: 1.7;
+    color: hsl(var(--foreground));
+    overflow-wrap: anywhere;
+  }
+
+  .md > :first-child { margin-top: 0; }
+  .md > :last-child { margin-bottom: 0; }
+
+  .md p { margin: 0.6em 0; }
+
+  .md h1, .md h2, .md h3, .md h4 {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    line-height: 1.3;
+    margin: 1.3em 0 0.45em;
+    letter-spacing: -0.01em;
+  }
+  .md h1 { font-size: 1.35rem; }
+  .md h2 { font-size: 1.2rem; }
+  .md h3 { font-size: 1.05rem; }
+  .md h4 { font-size: 0.95rem; }
+
+  .md ul, .md ol { margin: 0.6em 0; padding-left: 1.35em; }
+  .md ul { list-style: disc; }
+  .md ol { list-style: decimal; }
+  .md li { margin: 0.25em 0; }
+  .md li::marker { color: hsl(var(--muted-foreground)); }
+
+  .md strong { font-weight: 600; }
+
+  .md a {
+    color: hsl(var(--primary));
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+
+  .md code {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    background: hsl(var(--muted));
+    border-radius: 4px;
+    padding: 0.1em 0.35em;
+  }
+
+  .md pre {
+    margin: 0.9em 0;
+    padding: 0.9em 1em;
+    overflow-x: auto;
+    background: hsl(var(--muted));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    font-size: 0.85em;
+    line-height: 1.55;
+  }
+  .md pre code { background: none; padding: 0; font-size: inherit; }
+
+  .md blockquote {
+    margin: 0.9em 0;
+    padding-left: 1em;
+    border-left: 2px solid hsl(var(--accent));
+    color: hsl(var(--muted-foreground));
+  }
+
+  .md hr {
+    margin: 1.4em 0;
+    border: 0;
+    border-top: 1px dashed hsl(var(--border));
+  }
+
+  .md table {
+    display: block;
+    width: max-content;
+    max-width: 100%;
+    overflow-x: auto;
+    margin: 0.9em 0;
+    border-collapse: collapse;
+    font-size: 0.875em;
+    font-variant-numeric: tabular-nums;
+  }
+  .md th, .md td {
+    padding: 0.45em 0.8em;
+    text-align: left;
+    border-bottom: 1px solid hsl(var(--border));
+  }
+  .md th {
+    font-weight: 600;
+    border-bottom: 1.5px solid hsl(var(--foreground) / 0.6);
+  }
 }
 
-.interrupt-bubble-enter {
-  animation: interruptBubbleEnter 220ms ease-out;
-  transform-origin: center;
+@media (prefers-reduced-motion: no-preference) {
+  .rise-in {
+    animation: riseIn 260ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
+  .interrupt-bubble-enter {
+    animation: riseIn 260ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
 }
 
-@keyframes interruptBubbleEnter {
+@keyframes riseIn {
   from {
     opacity: 0;
-    transform: translateY(10px) scale(0.95);
+    transform: translateY(6px);
   }
 
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
+}
+
+/* Three small dots, written rather than bounced. */
+.typing-dots span {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: 3px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.25;
+  animation: typingDot 1.2s infinite ease-in-out;
+}
+.typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes typingDot {
+  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+  30% { opacity: 0.9; transform: translateY(-2px); }
 }

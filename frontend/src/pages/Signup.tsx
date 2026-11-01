@@ -1,11 +1,12 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import useThemeStore from '../store/themeStore';
+import { Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { postLoginPath } from '../lib/session';
+import AuthLayout, { Field, FormError, GoogleButton, OrDivider } from '../components/auth/AuthLayout';
+import { friendlyAuthError } from '../lib/authErrors';
 
 export default function Signup() {
-    useThemeStore();
     const navigate = useNavigate();
     const { signUpWithEmail, signInWithGoogle } = useAuth();
     const [email, setEmail] = React.useState('');
@@ -13,102 +14,58 @@ export default function Signup() {
     const [error, setError] = React.useState<string | null>(null);
     const [loading, setLoading] = React.useState(false);
 
-    const handleEmailSignup = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const attempt = async (action: () => Promise<void>, fallback: string) => {
         setError(null);
         setLoading(true);
         try {
-            await signUpWithEmail(email.trim(), password);
+            await action();
             navigate(postLoginPath(), { replace: true });
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Signup failed');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleGoogleSignup = async () => {
-        setError(null);
-        setLoading(true);
-        try {
-            await signInWithGoogle();
-            navigate(postLoginPath(), { replace: true });
-        } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : 'Google sign-in failed');
+            setError(friendlyAuthError(err, fallback));
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-background py-6 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
-            <div className="absolute inset-0 bg-grid-slate-200/[0.05] mask-[linear-gradient(to_bottom,white,transparent)] pointer-events-none" />
-            <div className="z-10 w-full max-w-md rounded-3xl border border-border bg-card p-6 shadow-xl">
-                <div className="text-center mb-6">
-                    <h2 className="text-2xl font-bold text-foreground tracking-tight">Create Account</h2>
-                    <p className="mt-1 text-muted-foreground">Start your business automation journey</p>
-                </div>
-                {error && (
-                    <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                        {error}
-                    </div>
-                )}
-
+        <AuthLayout
+            title="Set up your workspace"
+            subtitle="It takes a couple of minutes. You can invite your team later."
+            aside={{
+                heading: 'What happens next',
+                points: [
+                    'A few questions about your business',
+                    'BizAssist researches what’s public and shows its sources',
+                    'You keep what’s right and correct the rest',
+                    'Add your OpenAI key, then start asking',
+                ],
+            }}
+        >
+            <FormError message={error} />
+            <GoogleButton onClick={() => attempt(signInWithGoogle, 'Google sign-in failed.')} disabled={loading} />
+            <OrDivider />
+            <form
+                className="space-y-4"
+                onSubmit={(e) => {
+                    e.preventDefault();
+                    attempt(() => signUpWithEmail(email.trim(), password), 'Sign-up failed.');
+                }}
+            >
+                <Field label="Work email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email" placeholder="you@yourbusiness.com" required />
+                <Field label="Password" value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="new-password" minLength={6} placeholder="At least 6 characters" required />
                 <button
-                    type="button"
-                    onClick={handleGoogleSignup}
+                    type="submit"
                     disabled={loading}
-                    className="w-full rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm font-semibold text-foreground hover:bg-muted transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                    className="flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
                 >
-                    <img src="https://img.icons8.com/color/48/000000/google-logo.png" alt="Google" className="w-6 h-6 mr-2" />
-                    Continue with Google
+                    {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Create account
                 </button>
-
-                <div className="mt-6 flex items-center gap-3">
-                    <div className="h-px flex-1 bg-border/60" />
-                    <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">or</span>
-                    <div className="h-px flex-1 bg-border/60" />
-                </div>
-
-                <form className="mt-6 space-y-4" onSubmit={handleEmailSignup}>
-                    <div>
-                        <label className="block text-xs font-semibold uppercase tracking-tight text-muted-foreground">Email</label>
-                        <input
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            type="email"
-                            autoComplete="email"
-                            required
-                            className="mt-1 w-full rounded-xl border border-border bg-muted/20 px-3 py-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-semibold uppercase tracking-tight text-muted-foreground">Password</label>
-                        <input
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            type="password"
-                            autoComplete="new-password"
-                            required
-                            className="mt-1 w-full rounded-xl border border-border bg-muted/20 px-3 py-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                        />
-                    </div>
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-60"
-                    >
-                        Create account
-                    </button>
-                </form>
-
-                <p className="mt-6 text-center text-sm text-muted-foreground">
-                    Already have an account?{' '}
-                    <Link className="font-semibold text-primary hover:underline" to="/login">
-                        Sign in
-                    </Link>
-                </p>
-            </div>
-        </div>
+            </form>
+            <p className="mt-8 text-sm text-muted-foreground">
+                Already have an account?{' '}
+                <Link className="font-medium text-primary underline-offset-4 hover:underline" to="/login">Sign in</Link>
+            </p>
+        </AuthLayout>
     );
 }

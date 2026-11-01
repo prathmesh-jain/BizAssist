@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building2, ChevronsUpDown } from 'lucide-react';
+import { ChevronsUpDown } from 'lucide-react';
 import useOrgStore from '../../store/orgStore';
 import { switchOrganization } from '../../lib/session';
 
@@ -11,22 +11,25 @@ export default function OrgSwitcher() {
         if (!me) fetchMe();
     }, [me, fetchMe]);
 
-    if (!me) return <div className="h-12 mx-2 my-2 rounded-xl bg-muted/50 animate-pulse" />;
+    if (!me) return <div className="h-11 mx-3 rounded-md bg-muted/60 animate-pulse" />;
 
     const switchable = me.memberships.filter((m) => m.status === 'active' && m.organization_active);
+    const initial = me.organization.name.trim()[0]?.toUpperCase() || '·';
 
     return (
-        <div className="px-2 pt-2">
-            <div className="relative flex items-center gap-2.5 rounded-xl border border-border bg-muted/40 px-3 py-2">
-                <Building2 className="w-4 h-4 text-primary shrink-0" />
-                <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-foreground truncate">{me.organization.name}</p>
-                    <p className="text-[11px] text-muted-foreground capitalize">{me.role}</p>
+        <div className="px-3">
+            <div className={`relative flex items-center gap-2.5 rounded-md px-2 py-1.5 ${switchable.length > 1 ? 'hover:bg-muted' : ''}`}>
+                <span className="font-display w-7 h-7 rounded-md bg-accent/15 text-accent flex items-center justify-center text-sm font-semibold shrink-0">
+                    {initial}
+                </span>
+                <div className="min-w-0 flex-1 leading-tight">
+                    <p className="text-sm font-medium text-foreground truncate">{me.organization.name}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{me.role}</p>
                 </div>
                 {switchable.length > 1 && (
                     <>
                         <ChevronsUpDown className="w-4 h-4 text-muted-foreground shrink-0" />
-                        {/* Native select laid over the card: accessible and works on touch devices. */}
+                        {/* Native select laid over the row: accessible and works on touch devices. */}
                         <select
                             aria-label="Switch organization"
                             value={me.organization.id}
