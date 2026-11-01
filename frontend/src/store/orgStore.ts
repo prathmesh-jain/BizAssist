@@ -7,13 +7,12 @@ interface OrgState {
     isLoading: boolean;
     error: string;
     fetchMe: () => Promise<void>;
-    can: (permission: string) => boolean;
 }
 
 // Several components ask for /me on mount; share one request instead of firing duplicates.
 let inFlight: Promise<void> | null = null;
 
-const useOrgStore = create<OrgState>((set, get) => ({
+const useOrgStore = create<OrgState>((set) => ({
     me: null,
     isLoading: false,
     error: '',
@@ -34,8 +33,15 @@ const useOrgStore = create<OrgState>((set, get) => ({
         })();
         return inFlight;
     },
-
-    can: (permission: string) => get().me?.permissions.includes(permission) ?? false,
 }));
+
+/**
+ * Permission check derived purely from `me`. Keep it a pure function of its arguments:
+ * the React Compiler memoizes calls, so a helper that reads store state internally
+ * (instead of taking `me`) would keep returning its first, pre-load answer.
+ */
+export function hasPermission(me: Me | null, permission: string): boolean {
+    return me?.permissions.includes(permission) ?? false;
+}
 
 export default useOrgStore;

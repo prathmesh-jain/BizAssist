@@ -1,4 +1,4 @@
-import { PlusCircle, MessageSquare, LogOut, Settings, FileText, X, Sun, Moon, Pencil, Trash2, Users } from 'lucide-react';
+import { PlusCircle, MessageSquare, LogOut, Settings, FileText, X, Sun, Moon, Pencil, Trash2, Users, Briefcase } from 'lucide-react';
 import OrgSwitcher from './OrgSwitcher';
 import useChatStore from '../../store/chatStore';
 import useThemeStore from '../../store/themeStore';
@@ -84,6 +84,7 @@ export default function Sidebar({ isOpen, setIsOpen, currentView, setCurrentView
 
     const menuItems = [
         { id: 'chat', label: 'Chat Assistant', icon: MessageSquare },
+        { id: 'business', label: 'Business Profile', icon: Briefcase },
         { id: 'documents', label: 'Knowledge Base', icon: FileText },
         { id: 'team', label: 'Team', icon: Users },
         { id: 'settings', label: 'Settings', icon: Settings },

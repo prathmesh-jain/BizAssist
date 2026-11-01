@@ -1,5 +1,6 @@
 from langchain_core.messages import AIMessage, BaseMessage, RemoveMessage, SystemMessage, ToolMessage
 
+from app.agents.business_context import with_business_context
 from app.agents.state import AgentState
 from app.agents.tooling import get_chat_local_tools
 from app.services.llm_service import get_llm
@@ -122,7 +123,7 @@ async def chat_node(state: AgentState) -> dict:
             temperature=0.2,
             streaming=True,
         )
-        response = await llm.ainvoke([SystemMessage(content=FINAL_RESPONSE_SYSTEM)] + messages)
+        response = await llm.ainvoke([SystemMessage(content=with_business_context(FINAL_RESPONSE_SYSTEM, state))] + messages)
         replacement_messages = [response]
         if messages:
             last_message = messages[-1]
@@ -150,7 +151,7 @@ async def chat_node(state: AgentState) -> dict:
         streaming=True,
     )
     response = await llm.bind_tools(get_chat_local_tools(state)).ainvoke(
-        [SystemMessage(content=CHAT_SYSTEM)] + messages
+        [SystemMessage(content=with_business_context(CHAT_SYSTEM, state))] + messages
     )
 
     result = {

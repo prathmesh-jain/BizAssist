@@ -5,6 +5,7 @@ from typing import Any
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
+from app.agents.business_context import with_business_context
 from app.agents.state import AgentState
 from app.agents.tooling import get_planner_tools
 from app.config import get_settings
@@ -146,7 +147,7 @@ async def planner_node(state: AgentState) -> dict:
 
     result = await unified_model.ainvoke(
         [
-            SystemMessage(content=PLANNER_SYSTEM),
+            SystemMessage(content=with_business_context(PLANNER_SYSTEM, state)),
             HumanMessage(content=planner_input),
         ]
     )

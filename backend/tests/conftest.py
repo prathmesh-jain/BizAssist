@@ -42,7 +42,8 @@ def pytest_collection_modifyitems(config, items):
         return
     skip = pytest.mark.skip(reason="TEST_DATABASE_URL is not set")
     for item in items:
-        item.add_marker(skip)
+        if "no_db" not in item.keywords:
+            item.add_marker(skip)
 
 
 @pytest.fixture

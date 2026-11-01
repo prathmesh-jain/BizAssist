@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import connect_db, close_db
 from app.utils.logger import setup_logging
-from app.routers import account, chat, documents, integrations, organization, settings as settings_router
+from app.routers import account, business, chat, documents, integrations, organization, settings as settings_router
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -23,6 +23,10 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting AI Business Assistant...")
     await connect_db()
+    from app.services.business_profile_service import recover_interrupted_runs
+    interrupted = await recover_interrupted_runs()
+    if interrupted:
+        logger.warning("Marked %s interrupted business research run(s) as failed", interrupted)
     # Pre-compile the agent graph on startup to avoid cold-start latency
     from app.agents.graph import close_checkpointer, get_compiled_graph, init_checkpointer
     await init_checkpointer()
@@ -65,6 +69,7 @@ app.add_middleware(
 # Routers
 app.include_router(account.router)
 app.include_router(organization.router)
+app.include_router(business.router)
 app.include_router(chat.router)
 app.include_router(documents.router)
 app.include_router(integrations.router)

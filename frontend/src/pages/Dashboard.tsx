@@ -2,6 +2,8 @@ import React from 'react';
 import { useLocation, useNavigate, useParams, Routes, Route, Navigate } from 'react-router-dom';
 import ChatInput from '../components/chat/ChatInput';
 import useChatStore from '../store/chatStore';
+import useBusinessStore from '../store/businessStore';
+import useOrgStore, { hasPermission } from '../store/orgStore';
 import type { Message, ToolStatus } from '../types';
 
 const Sidebar = React.lazy(() => import('../components/layout/Sidebar'));
@@ -9,16 +11,41 @@ const ChatWindow = React.lazy(() => import('../components/chat/ChatWindow'));
 const DocumentView = React.lazy(() => import('../components/documents/DocumentView'));
 const SettingsView = React.lazy(() => import('../components/settings/SettingsView'));
 const TeamView = React.lazy(() => import('../components/team/TeamView'));
+const OnboardingFlow = React.lazy(() => import('../components/business/OnboardingFlow'));
+const BusinessProfileView = React.lazy(() => import('../components/business/BusinessProfileView'));
+
+/** Send admins of an organization without a confirmed profile to onboarding, once per visit. */
+function useOnboardingRedirect() {
+    const navigate = useNavigate();
+    const location = useLocation();
+    const { me } = useOrgStore();
+    const { profile, loaded, load } = useBusinessStore();
+    const checked = React.useRef(false);
+    const manager = hasPermission(me, 'business.manage');
+
+    React.useEffect(() => {
+        if (me && manager) load();
+    }, [me, manager, load]);
+
+    React.useEffect(() => {
+        if (checked.current || !me || !loaded) return;
+        checked.current = true;
+        const needsOnboarding = manager && (!profile || (profile.status !== 'confirmed' && !profile.onboarding_dismissed));
+        if (needsOnboarding && location.pathname.startsWith('/app/chat')) navigate('/app/onboarding', { replace: true });
+    }, [me, loaded, manager, profile, location.pathname, navigate]);
+}
 
 export default function Dashboard() {
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
     const navigate = useNavigate();
     const location = useLocation();
     const { messages, streamingMessage, activeTools, isLoading, sendMessage } = useChatStore();
+    useOnboardingRedirect();
 
     const currentView = React.useMemo(() => {
         if (location.pathname.startsWith('/app/settings')) return 'settings';
         if (location.pathname.startsWith('/app/team')) return 'team';
+        if (location.pathname.startsWith('/app/business') || location.pathname.startsWith('/app/onboarding')) return 'business';
         if (location.pathname.startsWith('/app/documents')) return 'documents';
         return 'chat';
     }, [location.pathname]);
@@ -77,6 +104,8 @@ export default function Dashboard() {
                     <Route path="documents" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><DocumentView /></FeatureView>} />
                     <Route path="settings" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><SettingsView /></FeatureView>} />
                     <Route path="team" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><TeamView /></FeatureView>} />
+                    <Route path="business" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><BusinessProfileView /></FeatureView>} />
+                    <Route path="onboarding" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><OnboardingFlow /></FeatureView>} />
 
                     <Route path="*" element={<Navigate to="chat" replace />} />
                 </Routes>

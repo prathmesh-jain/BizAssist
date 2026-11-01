@@ -27,6 +27,8 @@ ACTION_MIN_ROLE: dict[str, Role] = {
     "member.read": "viewer",
     "member.manage": "admin",
     "organization.manage": "admin",
+    "business.read": "viewer",
+    "business.manage": "admin",
 }
 
 

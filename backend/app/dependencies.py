@@ -256,3 +256,5 @@ IntegrationManager = Annotated[CurrentUserContext, Depends(require_action("integ
 MemberReader = Annotated[CurrentUserContext, Depends(require_action("member.read"))]
 MemberManager = Annotated[CurrentUserContext, Depends(require_action("member.manage"))]
 OrganizationManager = Annotated[CurrentUserContext, Depends(require_action("organization.manage"))]
+BusinessReader = Annotated[CurrentUserContext, Depends(require_action("business.read"))]
+BusinessManager = Annotated[CurrentUserContext, Depends(require_action("business.manage"))]

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Check, Copy, Loader2, LogOut, Mail, Pencil, Trash2, UserPlus, X } from 'lucide-react';
 import apiClient, { apiErrorDetail } from '../../api/client';
-import useOrgStore from '../../store/orgStore';
+import useOrgStore, { hasPermission } from '../../store/orgStore';
 import { setActiveOrganizationId } from '../../lib/session';
 import type { OrgInvitation, OrgMember, OrgRole } from '../../types';
 
@@ -24,7 +24,7 @@ const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
 export default function TeamView() {
-    const { me, fetchMe, can } = useOrgStore();
+    const { me, fetchMe } = useOrgStore();
     const [members, setMembers] = React.useState<OrgMember[]>([]);
     const [invitations, setInvitations] = React.useState<OrgInvitation[]>([]);
     const [loading, setLoading] = React.useState(true);
@@ -33,8 +33,8 @@ export default function TeamView() {
     const [removeTarget, setRemoveTarget] = React.useState<OrgMember | null>(null);
     const [confirmLeave, setConfirmLeave] = React.useState(false);
 
-    const canManage = can('member.manage');
-    const canRename = can('organization.manage');
+    const canManage = hasPermission(me, 'member.manage');
+    const canRename = hasPermission(me, 'organization.manage');
     const roleChoices = assignableRoles(me?.role);
 
     const load = React.useCallback(async () => {

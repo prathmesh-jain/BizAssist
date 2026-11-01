@@ -133,6 +133,10 @@ async def _stream_agent_response(
 
     graph = get_compiled_graph()
 
+    from app.services.business_profile_service import business_context_text
+
+    business_context = await business_context_text(session, organization_id)
+
     combined_user = (user_message or "").strip()
     if user_message_context:
         combined_user = (combined_user + "\n\n" + user_message_context.strip()).strip()
@@ -144,6 +148,7 @@ async def _stream_agent_response(
         "chat_id": chat_id,
         "organization_id": organization_id,
         "role": role,
+        "business_context": business_context,
     }
 
     full_response = ""
@@ -159,7 +164,7 @@ async def _stream_agent_response(
 
     # Use Command(resume=...) if resuming, otherwise use initial_state
     # On resume, refresh the role too so a demotion during a pending interrupt takes effect.
-    input_data = initial_state if not is_resume else Command(resume=resume_value, update={"role": role})
+    input_data = initial_state if not is_resume else Command(resume=resume_value, update={"role": role, "business_context": business_context})
 
     max_attempts = 1 if is_resume else max(int(getattr(settings, "agent_run_retries", 2) or 2), 1)
 

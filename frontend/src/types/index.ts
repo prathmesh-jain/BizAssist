@@ -106,3 +106,89 @@ export interface InvitationPreview {
     email_matches: boolean;
     expires_at: string;
 }
+
+// ---- Business profile & research ----
+
+export type QuestionType = 'text' | 'url' | 'textarea' | 'number' | 'select' | 'multiselect' | 'tags';
+
+export interface OnboardingQuestion {
+    id: string;
+    label: string;
+    type: QuestionType;
+    required?: boolean;
+    placeholder?: string;
+    help?: string;
+    allow_other?: boolean;
+    options?: { value: string; label: string }[];
+    show_if?: { field: string; in: string[] };
+}
+
+export interface OnboardingStep {
+    id: string;
+    title: string;
+    description?: string;
+    questions: OnboardingQuestion[];
+}
+
+export type AnswerValue = string | number | string[];
+export type Answers = Record<string, AnswerValue>;
+
+export type Basis = 'user_provided' | 'verified' | 'estimated' | 'unknown' | 'edited';
+
+export interface ResearchField {
+    value: string | string[] | null;
+    basis: Basis;
+    sources: string[];
+    note?: string;
+    suggested?: ResearchField;
+}
+
+export interface Competitor {
+    name: string;
+    website?: string | null;
+    competition: 'direct' | 'indirect';
+    relative_scale: 'similar' | 'smaller' | 'larger' | 'much_larger' | 'unknown';
+    rationale: string;
+    sources: string[];
+    added_by_user?: boolean;
+}
+
+export interface Opportunity {
+    title: string;
+    area: string;
+    rationale: string;
+    basis: 'evidence' | 'general_practice' | 'user_added';
+    sources: string[];
+}
+
+export interface ResearchResult {
+    profile: Record<string, ResearchField>;
+    public_facts: { fact: string; sources: string[] }[];
+    competitors: Competitor[];
+    industry_trends: { summary: string; sources: string[] }[];
+    opportunities: Opportunity[];
+    sources: { url: string; title: string; kind: string }[];
+    warnings: string[];
+    search_provider: string;
+}
+
+export interface ResearchRun {
+    id: string;
+    status: 'queued' | 'running' | 'completed' | 'failed';
+    progress: { message: string; at: string }[];
+    result: ResearchResult | null;
+    error: string | null;
+    created_at: string;
+    finished_at: string | null;
+}
+
+export interface BusinessProfile {
+    status: 'draft' | 'confirmed';
+    answers: Answers;
+    subdomain: string | null;
+    competitors: Competitor[];
+    opportunities: Opportunity[];
+    provenance: Record<string, { basis: Basis; sources: string[] }>;
+    confirmed_at: string | null;
+    onboarding_dismissed: boolean;
+}

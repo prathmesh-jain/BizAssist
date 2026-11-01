@@ -9,6 +9,7 @@ from app.db.models.message import Message
 from app.db.models.document import Document
 from app.db.models.oauth_connection import OAuthConnection
 from app.db.models.oauth_state import OAuthState
+from app.db.models.business_profile import BusinessProfile, BusinessResearchRun
 
 __all__ = [
     "User",
@@ -22,4 +23,6 @@ __all__ = [
     "Document",
     "OAuthConnection",
     "OAuthState",
+    "BusinessProfile",
+    "BusinessResearchRun",
 ]

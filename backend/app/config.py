@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:5173"
     invitation_ttl_days: int = 7
 
+    # Business research
+    research_search_provider: str = "auto"  # auto | openai | google
+    google_search_api_key: str = ""
+    google_search_engine_id: str = ""
+    research_max_website_pages: int = 5
+
     # Guardrails
     use_guardrail: bool = False
 

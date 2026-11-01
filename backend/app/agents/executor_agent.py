@@ -2,6 +2,7 @@ import logging
 
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
 
+from app.agents.business_context import with_business_context
 from app.agents.state import AgentState
 from app.agents.tooling import build_tools_for_agent
 from app.services.llm_service import get_llm
@@ -66,7 +67,7 @@ async def executor_node(state: AgentState) -> dict:
 
     response = await llm_with_tools.ainvoke(
         [
-            SystemMessage(content=system_content),
+            SystemMessage(content=with_business_context(system_content, state)),
             *scratchpad,
         ]
     )
