@@ -258,7 +258,13 @@ async def _stream_agent_response(
                 error_msg = str(e)
                 error_msg_lower = error_msg.lower()
 
-                if "invalid_api_key" in error_msg_lower or "incorrect api key" in error_msg_lower or "api key" in error_msg_lower:
+                if "model_not_found" in error_msg_lower or "has been deprecated" in error_msg_lower:
+                    model = re.search(r"model `([^`]+)`", error_msg)
+                    err_msg = (
+                        f"The model {model.group(1) + ' ' if model else ''}is not available on your OpenAI account "
+                        "anymore. Choose another model in Settings."
+                    )
+                elif "invalid_api_key" in error_msg_lower or "incorrect api key" in error_msg_lower or "api key" in error_msg_lower:
                     err_msg = "Invalid API key. Please check your API key in Settings."
                 elif "authentication" in error_msg_lower or "unauthorized" in error_msg_lower:
                     err_msg = "Authentication failed. Please check your API key in Settings."

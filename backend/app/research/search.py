@@ -1,10 +1,9 @@
 """Web search providers for business research.
 
-Two interchangeable backends:
-  - OpenAI web search (default): uses the requesting user's own OpenAI key (BYOK),
-    so research works with no extra setup.
-  - Google Programmable Search: used when GOOGLE_SEARCH_API_KEY and
-    GOOGLE_SEARCH_ENGINE_ID are configured (or RESEARCH_SEARCH_PROVIDER=google).
+  - BrowserSearchProvider (default): Yahoo/Bing/Google results pages read with headless
+    Chromium, merged and deduplicated. No API keys.
+  - OpenAIWebSearchProvider: OpenAI web search on the requesting user's own key.
+  - GoogleProgrammableSearchProvider: Google's Custom Search JSON API (kept, not used by default).
 """
 import logging
 from dataclasses import dataclass
@@ -113,11 +112,60 @@ def _sentence_around(text: str, index: int) -> str:
     return text[start:end].strip()[:400]
 
 
+class BrowserSearchProvider:
+    """Searches several engines through a headless browser and merges the results.
+
+    Engines run concurrently; results are merged in engine priority order and
+    deduplicated by normalized URL. A blocked or failing engine is skipped; the
+    search fails only if every engine fails.
+    """
+
+    def __init__(self, engines: list):
+        self._engines = engines
+        self.name = "browser:" + ",".join(e.name for e in engines)
+
+    async def search(self, query: str, *, max_results: int = 6, country: str | None = None) -> list[SearchResult]:
+        import asyncio
+
+        from app.research.search_engines import normalize_url
+
+        outcomes = await asyncio.gather(
+            *(engine.search(query, max_results=max_results, country=country) for engine in self._engines),
+            return_exceptions=True,
+        )
+        merged: list[SearchResult] = []
+        seen: set[str] = set()
+        errors: list[str] = []
+        for engine, outcome in zip(self._engines, outcomes):
+            if isinstance(outcome, BaseException):
+                errors.append(f"{engine.name}: {outcome}")
+                logger.info("search.engine.skipped engine=%s reason=%s", engine.name, outcome)
+                continue
+            for r in outcome:
+                key = normalize_url(r.url)
+                if key not in seen:
+                    seen.add(key)
+                    merged.append(SearchResult(title=r.title, url=r.url, snippet=r.snippet))
+        if len(errors) == len(self._engines):
+            raise SearchError("All search engines failed: " + "; ".join(errors))
+        # Over-fetch per engine, then keep the best-ranked unique results overall.
+        return merged[: max_results * 2]
+
+
 def build_search_provider(*, user_api_key: str, model: str) -> SearchProvider:
-    choice = (settings.research_search_provider or "auto").lower()
-    google_ready = bool(settings.google_search_api_key and settings.google_search_engine_id)
-    if choice == "google" or (choice == "auto" and google_ready):
-        if not google_ready:
-            raise SearchError("RESEARCH_SEARCH_PROVIDER=google needs GOOGLE_SEARCH_API_KEY and GOOGLE_SEARCH_ENGINE_ID.")
+    """Default: headless-browser search over the configured engines (no API keys needed).
+
+    "openai" (web search on the user's key) and "google_api" (Programmable Search) remain
+    available as alternatives but are not the default.
+    """
+    choice = (settings.research_search_provider or "browser").lower()
+    if choice == "openai":
+        return OpenAIWebSearchProvider(api_key=user_api_key, model=model)
+    if choice in ("google_api", "google"):
+        if not (settings.google_search_api_key and settings.google_search_engine_id):
+            raise SearchError("RESEARCH_SEARCH_PROVIDER=google_api needs GOOGLE_SEARCH_API_KEY and GOOGLE_SEARCH_ENGINE_ID.")
         return GoogleProgrammableSearchProvider(settings.google_search_api_key, settings.google_search_engine_id)
-    return OpenAIWebSearchProvider(api_key=user_api_key, model=model)
+
+    from app.research.search_engines import SearchEngineFactory
+
+    return BrowserSearchProvider(SearchEngineFactory.from_config(settings.research_search_engines))

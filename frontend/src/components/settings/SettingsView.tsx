@@ -2,13 +2,15 @@ import React from 'react';
 import { CheckCircle2, XCircle, Loader2, Link2, ExternalLink } from 'lucide-react';
 import apiClient from '../../api/client';
 import useSettingsStore from '../../store/settingsStore';
+import GoogleCalendarCard from './GoogleCalendarCard';
 
 interface ConnectionStatus {
     connected: boolean;
     auth_url?: string;
 }
 
-const MODEL_OPTIONS = ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano'];
+// gpt-4.1-nano was retired by OpenAI (requests now fail with model_not_found).
+const MODEL_OPTIONS = ['gpt-4.1', 'gpt-4.1-mini'];
 
 export default function SettingsView() {
     const [sheetsStatus, setSheetsStatus] = React.useState<ConnectionStatus | null>(null);
@@ -16,7 +18,7 @@ export default function SettingsView() {
     const [guardrailEnabled, setGuardrailEnabled] = React.useState(true);
     const [primaryModel, setPrimaryModel] = React.useState('gpt-4.1');
     const [fastModel, setFastModel] = React.useState('gpt-4.1-mini');
-    const [nanoModel, setNanoModel] = React.useState('gpt-4.1-nano');
+    const [nanoModel, setNanoModel] = React.useState('gpt-4.1-mini');
     const [saveMessage, setSaveMessage] = React.useState('');
     const { aiSettings, isLoading, error, fetchAISettings, updateAISettings } = useSettingsStore();
     const [isConnecting, setIsConnecting] = React.useState(false);
@@ -52,7 +54,7 @@ export default function SettingsView() {
                 // Listen for the popup to signal completion
                 const handleMessage = async (event: MessageEvent) => {
                     if (event.origin !== window.location.origin) return;
-                    if (event.data?.type === 'OAUTH_COMPLETE' && event.data?.provider === 'google_sheets') {
+                    if (event.data?.type === 'OAUTH_COMPLETE' && ['google', 'google_sheets'].includes(event.data?.provider)) {
                         window.removeEventListener('message', handleMessage);
 
                         const code = event.data?.code || '';
@@ -133,6 +135,8 @@ export default function SettingsView() {
                     <h2 className="text-3xl font-bold text-foreground tracking-tight">Settings & Integrations</h2>
                     <p className="text-muted-foreground mt-1 text-lg">Configure your BizAssist integrations and preferences.</p>
                 </div>
+
+                <GoogleCalendarCard />
 
                 {/* Google Sheets Integration - flagship card */}
                 <div className="bg-card border border-border rounded-2xl p-7 shadow-sm relative overflow-hidden">

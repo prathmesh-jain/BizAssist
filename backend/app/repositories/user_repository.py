@@ -174,7 +174,7 @@ class UserRepository:
         provider: str = "openai",
         primary_model: str = "gpt-4.1-mini",
         fast_model: str = "gpt-4.1-mini",
-        nano_model: str = "gpt-4.1-nano",
+        nano_model: str = "gpt-4.1-mini",
     ) -> UserAISettings:
         """Create default AI settings for a user."""
         settings = UserAISettings(

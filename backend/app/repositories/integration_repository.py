@@ -21,9 +21,58 @@ class OAuthConnectionRepository:
             select(OAuthConnection).where(
                 OAuthConnection.organization_id == organization_id,
                 OAuthConnection.provider == provider,
+                OAuthConnection.owner_scope == "organization",
             )
         )
         return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_user_connection(
+        session: AsyncSession,
+        organization_id: str,
+        user_id: str,
+        provider: str,
+    ) -> Optional[OAuthConnection]:
+        """A member's own connection (owner_scope "user") in an organization."""
+        result = await session.execute(
+            select(OAuthConnection).where(
+                OAuthConnection.organization_id == organization_id,
+                OAuthConnection.user_id == user_id,
+                OAuthConnection.provider == provider,
+                OAuthConnection.owner_scope == "user",
+            )
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def upsert_user_connection(
+        session: AsyncSession,
+        *,
+        organization_id: str,
+        user_id: str,
+        provider: str,
+        access_token_encrypted: str,
+        refresh_token_encrypted: Optional[str],
+        token_expires_at: Optional[datetime],
+        scopes: Optional[dict] = None,
+        connection_metadata: Optional[dict] = None,
+    ) -> OAuthConnection:
+        connection = await OAuthConnectionRepository.get_user_connection(session, organization_id, user_id, provider)
+        if connection is None:
+            connection = OAuthConnection(
+                id=str(uuid.uuid4()), organization_id=organization_id, user_id=user_id,
+                provider=provider, owner_scope="user",
+            )
+            session.add(connection)
+        connection.access_token_encrypted = access_token_encrypted
+        # Google returns a refresh token only on first consent; keep the old one otherwise.
+        if refresh_token_encrypted:
+            connection.refresh_token_encrypted = refresh_token_encrypted
+        connection.token_expires_at = token_expires_at
+        connection.scopes = scopes
+        connection.connection_metadata = connection_metadata
+        await session.flush()
+        return connection
 
     @staticmethod
     async def get_by_user_and_provider(
@@ -54,13 +103,9 @@ class OAuthConnectionRepository:
         provider_account_id: Optional[str] = None,
     ) -> OAuthConnection:
         """Create or update OAuth connection."""
-        result = await session.execute(
-            select(OAuthConnection).where(
-                OAuthConnection.organization_id == organization_id,
-                OAuthConnection.provider == provider,
-            )
+        connection = await OAuthConnectionRepository.get_by_organization_and_provider(
+            session, organization_id, provider
         )
-        connection = result.scalar_one_or_none()
 
         if connection:
             # Update existing
@@ -135,6 +180,7 @@ class OAuthStateRepository:
         chat_id: Optional[str] = None,
         organization_id: Optional[str] = None,
         expires_in_minutes: int = 15,
+        integration: str = "google_sheets",
     ) -> OAuthState:
         """Create a new OAuth state."""
         state = OAuthState(
@@ -145,6 +191,7 @@ class OAuthStateRepository:
             chat_id=chat_id,
             expires_at=datetime.now(timezone.utc) + timedelta(minutes=expires_in_minutes),
             used=False,
+            integration=integration,
         )
         session.add(state)
         await session.flush()

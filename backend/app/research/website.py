@@ -150,14 +150,81 @@ def pick_interesting_links(links: list[str], limit: int) -> list[str]:
     return [link for _, _, link in scored[:limit]]
 
 
-async def analyze_website(url: str, *, max_pages: int = 5) -> list[WebPage]:
-    """Home page plus the most informative internal pages. Failures of extra pages are skipped."""
+async def fetch_page_with_browser(url: str) -> WebPage:
+    """Render a page in headless Chromium (handles JavaScript-built sites).
+
+    Same SSRF rules as fetch_page: every request the page makes (including redirects
+    and sub-resources) is checked by a route guard, and the final URL is re-checked.
+    """
+    from app.research.browser import browser_service, random_user_agent
+
+    await _ensure_public_host(url)
+
+    async def render(browser):
+        context = await browser.new_context(user_agent=random_user_agent(), locale="en-US")
+        try:
+            page = await context.new_page()
+            allowed: dict[str, bool] = {}
+
+            async def guard(route):
+                request = route.request
+                if request.resource_type in ("image", "media", "font"):
+                    return await route.abort()
+                parsed = urlparse(request.url)
+                if parsed.scheme in ("data", "blob"):
+                    return await route.continue_()
+                host = parsed.hostname or ""
+                if host not in allowed:
+                    try:
+                        await _ensure_public_host(request.url)
+                        allowed[host] = True
+                    except WebsiteFetchError:
+                        allowed[host] = False
+                        logger.info("research.website.blocked_request url=%s", request.url[:200])
+                return await (route.continue_() if allowed[host] else route.abort())
+
+            await page.route("**/*", guard)
+            response = await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            if response is None:
+                raise WebsiteFetchError(f"No response from {url}.")
+            if response.status >= 400:
+                raise WebsiteFetchError(f"{url} returned HTTP {response.status}.")
+            if "html" not in (response.headers.get("content-type") or "html").lower():
+                raise WebsiteFetchError(f"{url} is not an HTML page.")
+            try:
+                await page.wait_for_load_state("networkidle", timeout=5000)
+            except Exception:
+                pass  # busy pages never go idle; the DOM is usable anyway
+            return page.url, await page.content()
+        finally:
+            await context.close()
+
+    try:
+        final_url, html = await browser_service.run(render, timeout=45)
+    except WebsiteFetchError:
+        raise
+    except Exception as exc:
+        raise WebsiteFetchError(f"Could not load {url}: {exc.__class__.__name__}") from exc
+    await _ensure_public_host(final_url)
+    return extract_page(final_url, html.encode("utf-8")[:MAX_BYTES])
+
+
+async def analyze_website(url: str, *, max_pages: int = 5, crawler: str = "browser") -> list[WebPage]:
+    """Home page plus the most informative internal pages. Failures of extra pages are skipped.
+
+    crawler="browser" renders pages with Playwright; "http" uses plain HTTP fetches.
+    """
     async with httpx.AsyncClient(timeout=TIMEOUT, follow_redirects=False, headers={"User-Agent": USER_AGENT}) as client:
-        home = await fetch_page(normalize_url(url), client=client)
+        async def fetch(link: str) -> WebPage:
+            if crawler == "browser":
+                return await fetch_page_with_browser(link)
+            return await fetch_page(link, client=client)
+
+        home = await fetch(normalize_url(url))
         pages = [home]
         for link in pick_interesting_links(home.links, max_pages - 1):
             try:
-                pages.append(await fetch_page(link, client=client))
+                pages.append(await fetch(link))
             except WebsiteFetchError as exc:
                 logger.info("research.website.skip url=%s reason=%s", link, exc)
         return pages

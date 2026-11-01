@@ -24,7 +24,8 @@ export default function OAuthCallback() {
                 window.opener.postMessage(
                     {
                         type: 'OAUTH_COMPLETE',
-                        provider: 'google_sheets',
+                        // Generic: the opener knows which Google integration it started.
+                        provider: 'google',
                         code,
                         state,
                         error,
@@ -52,7 +53,7 @@ export default function OAuthCallback() {
             gap: 16,
         }}>
             <div style={{ fontSize: 48 }}>✅</div>
-            <h2 style={{ margin: 0, fontWeight: 700, fontSize: 20 }}>Google Sheets connected!</h2>
+            <h2 style={{ margin: 0, fontWeight: 700, fontSize: 20 }}>Google account connected!</h2>
             <p style={{ margin: 0, color: '#94a3b8', fontSize: 14 }}>
                 This window will close automatically…
             </p>

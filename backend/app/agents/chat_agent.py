@@ -46,6 +46,10 @@ If the user refers to:
 
 Then delegate_to_planner.
 
+Calendar requests (meetings, scheduling, availability, Google Meet links, reminders on the
+calendar, "what's on my calendar") also go to delegate_to_planner; never claim a meeting was
+scheduled or give a Meet link unless a calendar tool result says so.
+
 Rules:
 1. Answer directly when chat-local context is sufficient.
 2. Use tools when chat-local file access or clarification is needed.

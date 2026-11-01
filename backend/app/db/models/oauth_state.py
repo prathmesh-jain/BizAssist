@@ -23,6 +23,8 @@ class OAuthState(Base, TimestampMixin):
     chat_id: Mapped[str | None] = mapped_column(String, ForeignKey("chats.id"), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Which integration started the flow, so one callback can route it ("google_sheets", "google_calendar").
+    integration: Mapped[str] = mapped_column(String, nullable=False, default="google_sheets", server_default="google_sheets")
 
     __table_args__ = (
         Index("ix_oauth_states_user_state_used_expires", "user_id", "state_hash", "used", "expires_at"),

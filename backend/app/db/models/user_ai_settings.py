@@ -20,4 +20,4 @@ class UserAISettings(Base, TimestampMixin):
     guardrail_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     primary_model: Mapped[str] = mapped_column(String, nullable=False, default="gpt-4.1-mini")
     fast_model: Mapped[str] = mapped_column(String, nullable=False, default="gpt-4.1-mini")
-    nano_model: Mapped[str] = mapped_column(String, nullable=False, default="gpt-4.1-nano")
+    nano_model: Mapped[str] = mapped_column(String, nullable=False, default="gpt-4.1-mini")

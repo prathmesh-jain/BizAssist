@@ -175,8 +175,12 @@ async def start_research(session: AsyncSession, actor: CurrentUserContext) -> Bu
     return run
 
 
-def schedule_research_run(run_id: str) -> None:
-    """Start the run in the background. Call only after the run row is committed."""
+async def schedule_research_run(run_id: str) -> None:
+    """Start the run in the background. Call only after the run row is committed.
+
+    Must be async: Starlette runs sync background tasks in a worker thread, where
+    asyncio.create_task has no event loop and the run would silently stay queued.
+    """
     task = asyncio.create_task(execute_research_run(run_id))
     _running_tasks.add(task)
     task.add_done_callback(_running_tasks.discard)
@@ -247,7 +251,9 @@ async def _build_workflow(user_id: str, run_id: str) -> ResearchWorkflow:
     return ResearchWorkflow(
         structured=structured,
         search=build_search_provider(user_api_key=api_key, model=model),
-        analyze_website=lambda url: analyze_website(url, max_pages=settings.research_max_website_pages),
+        analyze_website=lambda url: analyze_website(
+            url, max_pages=settings.research_max_website_pages, crawler=settings.research_crawler
+        ),
         progress=progress,
     )
 

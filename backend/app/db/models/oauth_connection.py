@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, DateTime, ForeignKey, JSON, Index, UniqueConstraint
+from sqlalchemy import String, DateTime, ForeignKey, JSON, Index, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
@@ -19,7 +19,9 @@ class OAuthConnection(Base, TimestampMixin):
     user_id: Mapped[str] = mapped_column(
         String, ForeignKey("users.id"), nullable=False, index=True
     )
-    provider: Mapped[str] = mapped_column(String, nullable=False)  # e.g., "google"
+    provider: Mapped[str] = mapped_column(String, nullable=False)  # "google" (Sheets), "google_calendar"
+    # "organization": one shared connection per org (Sheets); "user": one per member (Calendar).
+    owner_scope: Mapped[str] = mapped_column(String, nullable=False, default="organization", server_default="organization")
     provider_account_id: Mapped[str | None] = mapped_column(String, nullable=True)
     access_token_encrypted: Mapped[str | None] = mapped_column(String, nullable=True)
     refresh_token_encrypted: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -29,6 +31,12 @@ class OAuthConnection(Base, TimestampMixin):
 
     __table_args__ = (
         Index("ix_oauth_connections_organization_provider", "organization_id", "provider"),
-        # One connection per provider per organization; the repository upserts on this pair.
-        UniqueConstraint("organization_id", "provider", name="uq_oauth_connection_organization_provider"),
+        Index(
+            "uq_oauth_connections_org_shared", "organization_id", "provider",
+            unique=True, postgresql_where=text("owner_scope = 'organization'"),
+        ),
+        Index(
+            "uq_oauth_connections_user", "organization_id", "user_id", "provider",
+            unique=True, postgresql_where=text("owner_scope = 'user'"),
+        ),
     )

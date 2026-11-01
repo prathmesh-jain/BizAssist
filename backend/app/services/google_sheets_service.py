@@ -1,25 +1,20 @@
-import base64
-import hashlib
-import hmac
 import json
 import logging
-import secrets
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import httpx
-from cryptography.fernet import Fernet
 
 from app.config import get_settings
 from app.repositories import OAuthConnectionRepository, OAuthStateRepository
+from app.services import google_oauth
+from app.services.google_oauth import GoogleOAuthError
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-GOOGLE_OAUTH_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-GOOGLE_OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token"
 
 # Minimum scopes required for Sheets CRUD
 GOOGLE_SHEETS_SCOPES = [
@@ -27,8 +22,12 @@ GOOGLE_SHEETS_SCOPES = [
 ]
 
 
-class GoogleOAuthError(RuntimeError):
-    pass
+# Shared Google OAuth helpers (also used by Calendar), under the names this module used before.
+_fernet = google_oauth.fernet
+_utcnow = google_oauth.utcnow
+_hash_state = google_oauth.hash_state
+_exchange_code_for_token = google_oauth.exchange_code_for_token
+_refresh_access_token = google_oauth.refresh_access_token
 
 
 def _parse_grid_limit_error(message: str) -> tuple[int, int] | None:
@@ -84,23 +83,13 @@ async def _ensure_sheet_row_capacity(*, user_id: str, organization_id: str, sess
     await _sheets_request(user_id, organization_id, session, "POST", url, json_body=body)
 
 
-def _fernet() -> Fernet:
-    if not settings.google_oauth_token_encryption_key:
-        raise GoogleOAuthError(
-            "GOOGLE_OAUTH_TOKEN_ENCRYPTION_KEY is not configured. "
-            "Set it to a Fernet key (32 url-safe base64-encoded bytes)."
-        )
-    return Fernet(settings.google_oauth_token_encryption_key)
 
 
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
 
 
-def _hash_state(state: str) -> str:
-    # Store only a hash of the OAuth state to reduce risk if DB is leaked.
-    digest = hmac.new(b"BizAssist", state.encode("utf-8"), hashlib.sha256).digest()
-    return base64.urlsafe_b64encode(digest).decode("utf-8")
+
+
+
 
 
 async def create_oauth_authorization_url(
@@ -110,68 +99,21 @@ async def create_oauth_authorization_url(
     chat_id: str | None = None,
 ) -> dict:
     """Create an authorization URL and persist OAuth state for later verification."""
-    if not settings.google_oauth_client_id or not settings.google_oauth_redirect_uri:
-        raise GoogleOAuthError("Google OAuth client configuration is missing in .env")
-
-    state = secrets.token_urlsafe(32)
-    state_hash = _hash_state(state)
-
-    await OAuthStateRepository.create(
+    auth_url = await google_oauth.create_authorization_url(
         session,
         user_id=user_id,
-        state_hash=state_hash,
-        chat_id=chat_id,
         organization_id=organization_id,
+        integration="google_sheets",
+        scopes=GOOGLE_SHEETS_SCOPES,
+        chat_id=chat_id,
     )
-
-    params = {
-        "client_id": settings.google_oauth_client_id,
-        "redirect_uri": settings.google_oauth_redirect_uri,
-        "response_type": "code",
-        "scope": " ".join(GOOGLE_SHEETS_SCOPES),
-        "access_type": "offline",
-        "prompt": "consent",
-        "include_granted_scopes": "true",
-        "state": state,
-    }
-
-    # Caller returns this URL to frontend to open in popup.
-    auth_url = httpx.URL(GOOGLE_OAUTH_AUTH_URL).copy_merge_params(params)
-    return {"auth_url": str(auth_url), "state": state}
+    return {"auth_url": auth_url}
 
 
-async def _exchange_code_for_token(code: str) -> dict:
-    if not settings.google_oauth_client_id or not settings.google_oauth_client_secret:
-        raise GoogleOAuthError("Google OAuth client configuration is missing in .env")
-
-    data = {
-        "code": code,
-        "client_id": settings.google_oauth_client_id,
-        "client_secret": settings.google_oauth_client_secret,
-        "redirect_uri": settings.google_oauth_redirect_uri,
-        "grant_type": "authorization_code",
-    }
-
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(GOOGLE_OAUTH_TOKEN_URL, data=data)
-        if resp.status_code != 200:
-            raise GoogleOAuthError(f"Token exchange failed: {resp.status_code} {resp.text}")
-        return resp.json()
 
 
-async def _refresh_access_token(refresh_token: str) -> dict:
-    data = {
-        "client_id": settings.google_oauth_client_id,
-        "client_secret": settings.google_oauth_client_secret,
-        "refresh_token": refresh_token,
-        "grant_type": "refresh_token",
-    }
 
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(GOOGLE_OAUTH_TOKEN_URL, data=data)
-        if resp.status_code != 200:
-            raise GoogleOAuthError(f"Token refresh failed: {resp.status_code} {resp.text}")
-        return resp.json()
+
 
 
 async def handle_oauth_callback(
@@ -185,7 +127,7 @@ async def handle_oauth_callback(
     state_hash = _hash_state(state)
 
     oauth_state = await OAuthStateRepository.get_valid_state(session, user_id, organization_id, state_hash)
-    if not oauth_state:
+    if not oauth_state or oauth_state.integration != "google_sheets":
         raise GoogleOAuthError("Invalid or expired OAuth state")
 
     token_payload = await _exchange_code_for_token(code)

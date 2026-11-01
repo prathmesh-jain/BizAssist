@@ -21,6 +21,9 @@ langgraph-checkpoint-postgres
 psycopg[binary,pool]
 langchain-text-splitters
 
+# Browser automation (web search + website crawling for research)
+playwright
+
 # Vector Store
 qdrant-client
 
@@ -40,6 +43,7 @@ pydantic-settings
 python-dotenv
 
 # Utilities
+tzdata  # IANA timezones for zoneinfo (Windows has no system database)
 httpx
 aiofiles
 tenacity

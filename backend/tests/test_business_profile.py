@@ -32,7 +32,11 @@ def no_background(monkeypatch):
     from app.services import business_profile_service
 
     scheduled = []
-    monkeypatch.setattr(business_profile_service, "schedule_research_run", scheduled.append)
+
+    async def record(run_id):
+        scheduled.append(run_id)
+
+    monkeypatch.setattr(business_profile_service, "schedule_research_run", record)
     return scheduled
 
 
@@ -181,8 +185,9 @@ async def test_confirm_profile_feeds_the_assistant(make_user, client_for):
     assert "Known competitors: Patel Provisions, Corner Mart" in context
     assert "Where do you sell: In store, Delivery apps" in context
     assert "Wants monitored: Sales and revenue, Competitor pricing and activity" in context
-    assert with_business_context("SYSTEM", {"business_context": context}).startswith("SYSTEM\n\n[Business Context]\n")
-    assert with_business_context("SYSTEM", {}) == "SYSTEM"
+    prompt = with_business_context("SYSTEM", {"business_context": context})
+    assert prompt.startswith("SYSTEM\n\n[Today] ") and "\n\n[Business Context]\nConfirmed by" in prompt
+    assert "[Business Context]" not in with_business_context("SYSTEM", {})
 
     bad = await owner.post("/api/business-profile/confirm", json={"answers": {"name": ""}, "competitors": [{"name": ""}]})
     assert bad.status_code == 422
@@ -192,3 +197,23 @@ async def test_dismiss_onboarding(make_user, client_for):
     owner = client_for(await make_user("uid-o", "owner@acme.com"))
     assert (await owner.post("/api/business-profile/dismiss-onboarding")).status_code == 200
     assert (await owner.get("/api/business-profile")).json()["profile"]["onboarding_dismissed"] is True
+
+
+async def test_starting_research_actually_launches_the_run(make_user, client_for, monkeypatch):
+    """Through the real BackgroundTasks -> schedule_research_run path (regression: it ran in a
+    worker thread without an event loop and runs stayed queued forever)."""
+    import asyncio
+
+    from app.services import business_profile_service as svc
+
+    launched = asyncio.Event()
+
+    async def fake_execute(run_id, **_):
+        launched.set()
+
+    monkeypatch.setattr(svc, "execute_research_run", fake_execute)
+    owner = client_for(await make_user("uid-o", "owner@acme.com"))
+    await owner.patch("/api/settings/ai", json={"openai_api_key": "sk-test-not-real"})
+    await owner.put("/api/business-profile/answers", json={"answers": ANSWERS})
+    assert (await owner.post("/api/business-profile/research")).status_code == 200
+    await asyncio.wait_for(launched.wait(), timeout=5)

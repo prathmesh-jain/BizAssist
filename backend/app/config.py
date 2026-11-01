@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     # LLM — override any of these in .env to swap models
     primary_model: str = "gpt-4.1-mini"    # chat, analytics, invoice
     fast_model: str = "gpt-4.1-mini"        # title gen, summarization
-    nano_model: str = "gpt-4.1-nano"        # safety check only (cheapest)
+    nano_model: str = "gpt-4.1-mini"        # safety check only (gpt-4.1-nano was retired by OpenAI)
     user_secrets_encryption_key: str = ""
 
     #chunk size and overlap
@@ -57,7 +57,9 @@ class Settings(BaseSettings):
     invitation_ttl_days: int = 7
 
     # Business research
-    research_search_provider: str = "auto"  # auto | openai | google
+    research_search_provider: str = "browser"  # browser | openai | google_api
+    research_search_engines: str = "yahoo,bing,google"  # priority order for the browser provider
+    research_crawler: str = "browser"  # browser (Playwright, renders JS) | http
     google_search_api_key: str = ""
     google_search_engine_id: str = ""
     research_max_website_pages: int = 5

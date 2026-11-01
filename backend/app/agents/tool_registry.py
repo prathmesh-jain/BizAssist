@@ -251,6 +251,7 @@ def get_tool_registry() -> ToolRegistry:
     from app.agents.tooling import get_document_listing_tools
     from app.agents.tooling import get_core_tools
     from app.tools.chat_attachments_tools import get_chat_attachments_tools
+    from app.tools.google_calendar_tools import get_calendar_tools
     from app.tools.google_sheets_tools import get_sheets_tools
 
     registry = ToolRegistry(search_backend=PersistentToolCatalogSearchBackend())
@@ -445,6 +446,64 @@ def get_tool_registry() -> ToolRegistry:
             ),
         ],
         sheets_loader,
+    )
+
+    def calendar_loader(state: AgentState) -> list:
+        return get_calendar_tools(user_id=state.get("user_id", ""), organization_id=state.get("organization_id", ""))
+
+    _register_metadata(
+        registry,
+        [
+            ToolMetadata(
+                id="calendar_now",
+                name="calendar_now",
+                description="Current date, time and timezone of the user's calendar; use to resolve 'tomorrow', 'next week'.",
+                integration="google_calendar",
+                tags=("calendar", "date", "time", "timezone", "today", "now"),
+                examples=("what time is it for me", "resolve tomorrow at 3pm"),
+            ),
+            ToolMetadata(
+                id="calendar_list_events",
+                name="calendar_list_events",
+                description="List the user's Google Calendar events and meetings in a date range.",
+                integration="google_calendar",
+                tags=("calendar", "meetings", "events", "schedule", "agenda", "list"),
+                examples=("what meetings do I have tomorrow", "show my schedule this week"),
+            ),
+            ToolMetadata(
+                id="calendar_find_free_slots",
+                name="calendar_find_free_slots",
+                description="Find free meeting slots for the user and optional attendees within working hours.",
+                integration="google_calendar",
+                tags=("calendar", "availability", "free", "slot", "schedule", "meeting"),
+                examples=("find a free slot with the sales team", "when am I free on Friday"),
+            ),
+            ToolMetadata(
+                id="calendar_create_event",
+                name="calendar_create_event",
+                description="Create a calendar event, meeting, reminder or Google Meet call (asks the user to approve first).",
+                integration="google_calendar",
+                tags=("calendar", "schedule", "meeting", "google_meet", "invite", "reminder", "create", "recurring"),
+                examples=("schedule a meeting with Rahul tomorrow at 3 PM", "remind me two days before the contract expires"),
+            ),
+            ToolMetadata(
+                id="calendar_update_event",
+                name="calendar_update_event",
+                description="Move, reschedule or edit an existing calendar event (asks the user to approve first).",
+                integration="google_calendar",
+                tags=("calendar", "reschedule", "move", "update", "meeting"),
+                examples=("move my 4 PM meeting to Friday", "add Priya to the supplier call"),
+            ),
+            ToolMetadata(
+                id="calendar_delete_event",
+                name="calendar_delete_event",
+                description="Cancel or delete a calendar event (asks the user to approve first).",
+                integration="google_calendar",
+                tags=("calendar", "cancel", "delete", "meeting"),
+                examples=("cancel tomorrow's standup",),
+            ),
+        ],
+        calendar_loader,
     )
 
     return registry

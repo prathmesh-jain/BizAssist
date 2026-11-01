@@ -45,6 +45,8 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.exception("Error stopping tmp sweeper")
     await close_checkpointer()
+    from app.research.browser import browser_service
+    browser_service.shutdown()
     await close_db()
     logger.info("Application shutdown complete")
 
