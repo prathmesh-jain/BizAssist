@@ -133,7 +133,7 @@ export default function Sidebar({ isOpen, setIsOpen, currentView, setCurrentView
             )}
 
             <aside className={`
-                fixed lg:static top-0 left-0 bottom-0 z-50 w-[272px] shrink-0 bg-sidebar border-r border-border
+                fixed lg:static top-0 left-0 bottom-0 z-50 w-[272px] shrink-0 bg-sidebar/80 backdrop-blur-xl border-r border-border
                 transition-transform duration-200 ease-out lg:translate-x-0
                 ${isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'}
                 flex flex-col h-full
@@ -150,11 +150,9 @@ export default function Sidebar({ isOpen, setIsOpen, currentView, setCurrentView
                 <div className="px-3 pt-3">
                     <button
                         onClick={handleCreateChat}
-                        className="group shadow-soft w-full flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:border-foreground/20"
+                        className="btn-glow group w-full flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold"
                     >
-                        <span className="flex h-5 w-5 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                            <Plus className="w-3.5 h-3.5 transition-transform duration-200 group-hover:rotate-90" strokeWidth={2.5} />
-                        </span>
+                        <Plus className="w-4 h-4 transition-transform duration-200 group-hover:rotate-90" strokeWidth={2.5} />
                         New conversation
                     </button>
                 </div>
@@ -170,11 +168,10 @@ export default function Sidebar({ isOpen, setIsOpen, currentView, setCurrentView
                                     if (window.innerWidth < 1024) setIsOpen(false);
                                 }}
                                 aria-current={active ? 'page' : undefined}
-                                className={`group relative w-full flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm ${active
-                                    ? 'bg-card text-foreground font-medium shadow-soft'
-                                    : 'text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground'}`}
+                                className={`group relative w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm ${active
+                                    ? 'bg-highlight text-primary font-semibold'
+                                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
                             >
-                                {active && <span className="absolute -left-3 top-2 bottom-2 w-[3px] rounded-r-full bg-primary" />}
                                 <item.icon
                                     className={`w-4 h-4 transition-transform duration-200 ${active ? 'text-primary' : 'group-hover:scale-110'}`}
                                     strokeWidth={active ? 2.25 : 2}
@@ -202,10 +199,10 @@ export default function Sidebar({ isOpen, setIsOpen, currentView, setCurrentView
                                                 key={chat.id}
                                                 onClick={() => handleChatSelect(chat.id)}
                                                 className={`group relative flex items-center gap-1 rounded-lg pl-3 pr-1 py-1.5 cursor-pointer text-sm transition-colors ${active
-                                                    ? 'bg-card text-foreground shadow-soft'
-                                                    : 'text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground'}`}
+                                                    ? 'bg-muted text-foreground font-medium'
+                                                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
                                             >
-                                                {active && <span className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-primary" />}
+                                                {active && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-primary" />}
                                                 {editingChatId === chat.id ? (
                                                     <input
                                                         type="text"
@@ -282,7 +279,7 @@ function Avatar({ name, photoURL }: { name: string; photoURL?: string | null }) 
     }
     const initials = name.split(/[\s._-]+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('') || 'U';
     return (
-        <span className="w-8 h-8 rounded-full bg-highlight text-primary text-xs font-semibold flex items-center justify-center shrink-0 ring-1 ring-primary/20">
+        <span className="chip-blue w-8 h-8 rounded-full text-xs font-semibold flex items-center justify-center shrink-0">
             {initials}
         </span>
     );

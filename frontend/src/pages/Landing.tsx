@@ -42,7 +42,7 @@ export default function Landing() {
     const cta = user ? { to: '/app', label: 'Open your workspace' } : { to: '/signup', label: 'Create your workspace' };
 
     return (
-        <div className="min-h-screen overflow-x-clip bg-background text-foreground">
+        <div className="app-wash min-h-screen overflow-x-clip text-foreground">
             {/* Floating pill navigation */}
             <header className="fixed inset-x-0 top-3 z-50 px-3">
                 <nav className="glass mx-auto flex h-14 max-w-5xl items-center justify-between rounded-full pl-4 pr-2 shadow-soft">
@@ -232,13 +232,13 @@ export default function Landing() {
                         </Reveal>
                         <div className="grid gap-3">
                             {[
-                                { icon: <CalendarDays className="h-5 w-5" />, title: 'No surprise calendar changes', body: 'Creating, moving or cancelling an event always needs your approval.' },
-                                { icon: <ShieldCheck className="h-5 w-5" />, title: 'No guesses dressed up as facts', body: 'Research is labelled verified, estimated or not found, with sources.' },
-                                { icon: <Users className="h-5 w-5" />, title: 'Private stays private', body: 'Your calendar and chats aren’t shared with the rest of your team.' },
+                                { chip: 'chip-blue', icon: <CalendarDays className="h-5 w-5" />, title: 'No surprise calendar changes', body: 'Creating, moving or cancelling an event always needs your approval.' },
+                                { chip: 'chip-green', icon: <ShieldCheck className="h-5 w-5" />, title: 'No guesses dressed up as facts', body: 'Research is labelled verified, estimated or not found, with sources.' },
+                                { chip: 'chip-violet', icon: <Users className="h-5 w-5" />, title: 'Private stays private', body: 'Your calendar and chats aren’t shared with the rest of your team.' },
                             ].map((r, i) => (
                                 <Reveal key={r.title} delay={i * 100}>
                                     <SpotlightCard className="flex gap-4 rounded-2xl border border-border bg-card p-5">
-                                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">{r.icon}</span>
+                                        <span className={`${r.chip} flex h-10 w-10 shrink-0 items-center justify-center rounded-xl`}>{r.icon}</span>
                                         <div>
                                             <h3 className="font-semibold">{r.title}</h3>
                                             <p className="mt-1 text-sm text-muted-foreground">{r.body}</p>
@@ -317,7 +317,7 @@ function ProductPreview() {
                         ))}
                     </aside>
                     <div className="space-y-4 p-4 sm:p-6">
-                        <div className="ml-auto max-w-[80%] rounded-2xl rounded-br-md bg-foreground px-4 py-2.5 text-sm text-background">
+                        <div className="ml-auto max-w-[80%] rounded-2xl rounded-br-md border border-primary/15 bg-highlight px-4 py-2.5 text-sm text-foreground">
                             Which suppliers did we pay late in March? And book a call with Meera on Thursday.
                         </div>
                         <div className="flex gap-3">
@@ -347,10 +347,10 @@ function ProductPreview() {
 }
 
 function FloatingChip({ children, icon, className, delay, tone }: { children: React.ReactNode; icon: React.ReactNode; className: string; delay: string; tone: 'success' | 'primary' | 'accent' }) {
-    const toneClass = { success: 'text-success', primary: 'text-primary', accent: 'text-accent' }[tone];
+    const toneClass = { success: 'chip-green', primary: 'chip-blue', accent: 'chip-amber' }[tone];
     return (
         <div className={`rise-in shadow-lifted absolute z-10 items-center gap-2 rounded-full border border-border bg-card px-3.5 py-2 text-xs font-medium ${className}`} style={{ animationDelay: delay }}>
-            <span className={toneClass}>{icon}</span>
+            <span className={`${toneClass} flex h-6 w-6 items-center justify-center rounded-full`}>{icon}</span>
             {children}
         </div>
     );
@@ -370,11 +370,11 @@ function Bento({ title, body, visual, className = '' }: { title: string; body: s
 
 function OrbitVisual() {
     const items = [
-        { icon: <Globe className="h-4 w-4" />, label: 'Website' },
-        { icon: <Store className="h-4 w-4" />, label: 'Listings' },
-        { icon: <TrendingUp className="h-4 w-4" />, label: 'Trends' },
-        { icon: <Users className="h-4 w-4" />, label: 'Competitors' },
-        { icon: <FileText className="h-4 w-4" />, label: 'Your answers' },
+        { icon: <Globe className="h-4 w-4" />, label: 'Website', chip: 'chip-blue' },
+        { icon: <Store className="h-4 w-4" />, label: 'Listings', chip: 'chip-amber' },
+        { icon: <TrendingUp className="h-4 w-4" />, label: 'Trends', chip: 'chip-teal' },
+        { icon: <Users className="h-4 w-4" />, label: 'Competitors', chip: 'chip-rose' },
+        { icon: <FileText className="h-4 w-4" />, label: 'Your answers', chip: 'chip-violet' },
     ];
     return (
         <div className="relative h-[300px] w-[300px] sm:h-[340px] sm:w-[340px]">
@@ -397,7 +397,7 @@ function OrbitVisual() {
                         >
                             <div className="orbit-counter" style={{ ['--orbit-duration' as string]: '28s' }}>
                                 <span className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-border bg-card px-2.5 py-1.5 text-xs font-medium shadow-md">
-                                    <span className="text-primary">{it.icon}</span>{it.label}
+                                    <span className={`${it.chip} flex h-5 w-5 items-center justify-center rounded-full [&>svg]:h-3 [&>svg]:w-3`}>{it.icon}</span>{it.label}
                                 </span>
                             </div>
                         </div>
@@ -417,7 +417,7 @@ function DocsVisual() {
                     className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-sm transition-transform duration-300 group-hover:translate-x-1"
                     style={{ marginTop: i ? -6 : 0, marginLeft: i * 10, transitionDelay: `${i * 60}ms` }}
                 >
-                    <FileText className="h-3.5 w-3.5 text-accent" />
+                    <span className="chip-violet flex h-5 w-5 items-center justify-center rounded-md"><FileText className="h-3 w-3" /></span>
                     <span className="truncate">{f}</span>
                 </div>
             ))}
@@ -436,7 +436,7 @@ function SheetVisual() {
                 <FileSpreadsheet className="h-3.5 w-3.5" /> Expenses 2026
             </div>
             {rows.map(([k, v], i) => (
-                <div key={k} className={`flex justify-between border-b border-border px-2.5 py-1.5 last:border-0 ${i === 0 ? 'bg-highlight/25 font-medium' : ''}`}>
+                <div key={k} className={`flex justify-between border-b border-border px-2.5 py-1.5 last:border-0 ${i === 0 ? 'bg-highlight font-medium' : ''}`}>
                     <span>{k}</span><span className="tabular-nums">{v}</span>
                 </div>
             ))}
@@ -466,14 +466,14 @@ function CalendarVisual() {
 }
 
 function TeamVisual() {
-    const people = [['PJ', 'bg-foreground text-background'], ['AK', 'bg-highlight text-primary'], ['RS', 'bg-muted text-foreground'], ['MN', 'bg-card text-muted-foreground']];
+    const people = [['PJ', 'chip-green'], ['AK', 'chip-blue'], ['RS', 'chip-violet'], ['MN', 'chip-amber']];
     return (
         <div className="flex flex-col items-center gap-3">
             <div className="flex -space-x-3">
                 {people.map(([n, g], i) => (
                     <span
                         key={n}
-                        className={`flex h-11 w-11 items-center justify-center rounded-full border-2 border-card ring-1 ring-border ${g} text-xs font-semibold transition-transform duration-300 group-hover:-translate-y-0.5`}
+                        className={`flex h-11 w-11 items-center justify-center rounded-full border-2 border-card ${g} text-xs font-semibold transition-transform duration-300 group-hover:-translate-y-0.5`}
                         style={{ transitionDelay: `${i * 50}ms` }}
                     >
                         {n}

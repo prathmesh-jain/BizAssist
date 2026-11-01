@@ -220,21 +220,22 @@ React 19 + Vite + TypeScript, Tailwind CSS v4, Zustand, and React Router. Routes
 
 ### Design system
 
-Professional and quiet, with one confident accent: graphite neutrals plus persimmon (`#E8590C`). The accent marks
-what you can act on (primary buttons, the active page, focus rings, approvals) and nothing else, so it stays
-meaningful. Motion is limited to small micro-interactions.
+Light and airy with a fresh green: cool off-white backgrounds with a faint mint and blue wash, white cards with
+soft, wide shadows, a green primary (`#25A060`), and small pastel icon chips for variety. Motion is limited to
+micro-interactions.
 
-- **Tokens** live in `src/index.css` as HSL CSS variables (`--primary`, `--highlight` for the soft persimmon wash,
-  `--success`, `--warning`, `--sidebar`, `--shadow-color`, …) with light and `.dark` sets, exposed to Tailwind via
-  `@theme`. Use tokens, not raw palette colors or gradients.
-- **Type**: Geist for everything (tight tracking via `.font-display` on headings) and Geist Mono for `.eyebrow` labels.
-- **Surfaces**: hairline borders with `.shadow-soft` and `.shadow-lifted`. There are no glows and no gradients.
-- **Micro-interactions**: buttons scale slightly on press (global), the primary button (`.btn-glow`) lifts 1px on
-  hover, cards darken their border and get a faint cursor light (`.spotlight` / `SpotlightCard`), inputs get an
-  accent focus ring (`.beam-border.beam-on-focus`), icons nudge on hover, and `.link-underline` grows from the left.
-- **Entrance motion**: `.rise-in` (a short fade-up), `Reveal` (fades in on scroll), `RotatingWords`, `Marquee`,
-  `ScrollTilt` (a gentle 10° tilt that settles on scroll), and `useTypewriter`, all in `src/components/fx/`.
-  Everything respects `prefers-reduced-motion`.
+- **Tokens** live in `src/index.css` as HSL CSS variables (`--primary`, `--highlight` for the mint wash,
+  `--success`, `--warning`, `--wash-1/2`, and the `--tint-*` pastel pairs) with light and `.dark` sets, exposed to
+  Tailwind via `@theme`. Use tokens, not raw palette colors.
+- **Type**: Plus Jakarta Sans for the UI and Geist Mono for small `.eyebrow` labels.
+- **Surfaces**: `.app-wash` (page background), `.shadow-soft` and `.shadow-lifted` for cards and popovers, and
+  `.chip-green|blue|violet|amber|teal|rose` for icon chips and avatars. Keep green for primary actions and
+  selection; use the pastel chips only for small icons.
+- **Micro-interactions**: buttons scale slightly on press (global), the primary button (`.btn-glow`, a solid green
+  despite the name) lifts 1px on hover, cards darken their border with a faint cursor light (`.spotlight` /
+  `SpotlightCard`), inputs get a green focus ring (`.beam-border.beam-on-focus`), and icons nudge on hover.
+- **Entrance motion**: `.rise-in`, `Reveal`, `RotatingWords`, `Marquee`, `ScrollTilt`, and `useTypewriter`
+  in `src/components/fx/`. Everything respects `prefers-reduced-motion`.
 - **Dark mode** is class-based (`@custom-variant dark`). The first visit follows the OS and the toggle is
   remembered; an inline script in `index.html` sets it before first paint.
 - **Shared pieces** in `src/components/ui/`: `Logo`/`LogoMark`, `PageHeader`, `StatusChip`, `GoogleIcon`.

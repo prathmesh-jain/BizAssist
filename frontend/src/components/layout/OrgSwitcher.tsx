@@ -19,7 +19,7 @@ export default function OrgSwitcher() {
     return (
         <div className="px-3">
             <div className={`relative flex items-center gap-2.5 rounded-md px-2 py-1.5 ${switchable.length > 1 ? 'hover:bg-muted' : ''}`}>
-                <span className="w-7 h-7 rounded-md border border-border bg-card text-foreground flex items-center justify-center text-[13px] font-semibold shrink-0">
+                <span className="chip-green w-7 h-7 rounded-lg flex items-center justify-center text-[13px] font-bold shrink-0">
                     {initial}
                 </span>
                 <div className="min-w-0 flex-1 leading-tight">

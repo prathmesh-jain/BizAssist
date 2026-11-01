@@ -67,8 +67,8 @@ export default function GoogleCalendarCard() {
     return (
         <div className="bg-card border border-border rounded-2xl p-5 sm:p-6">
             <div className="flex flex-col sm:flex-row sm:items-start gap-5">
-                <div className="w-11 h-11 rounded-xl border border-border bg-background flex items-center justify-center shrink-0">
-                    <CalendarDays className="w-5 h-5 text-primary" />
+                <div className="chip-blue w-11 h-11 rounded-xl flex items-center justify-center shrink-0">
+                    <CalendarDays className="w-5 h-5" />
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 flex-wrap">

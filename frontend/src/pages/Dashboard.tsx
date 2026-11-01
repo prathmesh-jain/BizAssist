@@ -61,7 +61,7 @@ export default function Dashboard() {
     };
 
     return (
-        <div className="flex h-dvh bg-background overflow-hidden">
+        <div className="flex h-dvh app-wash overflow-hidden">
             <React.Suspense fallback={null}>
                 <Sidebar
                     isOpen={isSidebarOpen}
@@ -146,7 +146,7 @@ function ChatViewWrapper({
     }, [activeChatId, chatId]);
 
     return (
-        <div className="flex-1 flex flex-col h-dvh overflow-hidden bg-background">
+        <div className="flex-1 flex flex-col h-dvh overflow-hidden">
             <MobileHeader onMenuClick={onMenuClick} />
             <React.Suspense fallback={<div className="flex-1 bg-background" />}>
                 <ChatWindow
@@ -163,7 +163,7 @@ function ChatViewWrapper({
 
 function FeatureView({ children, onMenuClick }: { children: React.ReactNode; onMenuClick: () => void }) {
     return (
-        <div className="flex-1 h-full overflow-auto bg-background">
+        <div className="flex-1 h-full overflow-auto">
             <MobileHeader onMenuClick={onMenuClick} />
             <React.Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Loading…</div>}>
                 {children}

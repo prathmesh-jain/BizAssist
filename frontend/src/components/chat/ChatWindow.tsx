@@ -18,10 +18,10 @@ interface ChatWindowProps {
 }
 
 const SUGGESTIONS = [
-    { text: 'What’s on my calendar this week?', hint: 'Calendar', icon: CalendarDays },
-    { text: 'Which documents have I uploaded, and what’s in them?', hint: 'Documents', icon: FileText },
-    { text: 'Who are our closest competitors, and what do they do better?', hint: 'Business', icon: TrendingUp },
-    { text: 'Summarise last month’s biggest expenses from my sheet', hint: 'Sheets', icon: FileSpreadsheet },
+    { text: 'What’s on my calendar this week?', hint: 'Calendar', icon: CalendarDays, chip: 'chip-blue' },
+    { text: 'Which documents have I uploaded, and what’s in them?', hint: 'Documents', icon: FileText, chip: 'chip-violet' },
+    { text: 'Who are our closest competitors, and what do they do better?', hint: 'Business', icon: TrendingUp, chip: 'chip-amber' },
+    { text: 'Summarise last month’s biggest expenses from my sheet', hint: 'Sheets', icon: FileSpreadsheet, chip: 'chip-green' },
 ];
 
 function greeting(): string {
@@ -109,9 +109,8 @@ export default function ChatWindow({ messages, streamingMessage, activeTools, is
     if (messages.length === 0 && !streamingMessage && !isLoading) {
         const firstName = (user?.displayName || me?.user.full_name || '').trim().split(/\s+/)[0];
         return (
-            <div className="relative isolate flex-1 overflow-y-auto bg-background">
-                <div className="dot-grid absolute inset-0 -z-10" aria-hidden="true" />
-                <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-center px-5 py-12">
+            <div className="relative isolate flex-1 overflow-y-auto">
+                                <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col justify-center px-5 py-12">
                     <span className="rise-in eyebrow inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1">
                         <span className="h-1.5 w-1.5 rounded-full bg-success" />
                         {me?.organization.name ?? 'BizAssist'}
@@ -124,11 +123,11 @@ export default function ChatWindow({ messages, streamingMessage, activeTools, is
                         {SUGGESTIONS.map((s, i) => (
                             <SpotlightCard
                                 key={s.text}
-                                className="rise-in shadow-soft rounded-xl border border-border bg-card hover:-translate-y-px"
+                                className="rise-in shadow-soft rounded-2xl border border-border/70 bg-card hover:-translate-y-px"
                                 style={{ animationDelay: `${120 + i * 50}ms` }}
                             >
                                 <button onClick={() => handleSuggestion(s.text)} className="group flex h-full w-full items-start gap-3 p-4 text-left">
-                                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground transition-colors duration-200 group-hover:border-primary/30 group-hover:bg-highlight group-hover:text-primary">
+                                    <span className={`${s.chip} flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105`}>
                                         <s.icon className="h-4 w-4" />
                                     </span>
                                     <span className="min-w-0 flex-1">

@@ -3,8 +3,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --color-background: hsl(var(--background));
@@ -39,68 +39,88 @@
 }
 
 @layer base {
-  /* Graphite neutrals with a single persimmon accent. */
+  /* Airy cool whites, a fresh green, and small pastel tints for variety. */
   :root {
-    --background: 220 20% 99%;
-    --foreground: 222 14% 10%;
+    --background: 210 30% 98%;
+    --foreground: 215 28% 14%;
     --card: 0 0% 100%;
-    --card-foreground: 222 14% 10%;
+    --card-foreground: 215 28% 14%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 14% 10%;
+    --popover-foreground: 215 28% 14%;
 
-    --primary: 21 90% 48%;            /* persimmon #E8590C */
+    --primary: 150 62% 38%;           /* fresh green #25A060 */
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 222 14% 12%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 8% 42%;
-    --accent: 21 90% 48%;
+    --secondary: 210 25% 96%;
+    --secondary-foreground: 215 28% 16%;
+    --muted: 210 25% 96%;
+    --muted-foreground: 215 12% 46%;
+    --accent: 150 62% 38%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 0 72% 50%;
+    --destructive: 0 72% 54%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 152 60% 34%;
-    --warning: 36 92% 42%;
-    --highlight: 24 100% 95%;         /* soft persimmon wash for selections and badges */
-    --sidebar: 220 16% 96.5%;
+    --success: 150 62% 36%;
+    --warning: 34 92% 46%;
+    --highlight: 145 60% 95%;         /* mint wash for selected items and badges */
+    --sidebar: 0 0% 100%;
 
-    --border: 220 13% 90%;
-    --input: 220 12% 85%;
-    --ring: 21 90% 48%;
+    --border: 214 24% 91%;
+    --input: 214 20% 86%;
+    --ring: 150 62% 38%;
 
-    --shadow-color: 222 20% 20%;
-    --radius: 0.625rem;
+    --shadow-color: 215 40% 30%;
+    --wash-1: 150 70% 90%;
+    --wash-2: 205 90% 92%;
+
+    /* Pastel chips (background / foreground). */
+    --tint-green: 145 60% 94%;  --tint-green-fg: 150 62% 32%;
+    --tint-blue: 212 90% 95%;   --tint-blue-fg: 214 75% 48%;
+    --tint-violet: 262 85% 96%; --tint-violet-fg: 262 55% 52%;
+    --tint-amber: 38 95% 93%;   --tint-amber-fg: 30 85% 42%;
+    --tint-teal: 180 55% 92%;   --tint-teal-fg: 182 70% 30%;
+    --tint-rose: 350 90% 95%;   --tint-rose-fg: 350 65% 50%;
+
+    --radius: 0.875rem;
   }
 
   .dark {
-    --background: 220 16% 6%;
-    --foreground: 220 14% 92%;
-    --card: 220 14% 9%;
-    --card-foreground: 220 14% 92%;
-    --popover: 220 14% 10%;
-    --popover-foreground: 220 14% 92%;
+    --background: 215 28% 7%;
+    --foreground: 210 25% 93%;
+    --card: 215 25% 10%;
+    --card-foreground: 210 25% 93%;
+    --popover: 215 25% 11%;
+    --popover-foreground: 210 25% 93%;
 
-    --primary: 22 92% 57%;
-    --primary-foreground: 220 20% 6%;
-    --secondary: 220 12% 13%;
-    --secondary-foreground: 220 14% 92%;
-    --muted: 220 12% 12%;
-    --muted-foreground: 220 8% 62%;
-    --accent: 22 92% 57%;
-    --accent-foreground: 220 20% 6%;
+    --primary: 150 55% 48%;
+    --primary-foreground: 215 30% 7%;
+    --secondary: 215 20% 14%;
+    --secondary-foreground: 210 25% 93%;
+    --muted: 215 20% 13%;
+    --muted-foreground: 215 12% 63%;
+    --accent: 150 55% 48%;
+    --accent-foreground: 215 30% 7%;
     --destructive: 0 75% 62%;
-    --destructive-foreground: 220 20% 6%;
+    --destructive-foreground: 215 30% 7%;
 
-    --success: 152 50% 52%;
+    --success: 150 55% 50%;
     --warning: 38 90% 60%;
-    --highlight: 22 60% 14%;
-    --sidebar: 220 16% 7.5%;
+    --highlight: 150 40% 14%;
+    --sidebar: 215 26% 8.5%;
 
-    --border: 220 10% 16%;
-    --input: 220 10% 22%;
-    --ring: 22 92% 57%;
+    --border: 215 18% 17%;
+    --input: 215 16% 23%;
+    --ring: 150 55% 48%;
 
     --shadow-color: 0 0% 0%;
+    --wash-1: 150 60% 20%;
+    --wash-2: 210 70% 22%;
+
+    --tint-green: 150 40% 15%;  --tint-green-fg: 150 55% 60%;
+    --tint-blue: 214 45% 17%;   --tint-blue-fg: 212 85% 70%;
+    --tint-violet: 262 35% 19%; --tint-violet-fg: 262 80% 78%;
+    --tint-amber: 34 45% 16%;   --tint-amber-fg: 38 90% 65%;
+    --tint-teal: 182 40% 14%;   --tint-teal-fg: 178 60% 58%;
+    --tint-rose: 350 35% 17%;   --tint-rose-fg: 350 85% 72%;
   }
 }
 
@@ -112,7 +132,6 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
-    font-feature-settings: "ss01", "cv11";
   }
 
   h1, h2, h3 { text-wrap: balance; }
@@ -159,7 +178,7 @@
 @layer components {
   .font-display {
     font-family: var(--font-display);
-    letter-spacing: -0.035em;
+    letter-spacing: -0.022em;
   }
 
   .eyebrow {
@@ -177,6 +196,23 @@
   }
 
   .bg-brand-gradient { background-color: hsl(var(--primary)); }
+
+  /* Very soft colour wash for page backgrounds (mint top-left, blue top-right). */
+  .app-wash {
+    background-color: hsl(var(--background));
+    background-image:
+      radial-gradient(60rem 30rem at 0% -10%, hsl(var(--wash-1) / 0.85), transparent 62%),
+      radial-gradient(52rem 28rem at 100% -10%, hsl(var(--wash-2) / 0.75), transparent 62%);
+    background-attachment: local;
+  }
+
+  /* Pastel icon chips. */
+  .chip-green  { background: hsl(var(--tint-green));  color: hsl(var(--tint-green-fg)); }
+  .chip-blue   { background: hsl(var(--tint-blue));   color: hsl(var(--tint-blue-fg)); }
+  .chip-violet { background: hsl(var(--tint-violet)); color: hsl(var(--tint-violet-fg)); }
+  .chip-amber  { background: hsl(var(--tint-amber));  color: hsl(var(--tint-amber-fg)); }
+  .chip-teal   { background: hsl(var(--tint-teal));   color: hsl(var(--tint-teal-fg)); }
+  .chip-rose   { background: hsl(var(--tint-rose));   color: hsl(var(--tint-rose-fg)); }
 
   /* Very faint dot texture, only where a large surface needs it. */
   .dot-grid {
@@ -198,13 +234,13 @@
   /* Soft, layered shadows instead of glows. */
   .shadow-soft {
     box-shadow:
-      0 1px 2px hsl(var(--shadow-color) / 0.06),
-      0 4px 12px -2px hsl(var(--shadow-color) / 0.06);
+      0 1px 2px hsl(var(--shadow-color) / 0.04),
+      0 8px 24px -6px hsl(var(--shadow-color) / 0.08);
   }
   .shadow-lifted {
     box-shadow:
       0 1px 2px hsl(var(--shadow-color) / 0.06),
-      0 12px 32px -8px hsl(var(--shadow-color) / 0.14);
+      0 24px 60px -16px hsl(var(--shadow-color) / 0.18);
   }
 
   /* Cards that respond quietly: a hairline border darkens and a faint light follows the cursor. */

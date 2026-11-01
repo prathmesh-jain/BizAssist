@@ -147,7 +147,7 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
     const disabled = isLoading || (!settingsPending && !chatEnabled);
 
     return (
-        <div className="shrink-0 bg-background px-4 sm:px-6 pb-4 pt-2">
+        <div className="shrink-0 px-4 sm:px-6 pb-4 pt-2">
             <div className="max-w-3xl mx-auto">
                 {!settingsPending && !chatEnabled && (
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/30 bg-warning/10 px-4 py-2.5 text-sm text-foreground">

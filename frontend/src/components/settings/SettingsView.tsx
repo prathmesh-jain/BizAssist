@@ -130,7 +130,7 @@ export default function SettingsView() {
     };
 
     return (
-        <div className="flex-1 overflow-y-auto bg-background px-4 py-8 sm:px-8 lg:py-12">
+        <div className="flex-1 overflow-y-auto px-4 py-8 sm:px-8 lg:py-12">
             <div className="max-w-3xl mx-auto space-y-6">
                 <PageHeader
                     eyebrow="Settings"

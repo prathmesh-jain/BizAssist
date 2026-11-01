@@ -99,7 +99,7 @@ export default function TeamView() {
     }
 
     return (
-        <div className="flex-1 overflow-y-auto bg-background px-4 py-8 sm:px-8 lg:py-12">
+        <div className="flex-1 overflow-y-auto px-4 py-8 sm:px-8 lg:py-12">
             <div className="max-w-3xl mx-auto space-y-6">
                 <div className="rise-in border-b border-border pb-6">
                     <p className="eyebrow mb-3 inline-flex items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1"><span className="h-1.5 w-1.5 rounded-full bg-brand-gradient" />Team</p>
@@ -128,9 +128,9 @@ export default function TeamView() {
                         </div>
                     ) : (
                         <ul className="divide-y divide-border">
-                            {members.map((m) => (
+                            {members.map((m, idx) => (
                                 <li key={m.user_id} className="px-5 sm:px-6 py-4 flex flex-wrap items-center gap-3">
-                                    <div className="w-9 h-9 rounded-full bg-primary/10 text-primary text-sm font-semibold flex items-center justify-center shrink-0 ring-1 ring-primary/20">
+                                    <div className={`${['chip-green', 'chip-blue', 'chip-violet', 'chip-amber', 'chip-teal', 'chip-rose'][idx % 6]} w-9 h-9 rounded-full text-sm font-semibold flex items-center justify-center shrink-0`}>
                                         {(m.full_name || m.email)[0]?.toUpperCase()}
                                     </div>
                                     <div className="min-w-0 flex-1 basis-48">

@@ -288,7 +288,7 @@ function ResearchProgress({ run }: { run: ResearchRun }) {
 
 function Shell({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
     return (
-        <div className="flex-1 overflow-y-auto bg-background px-4 py-8 sm:px-8 lg:py-12">
+        <div className="flex-1 overflow-y-auto px-4 py-8 sm:px-8 lg:py-12">
             <div className="max-w-3xl mx-auto">
                 <p className="eyebrow mb-3 inline-flex items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1"><span className="h-1.5 w-1.5 rounded-full bg-brand-gradient" />Getting set up</p>
                 <h1 className="font-display text-3xl sm:text-[2.25rem] leading-[1.1] font-semibold text-foreground">{title}</h1>
