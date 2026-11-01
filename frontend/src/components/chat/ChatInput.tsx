@@ -161,7 +161,7 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
                     </div>
                 )}
 
-                <div className={`rounded-xl border border-input bg-card shadow-[0_1px_0_hsl(var(--border)),0_8px_24px_-18px_hsl(var(--foreground)/0.4)] transition-colors focus-within:border-foreground/30 ${disabled ? 'opacity-70' : ''}`}>
+                <div className={`beam-border beam-on-focus rounded-2xl border border-input bg-card shadow-[0_10px_40px_-20px_hsl(var(--glow-1)/0.45)] transition-all focus-within:border-transparent focus-within:shadow-[0_14px_50px_-18px_hsl(var(--glow-1)/0.6)] ${disabled ? 'opacity-70' : ''}`}>
                     {attachments.length > 0 && (
                         <div className="flex flex-wrap gap-2 px-3 pt-3">
                             {attachments.map(att => (
@@ -227,8 +227,8 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
                                 onClick={handleSend}
                                 disabled={!canSend}
                                 aria-label="Send message"
-                                className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${canSend
-                                    ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                                className={`flex h-9 w-9 items-center justify-center rounded-xl transition-all ${canSend
+                                    ? 'btn-glow scale-100'
                                     : 'bg-muted text-muted-foreground'}`}
                             >
                                 <ArrowUp className="w-4 h-4" strokeWidth={2.5} />

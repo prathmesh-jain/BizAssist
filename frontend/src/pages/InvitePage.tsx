@@ -83,9 +83,9 @@ export default function InvitePage() {
     if (!token) {
         return (
             <Shell>
-                <h1 className="font-display text-2xl font-medium text-foreground">No invitation found</h1>
+                <h1 className="font-display text-2xl font-bold text-foreground">No invitation found</h1>
                 <p className="mt-2 text-sm text-muted-foreground">Open the full invitation link you were sent.</p>
-                <button onClick={dismiss} className="mt-6 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-semibold">Go to BizAssist</button>
+                <button onClick={dismiss} className="mt-6 px-4 py-2 rounded-xl btn-glow text-sm font-semibold">Go to BizAssist</button>
             </Shell>
         );
     }
@@ -101,14 +101,14 @@ export default function InvitePage() {
             {preview && (
                 <>
                     <p className="eyebrow mt-6">You’re invited</p>
-                    <h1 className="font-display mt-2 text-3xl font-medium text-foreground">
+                    <h1 className="font-display mt-2 text-3xl font-bold text-foreground">
                         Join {preview.organization_name}
                     </h1>
                     <p className="mt-2 text-sm text-muted-foreground">
                         You've been invited as <span className="font-semibold text-foreground">{preview.role}</span>.
                     </p>
                     {!preview.email_matches && (
-                        <div className="mt-4 rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-foreground">
+                        <div className="mt-4 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-foreground">
                             This invitation is for <span className="font-semibold">{preview.email}</span>, but you're signed in as{' '}
                             <span className="font-semibold">{user.email}</span>.
                             <button
@@ -123,7 +123,7 @@ export default function InvitePage() {
             )}
 
             {error && (
-                <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                     {error}
                     {needsVerification && (
                         <button onClick={sendVerification} className="block mt-2 font-semibold text-primary hover:underline">
@@ -135,14 +135,14 @@ export default function InvitePage() {
             {notice && <p className="mt-3 text-sm text-muted-foreground">{notice}</p>}
 
             <div className="mt-6 flex flex-wrap justify-end gap-3">
-                <button onClick={dismiss} className="px-4 py-2 rounded-md border border-border text-foreground hover:bg-muted text-sm">
+                <button onClick={dismiss} className="px-4 py-2 rounded-xl border border-border text-foreground hover:bg-muted text-sm">
                     Not now
                 </button>
                 {preview && preview.email_matches && (
                     <button
                         onClick={accept}
                         disabled={busy}
-                        className="flex items-center gap-2 px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-60"
+                        className="flex items-center gap-2 px-5 py-2 rounded-xl btn-glow text-sm font-semibold disabled:opacity-60"
                     >
                         {busy && <Loader2 className="w-4 h-4 animate-spin" />}
                         Accept invitation
@@ -156,7 +156,7 @@ export default function InvitePage() {
 function Shell({ children }: { children: React.ReactNode }) {
     return (
         <div className="min-h-screen bg-background flex items-center justify-center p-4">
-            <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 sm:p-8 rise-in">{children}</div>
+            <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 sm:p-8 rise-in">{children}</div>
         </div>
     );
 }

@@ -98,9 +98,9 @@ export default function Sidebar({ isOpen, setIsOpen, currentView, setCurrentView
     return (
         <>
             {deleteTarget && (
-                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-foreground/30 p-4">
-                    <div role="alertdialog" aria-modal="true" className="w-full max-w-sm rounded-lg border border-border bg-card shadow-xl p-6">
-                        <h3 className="font-display text-xl font-medium text-foreground">Delete this conversation?</h3>
+                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/60 backdrop-blur-sm p-4">
+                    <div role="alertdialog" aria-modal="true" className="rise-in w-full max-w-sm rounded-2xl border border-border bg-card shadow-2xl p-6">
+                        <h3 className="font-display text-xl font-bold text-foreground">Delete this conversation?</h3>
                         <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
                             <span className="font-medium text-foreground">{deleteTarget.title}</span> and all its messages will be gone for good.
                         </p>
@@ -150,9 +150,9 @@ export default function Sidebar({ isOpen, setIsOpen, currentView, setCurrentView
                 <div className="px-3 pt-3">
                     <button
                         onClick={handleCreateChat}
-                        className="w-full flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground shadow-[0_1px_0_hsl(var(--border))] hover:border-foreground/30"
+                        className="btn-glow group w-full flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold"
                     >
-                        <Plus className="w-4 h-4 text-primary" />
+                        <Plus className="w-4 h-4 transition-transform duration-300 group-hover:rotate-90" />
                         New conversation
                     </button>
                 </div>
@@ -168,11 +168,14 @@ export default function Sidebar({ isOpen, setIsOpen, currentView, setCurrentView
                                     if (window.innerWidth < 1024) setIsOpen(false);
                                 }}
                                 aria-current={active ? 'page' : undefined}
-                                className={`w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${active
-                                    ? 'bg-card text-foreground font-medium shadow-[0_0_0_1px_hsl(var(--border))]'
-                                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                                className={`group relative w-full flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-all ${active
+                                    ? 'bg-primary/10 text-foreground font-medium'
+                                    : 'text-muted-foreground hover:bg-muted hover:text-foreground hover:translate-x-0.5'}`}
                             >
-                                <item.icon className={`w-4 h-4 ${active ? 'text-primary' : ''}`} strokeWidth={active ? 2.25 : 2} />
+                                {active && <span className="absolute -left-3 top-1.5 bottom-1.5 w-1 rounded-r-full bg-brand-gradient" />}
+                                <span className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${active ? 'bg-brand-gradient text-white shadow-[0_4px_14px_-4px_hsl(var(--glow-1)/0.7)]' : 'bg-transparent group-hover:bg-card'}`}>
+                                    <item.icon className="w-4 h-4" strokeWidth={active ? 2.25 : 2} />
+                                </span>
                                 {item.label}
                             </button>
                         );
@@ -195,11 +198,11 @@ export default function Sidebar({ isOpen, setIsOpen, currentView, setCurrentView
                                             <li
                                                 key={chat.id}
                                                 onClick={() => handleChatSelect(chat.id)}
-                                                className={`group relative flex items-center gap-1 rounded-md pl-3 pr-1 py-1.5 cursor-pointer text-sm transition-colors ${active
-                                                    ? 'bg-card text-foreground shadow-[0_0_0_1px_hsl(var(--border))]'
+                                                className={`group relative flex items-center gap-1 rounded-lg pl-3 pr-1 py-1.5 cursor-pointer text-sm transition-colors ${active
+                                                    ? 'bg-card text-foreground shadow-[0_0_0_1px_hsl(var(--border)),0_4px_14px_-8px_hsl(var(--glow-1)/0.5)]'
                                                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
                                             >
-                                                {active && <span className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-accent" />}
+                                                {active && <span className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-brand-gradient" />}
                                                 {editingChatId === chat.id ? (
                                                     <input
                                                         type="text"
@@ -276,7 +279,7 @@ function Avatar({ name, photoURL }: { name: string; photoURL?: string | null }) 
     }
     const initials = name.split(/[\s._-]+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('') || 'U';
     return (
-        <span className="w-8 h-8 rounded-full bg-primary/12 text-primary text-xs font-semibold flex items-center justify-center shrink-0 ring-1 ring-primary/20">
+        <span className="w-8 h-8 rounded-full bg-brand-gradient text-white text-xs font-bold flex items-center justify-center shrink-0 ring-2 ring-card shadow-[0_0_0_3px_hsl(var(--primary)/0.25)]">
             {initials}
         </span>
     );

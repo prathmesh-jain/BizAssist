@@ -101,8 +101,8 @@ export default function TeamView() {
     return (
         <div className="flex-1 overflow-y-auto bg-background px-4 py-8 sm:px-8 lg:py-12">
             <div className="max-w-3xl mx-auto space-y-6">
-                <div className="border-b border-border pb-6">
-                    <p className="eyebrow mb-2">Team</p>
+                <div className="rise-in border-b border-primary/25 pb-6">
+                    <p className="eyebrow mb-3 inline-flex items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1"><span className="h-1.5 w-1.5 rounded-full bg-brand-gradient" />Team</p>
                     <OrganizationName name={me.organization.name} editable={canRename} onSaved={fetchMe} />
                     <p className="text-muted-foreground mt-2 text-[15px]">
                         You are {me.role === 'admin' || me.role === 'owner' ? 'an' : 'a'}{' '}
@@ -111,16 +111,16 @@ export default function TeamView() {
                 </div>
 
                 {error && (
-                    <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                    <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                         {error}
                     </div>
                 )}
 
                 {canManage && <InviteCard roles={roleChoices} onInvited={load} />}
 
-                <section className="bg-card border border-border rounded-lg">
+                <section className="bg-card border border-border rounded-2xl">
                     <div className="px-5 sm:px-6 py-4 border-b border-border">
-                        <h3 className="font-display text-xl font-medium text-foreground">People <span className="font-sans text-sm text-muted-foreground tabular-nums">{members.length || ''}</span></h3>
+                        <h3 className="font-display text-xl font-bold text-foreground">People <span className="font-sans text-sm text-muted-foreground tabular-nums">{members.length || ''}</span></h3>
                     </div>
                     {loading ? (
                         <div className="p-6 text-sm text-muted-foreground flex items-center gap-2">
@@ -153,7 +153,7 @@ export default function TeamView() {
                                             value={m.role}
                                             disabled={busyId === m.user_id}
                                             onChange={(e) => updateMember(m, { role: e.target.value as OrgRole })}
-                                            className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+                                            className="rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground"
                                         >
                                             {Array.from(new Set([m.role, ...roleChoices])).map((r) => (
                                                 <option key={r} value={r} disabled={!roleChoices.includes(r)}>
@@ -162,7 +162,7 @@ export default function TeamView() {
                                             ))}
                                         </select>
                                     ) : (
-                                        <span className="px-3 py-1.5 rounded-md bg-muted text-sm font-medium text-foreground capitalize">
+                                        <span className="px-3 py-1.5 rounded-xl bg-muted text-sm font-medium text-foreground capitalize">
                                             {m.role}
                                         </span>
                                     )}
@@ -172,7 +172,7 @@ export default function TeamView() {
                                             <button
                                                 onClick={() => updateMember(m, { status: m.status === 'active' ? 'suspended' : 'active' })}
                                                 disabled={busyId === m.user_id}
-                                                className="px-3 py-2 rounded-md text-sm border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                                                className="px-3 py-2 rounded-xl text-sm border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-50"
                                             >
                                                 {m.status === 'active' ? 'Suspend' : 'Reactivate'}
                                             </button>
@@ -181,7 +181,7 @@ export default function TeamView() {
                                                 disabled={busyId === m.user_id}
                                                 title="Remove from organization"
                                                 aria-label={`Remove ${m.email}`}
-                                                className="p-2 rounded-md text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                                                className="p-2 rounded-xl text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
                                             >
                                                 <Trash2 className="w-4 h-4" />
                                             </button>
@@ -194,9 +194,9 @@ export default function TeamView() {
                 </section>
 
                 {canManage && invitations.length > 0 && (
-                    <section className="bg-card border border-border rounded-lg">
+                    <section className="bg-card border border-border rounded-2xl">
                         <div className="px-5 sm:px-6 py-4 border-b border-border">
-                            <h3 className="font-display text-xl font-medium text-foreground">Waiting to join</h3>
+                            <h3 className="font-display text-xl font-bold text-foreground">Waiting to join</h3>
                         </div>
                         <ul className="divide-y divide-border">
                             {invitations.map((inv) => {
@@ -214,7 +214,7 @@ export default function TeamView() {
                                         <button
                                             onClick={() => run(inv.id, () => apiClient.delete(`/organization/invitations/${inv.id}`))}
                                             disabled={busyId === inv.id}
-                                            className="px-3 py-2 rounded-md text-sm border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                                            className="px-3 py-2 rounded-xl text-sm border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-50"
                                         >
                                             Revoke
                                         </button>
@@ -234,7 +234,7 @@ export default function TeamView() {
                     </div>
                     <button
                         onClick={() => setConfirmLeave(true)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-md border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors text-sm font-semibold"
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors text-sm font-semibold"
                     >
                         <LogOut className="w-4 h-4" /> Leave
                     </button>
@@ -295,7 +295,7 @@ function OrganizationName({ name, editable, onSaved }: { name: string; editable:
     if (!editing) {
         return (
             <div className="flex items-center gap-2">
-                <h1 className="font-display text-3xl sm:text-[2.1rem] leading-tight font-medium text-foreground break-words">{name}</h1>
+                <h1 className="font-display text-3xl sm:text-[2.6rem] leading-[1.05] font-bold text-foreground break-words">{name}</h1>
                 {editable && (
                     <button
                         onClick={() => setEditing(true)}
@@ -320,12 +320,12 @@ function OrganizationName({ name, editable, onSaved }: { name: string; editable:
                     maxLength={120}
                     autoFocus
                     aria-label="Organization name"
-                    className="flex-1 min-w-0 basis-56 rounded-md border border-border bg-background px-3 py-2 text-xl font-semibold text-foreground"
+                    className="flex-1 min-w-0 basis-56 rounded-xl border border-border bg-background px-3 py-2 text-xl font-semibold text-foreground"
                 />
-                <button onClick={save} disabled={saving} aria-label="Save name" className="p-2 rounded-md bg-primary text-primary-foreground disabled:opacity-50">
+                <button onClick={save} disabled={saving} aria-label="Save name" className="p-2 rounded-xl btn-glow disabled:opacity-50">
                     {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
                 </button>
-                <button onClick={() => { setEditing(false); setValue(name); }} aria-label="Cancel rename" className="p-2 rounded-md border border-border text-foreground hover:bg-muted">
+                <button onClick={() => { setEditing(false); setValue(name); }} aria-label="Cancel rename" className="p-2 rounded-xl border border-border text-foreground hover:bg-muted">
                     <X className="w-5 h-5" />
                 </button>
             </div>
@@ -370,10 +370,10 @@ function InviteCard({ roles, onInvited }: { roles: OrgRole[]; onInvited: () => P
     };
 
     return (
-        <section className="bg-card border border-border rounded-lg p-5 sm:p-6">
+        <section className="bg-card border border-border rounded-2xl p-5 sm:p-6">
             <div className="flex items-center gap-2">
                 <UserPlus className="w-5 h-5 text-primary" />
-                <h3 className="font-display text-xl font-medium text-foreground">Invite someone</h3>
+                <h3 className="font-display text-xl font-bold text-foreground">Invite someone</h3>
             </div>
             <form onSubmit={submit} className="mt-4 flex flex-wrap gap-3">
                 <input
@@ -383,13 +383,13 @@ function InviteCard({ roles, onInvited }: { roles: OrgRole[]; onInvited: () => P
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="name@company.com"
                     aria-label="Email to invite"
-                    className="flex-1 min-w-0 basis-60 rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground"
+                    className="flex-1 min-w-0 basis-60 rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground"
                 />
                 <select
                     value={role}
                     onChange={(e) => setRole(e.target.value as OrgRole)}
                     aria-label="Role for invitee"
-                    className="rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground"
+                    className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground"
                 >
                     {roles.map((r) => (
                         <option key={r} value={r}>{r}</option>
@@ -398,7 +398,7 @@ function InviteCard({ roles, onInvited }: { roles: OrgRole[]; onInvited: () => P
                 <button
                     type="submit"
                     disabled={sending}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md font-semibold text-sm disabled:opacity-60"
+                    className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-semibold text-sm disabled:opacity-60"
                 >
                     {sending && <Loader2 className="w-4 h-4 animate-spin" />}
                     Create invite link
@@ -408,7 +408,7 @@ function InviteCard({ roles, onInvited }: { roles: OrgRole[]; onInvited: () => P
             {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
 
             {link && (
-                <div className="mt-4 rounded-md border border-primary/20 bg-primary/5 p-4">
+                <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4">
                     <p className="text-sm text-foreground">
                         Invites aren’t emailed yet, so send this link to <span className="font-semibold">{link.email}</span> yourself. It works once, only for that email, and expires in 7 days.
                         Copy it now; it won’t be shown again.
@@ -423,7 +423,7 @@ function InviteCard({ roles, onInvited }: { roles: OrgRole[]; onInvited: () => P
                         />
                         <button
                             onClick={copy}
-                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border bg-card text-sm text-foreground hover:bg-muted"
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-2xl border border-border bg-card text-sm text-foreground hover:bg-muted"
                         >
                             {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                             {copied ? 'Copied' : 'Copy'}
@@ -445,14 +445,14 @@ function ConfirmDialog({ title, body, confirmLabel, busy, onCancel, onConfirm }:
 }) {
     return (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-foreground/30 p-4">
-            <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-lg border border-border bg-card shadow-xl p-6">
-                <h3 className="font-display text-xl font-medium text-foreground">{title}</h3>
+            <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-2xl border border-border bg-card shadow-xl p-6">
+                <h3 className="font-display text-xl font-bold text-foreground">{title}</h3>
                 <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{body}</p>
                 <div className="mt-6 flex items-center justify-end gap-3">
-                    <button onClick={onCancel} disabled={busy} className="px-4 py-2 rounded-md border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-50">
+                    <button onClick={onCancel} disabled={busy} className="px-4 py-2 rounded-xl border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-50">
                         Cancel
                     </button>
-                    <button onClick={onConfirm} disabled={busy} className="px-4 py-2 rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-50">
+                    <button onClick={onConfirm} disabled={busy} className="px-4 py-2 rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-50">
                         {busy ? 'Working…' : confirmLabel}
                     </button>
                 </div>

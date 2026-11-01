@@ -40,7 +40,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
                         </div>
                     )}
                     {message.content && (
-                        <div className="rounded-xl rounded-br-sm bg-muted px-4 py-2.5 text-[15px] leading-relaxed text-foreground whitespace-pre-wrap break-words">
+                        <div className="rounded-2xl rounded-br-md bg-brand-gradient px-4 py-2.5 text-[15px] leading-relaxed text-white whitespace-pre-wrap break-words shadow-[0_8px_24px_-12px_hsl(var(--glow-1)/0.6)]">
                             {message.content}
                         </div>
                     )}

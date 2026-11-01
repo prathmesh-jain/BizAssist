@@ -220,21 +220,26 @@ React 19 + Vite + TypeScript, Tailwind CSS v4, Zustand, and React Router. Routes
 
 ### Design system
 
-The UI aims to feel like a well-kept ledger rather than a generic AI dashboard: warm paper and ink, a
-ledger-green primary, a clay accent, hairline borders, and type that carries the hierarchy.
+The UI is bright and alive: an electric violet, hot coral, and acid lime palette, a deep indigo night mode,
+bold grotesque headlines, and motion that rewards attention without getting in the way.
 
-- **Tokens** live in `src/index.css` as HSL CSS variables (`--background`, `--primary`, `--accent`,
-  `--success`, `--warning`, `--highlight`, `--sidebar`, …) with light and `.dark` sets, exposed to Tailwind
-  through `@theme`. Use the tokens, not raw palette colors like `blue-500`, so both themes stay correct.
-- **Type**: Fraunces (`.font-display`) for headings, Instrument Sans for body text, and JetBrains Mono for small
-  `.eyebrow` labels. All three load from Google Fonts in `index.html`.
-- **Dark mode** is class-based (`@custom-variant dark`). The first visit follows the OS, and the toggle is
-  remembered. An inline script in `index.html` applies the theme before first paint.
+- **Tokens** live in `src/index.css` as HSL CSS variables (`--primary`, `--accent`, `--highlight`, `--success`,
+  `--warning`, `--sidebar`, and `--glow-1…4` for effects) with light and `.dark` sets, exposed to Tailwind via
+  `@theme`. Use the tokens, not raw palette colors, so both themes stay correct.
+- **Type**: Bricolage Grotesque (`.font-display`) for headings, Geist for body text, Geist Mono for `.eyebrow`
+  labels. All three load from Google Fonts in `index.html`.
+- **Effect classes** (`index.css`): `.text-gradient` (flowing gradient text), `.btn-glow` (gradient button with
+  a shimmer sweep), `.beam-border` (a light beam circling the border; add `.beam-on-focus` to show it only on
+  focus), `.spotlight` (cursor-following glow), `.glass`, `.dot-grid`, `.bg-brand-gradient`, `.rise-in`, and `.reveal`.
+- **Effect components** (`src/components/fx/`): `Aurora` (drifting blurred colour blobs), `SpotlightCard`,
+  `Reveal` (scroll-in animation), `RotatingWords`, `Marquee`, `ScrollTilt` (3D tilt that flattens on scroll),
+  and `useTypewriter`. All are plain CSS and React, with no animation library.
+- **Reduced motion**: every animation sits behind `prefers-reduced-motion: no-preference`. The typewriter,
+  word rotation, and scroll tilt also check it in JavaScript.
+- **Dark mode** is class-based (`@custom-variant dark`). The first visit follows the OS, the toggle is
+  remembered, and an inline script in `index.html` applies the theme before first paint.
 - **Shared pieces** in `src/components/ui/`: `Logo`/`LogoMark`, `PageHeader`, `StatusChip`, `GoogleIcon`.
-  Auth pages share `components/auth/AuthLayout`.
-- **Markdown** in assistant replies is styled by the `.md` class in `index.css` (tables, lists, code, and quotes).
-  There's no typography plugin.
-- Motion is limited to a short `rise-in` and respects `prefers-reduced-motion`.
+- **Markdown** in assistant replies is styled by the `.md` class (tables, lists, code, and quotes).
 
 ## Local setup
 

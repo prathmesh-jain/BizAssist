@@ -3,39 +3,30 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-serif: "Fraunces", ui-serif, Georgia, "Times New Roman", serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Bricolage Grotesque", "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
-
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
-
   --color-popover: hsl(var(--popover));
   --color-popover-foreground: hsl(var(--popover-foreground));
-
   --color-primary: hsl(var(--primary));
   --color-primary-foreground: hsl(var(--primary-foreground));
-
   --color-secondary: hsl(var(--secondary));
   --color-secondary-foreground: hsl(var(--secondary-foreground));
-
   --color-muted: hsl(var(--muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
-
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
-
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
-
   --color-success: hsl(var(--success));
   --color-warning: hsl(var(--warning));
   --color-highlight: hsl(var(--highlight));
   --color-sidebar: hsl(var(--sidebar));
-
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
@@ -46,103 +37,91 @@
 }
 
 @layer base {
-  /* Light: warm paper and ink, a ledger green, and a clay accent. */
+  /* Light: crisp, with an electric violet, a hot coral, and an acid lime. */
   :root {
-    --background: 40 33% 97%;
-    --foreground: 30 14% 12%;
+    --background: 240 33% 99%;
+    --foreground: 245 30% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 245 30% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 245 30% 10%;
 
-    --card: 40 45% 99%;
-    --card-foreground: 30 14% 12%;
+    --primary: 252 86% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 245 40% 96%;
+    --secondary-foreground: 245 30% 14%;
+    --muted: 245 35% 95.5%;
+    --muted-foreground: 245 10% 44%;
+    --accent: 10 92% 60%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 352 78% 52%;
+    --destructive-foreground: 0 0% 100%;
 
-    --popover: 40 45% 99%;
-    --popover-foreground: 30 14% 12%;
+    --success: 158 70% 36%;
+    --warning: 30 92% 46%;
+    --highlight: 78 85% 52%;
+    --sidebar: 245 40% 97.5%;
 
-    --primary: 160 40% 23%;
-    --primary-foreground: 40 40% 97%;
+    --border: 245 25% 90%;
+    --input: 245 22% 86%;
+    --ring: 252 86% 60%;
 
-    --secondary: 38 26% 92%;
-    --secondary-foreground: 30 14% 14%;
+    --glow-1: 252 95% 65%;
+    --glow-2: 10 95% 64%;
+    --glow-3: 190 95% 55%;
+    --glow-4: 78 90% 55%;
+    --glow-opacity: 0.35;
 
-    --muted: 38 26% 92%;
-    --muted-foreground: 30 7% 40%;
-
-    --accent: 15 62% 50%;
-    --accent-foreground: 40 40% 98%;
-
-    --destructive: 4 62% 46%;
-    --destructive-foreground: 40 40% 98%;
-
-    --success: 150 45% 32%;
-    --warning: 32 85% 38%;
-    --highlight: 44 92% 62%;
-    --sidebar: 39 30% 94%;
-
-    --border: 36 18% 85%;
-    --input: 36 18% 82%;
-    --ring: 160 40% 23%;
-
-    --radius: 0.625rem;
+    --radius: 0.875rem;
   }
 
-  /* Dark: lamplit desk rather than a blue-black void. */
+  /* Dark: deep indigo night with neon light leaking in. */
   .dark {
-    --background: 30 8% 8%;
-    --foreground: 38 22% 89%;
+    --background: 245 32% 5.5%;
+    --foreground: 240 30% 96%;
+    --card: 245 28% 8.5%;
+    --card-foreground: 240 30% 96%;
+    --popover: 245 28% 9.5%;
+    --popover-foreground: 240 30% 96%;
 
-    --card: 30 7% 11%;
-    --card-foreground: 38 22% 89%;
+    --primary: 252 95% 70%;
+    --primary-foreground: 245 40% 6%;
+    --secondary: 245 22% 14%;
+    --secondary-foreground: 240 30% 96%;
+    --muted: 245 22% 12%;
+    --muted-foreground: 245 14% 66%;
+    --accent: 12 95% 66%;
+    --accent-foreground: 245 40% 6%;
+    --destructive: 352 85% 64%;
+    --destructive-foreground: 245 40% 6%;
 
-    --popover: 30 7% 12%;
-    --popover-foreground: 38 22% 89%;
+    --success: 155 65% 55%;
+    --warning: 38 95% 62%;
+    --highlight: 78 90% 60%;
+    --sidebar: 245 30% 7%;
 
-    --primary: 150 30% 60%;
-    --primary-foreground: 150 30% 8%;
+    --border: 245 20% 17%;
+    --input: 245 18% 22%;
+    --ring: 252 95% 70%;
 
-    --secondary: 30 6% 16%;
-    --secondary-foreground: 38 22% 89%;
-
-    --muted: 30 6% 15%;
-    --muted-foreground: 35 9% 60%;
-
-    --accent: 16 68% 62%;
-    --accent-foreground: 30 10% 8%;
-
-    --destructive: 4 62% 58%;
-    --destructive-foreground: 30 10% 8%;
-
-    --success: 145 35% 58%;
-    --warning: 38 80% 60%;
-    --highlight: 44 70% 45%;
-    --sidebar: 30 7% 10%;
-
-    --border: 30 6% 20%;
-    --input: 30 6% 24%;
-    --ring: 150 30% 60%;
+    --glow-opacity: 0.55;
   }
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
+  * { @apply border-border; }
 
-  html {
-    -webkit-text-size-adjust: 100%;
-  }
+  html { -webkit-text-size-adjust: 100%; }
 
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
-    font-feature-settings: "ss01", "cv11";
   }
 
-  h1, h2, h3 {
-    text-wrap: balance;
-  }
+  h1, h2, h3 { text-wrap: balance; }
 
   ::selection {
-    background: hsl(var(--highlight) / 0.45);
-    color: hsl(var(--foreground));
+    background: hsl(var(--primary) / 0.3);
   }
 
   :focus-visible {
@@ -150,126 +129,213 @@
     outline-offset: 2px;
   }
 
-  button {
-    cursor: pointer;
-  }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
 
-  button:disabled {
-    cursor: not-allowed;
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--foreground) / 0.12);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
   }
+  ::-webkit-scrollbar-thumb:hover { background-color: hsl(var(--foreground) / 0.22); }
 }
 
 @layer components {
-  /* Serif display type with soft optical sizing. */
   .font-display {
-    font-family: var(--font-serif);
+    font-family: var(--font-display);
     font-optical-sizing: auto;
-    font-variation-settings: "SOFT" 50, "WONK" 0;
-    letter-spacing: -0.015em;
+    letter-spacing: -0.03em;
   }
 
-  /* Small mono labels, like notes in a margin. */
   .eyebrow {
     font-family: var(--font-mono);
     font-size: 0.6875rem;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
     color: hsl(var(--muted-foreground));
   }
 
-  /* A hand-drawn highlighter stroke behind a word. */
+  /* Flowing violet → coral → lime text. */
+  .text-gradient,
   .marker {
-    background-image: linear-gradient(
+    background: linear-gradient(
       100deg,
-      transparent 0.4em,
-      hsl(var(--highlight) / 0.55) 0.5em,
-      hsl(var(--highlight) / 0.4) 92%,
-      transparent 96%
+      hsl(var(--glow-1)) 0%,
+      hsl(var(--glow-2)) 35%,
+      hsl(var(--glow-4)) 60%,
+      hsl(var(--glow-1)) 100%
     );
-    background-size: 100% 0.42em;
-    background-position: 0 88%;
-    background-repeat: no-repeat;
-    padding: 0 0.08em;
+    background-size: 220% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 
-  /* Faint ruled-paper lines for large empty surfaces. */
-  .paper-lines {
-    background-image: repeating-linear-gradient(
-      to bottom,
-      transparent 0,
-      transparent 31px,
-      hsl(var(--border) / 0.55) 31px,
-      hsl(var(--border) / 0.55) 32px
-    );
+
+  .bg-brand-gradient {
+    background-image: linear-gradient(120deg, hsl(var(--glow-1)), hsl(285 85% 60%) 55%, hsl(var(--glow-2)));
   }
 
-  .paper-grain {
+  /* Faint dot grid that fades out at the edges. */
+  .dot-grid {
+    background-image: radial-gradient(hsl(var(--foreground) / 0.13) 1px, transparent 1px);
+    background-size: 22px 22px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black 30%, transparent 75%);
+  }
+
+  /* Kept so older markup still renders; now a subtle dot grid. */
+  .paper-lines { }
+  .paper-grain { position: relative; isolation: isolate; }
+
+  /* Glassy surface. */
+  .glass {
+    background: hsl(var(--card) / 0.65);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    border: 1px solid hsl(var(--foreground) / 0.08);
+  }
+
+  /* Cursor-following spotlight; set --mx/--my from JS (see useSpotlight). */
+  .spotlight {
     position: relative;
     isolation: isolate;
+    overflow: hidden;
   }
-
-  .paper-grain::before {
+  .spotlight::before {
     content: "";
     position: absolute;
     inset: 0;
     z-index: -1;
-    pointer-events: none;
-    opacity: 0.35;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.38 0 0 0 0 0.3 0 0 0 0.07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    background: radial-gradient(
+      420px circle at var(--mx, 50%) var(--my, 50%),
+      hsl(var(--primary) / 0.16),
+      transparent 60%
+    );
+  }
+  .spotlight:hover::before { opacity: 1; }
+  .spotlight::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    padding: 1px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    background: radial-gradient(
+      260px circle at var(--mx, 50%) var(--my, 50%),
+      hsl(var(--glow-1) / 0.9),
+      hsl(var(--glow-2) / 0.5) 40%,
+      transparent 70%
+    );
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+  .spotlight:hover::after { opacity: 1; }
+
+  /* A light beam that travels around the border. */
+  .beam-border {
+    position: relative;
+    isolation: isolate;
+  }
+  .beam-border::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    z-index: -1;
+    border-radius: inherit;
+    padding: 1px;
+    background: conic-gradient(
+      from var(--beam-angle, 0deg),
+      transparent 0deg,
+      hsl(var(--glow-1)) 50deg,
+      hsl(var(--glow-2)) 90deg,
+      transparent 140deg,
+      transparent 360deg
+    );
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
   }
 
-  .dark .paper-grain::before {
-    opacity: 0.5;
+  .beam-on-focus::before { opacity: 0; transition: opacity 0.3s ease; }
+  .beam-on-focus:focus-within::before { opacity: 1; }
+
+  /* Primary call-to-action: gradient fill with a shimmer sweep. */
+  .btn-glow {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    color: white;
+    background-image: linear-gradient(120deg, hsl(var(--glow-1)), hsl(268 90% 62%) 45%, hsl(var(--glow-2)));
+    box-shadow:
+      0 0 0 1px hsl(var(--glow-1) / 0.4) inset,
+      0 10px 30px -10px hsl(var(--glow-1) / 0.7),
+      0 4px 14px -6px hsl(var(--glow-2) / 0.6);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .btn-glow:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      0 0 0 1px hsl(var(--glow-1) / 0.5) inset,
+      0 16px 40px -12px hsl(var(--glow-1) / 0.85),
+      0 6px 20px -6px hsl(var(--glow-2) / 0.7);
+  }
+  .btn-glow::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(110deg, transparent 35%, rgb(255 255 255 / 0.35) 50%, transparent 65%);
+    transform: translateX(-120%);
   }
 
-  /* Rendered markdown in assistant replies (no typography plugin needed). */
+  /* Rendered markdown in assistant replies. */
   .md {
     font-size: 0.9375rem;
     line-height: 1.7;
     color: hsl(var(--foreground));
     overflow-wrap: anywhere;
   }
-
   .md > :first-child { margin-top: 0; }
   .md > :last-child { margin-bottom: 0; }
-
   .md p { margin: 0.6em 0; }
-
   .md h1, .md h2, .md h3, .md h4 {
-    font-family: var(--font-serif);
+    font-family: var(--font-display);
     font-weight: 600;
-    line-height: 1.3;
+    line-height: 1.25;
     margin: 1.3em 0 0.45em;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
   }
   .md h1 { font-size: 1.35rem; }
   .md h2 { font-size: 1.2rem; }
   .md h3 { font-size: 1.05rem; }
   .md h4 { font-size: 0.95rem; }
-
   .md ul, .md ol { margin: 0.6em 0; padding-left: 1.35em; }
   .md ul { list-style: disc; }
   .md ol { list-style: decimal; }
   .md li { margin: 0.25em 0; }
-  .md li::marker { color: hsl(var(--muted-foreground)); }
-
+  .md li::marker { color: hsl(var(--primary)); }
   .md strong { font-weight: 600; }
-
   .md a {
     color: hsl(var(--primary));
     text-decoration: underline;
     text-decoration-thickness: 1px;
     text-underline-offset: 3px;
   }
-
   .md code {
     font-family: var(--font-mono);
     font-size: 0.85em;
-    background: hsl(var(--muted));
-    border-radius: 4px;
-    padding: 0.1em 0.35em;
+    background: hsl(var(--primary) / 0.1);
+    color: hsl(var(--primary));
+    border-radius: 6px;
+    padding: 0.1em 0.4em;
   }
-
   .md pre {
     margin: 0.9em 0;
     padding: 0.9em 1em;
@@ -280,79 +346,155 @@
     font-size: 0.85em;
     line-height: 1.55;
   }
-  .md pre code { background: none; padding: 0; font-size: inherit; }
-
+  .md pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
   .md blockquote {
     margin: 0.9em 0;
-    padding-left: 1em;
-    border-left: 2px solid hsl(var(--accent));
+    padding: 0.4em 1em;
+    border-left: 3px solid hsl(var(--primary));
+    background: hsl(var(--primary) / 0.06);
+    border-radius: 0 8px 8px 0;
     color: hsl(var(--muted-foreground));
   }
-
-  .md hr {
-    margin: 1.4em 0;
-    border: 0;
-    border-top: 1px dashed hsl(var(--border));
-  }
-
+  .md hr { margin: 1.4em 0; border: 0; border-top: 1px solid hsl(var(--border)); }
   .md table {
     display: block;
     width: max-content;
     max-width: 100%;
     overflow-x: auto;
     margin: 0.9em 0;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid hsl(var(--border));
+    border-radius: 10px;
     font-size: 0.875em;
     font-variant-numeric: tabular-nums;
   }
   .md th, .md td {
-    padding: 0.45em 0.8em;
+    padding: 0.5em 0.9em;
     text-align: left;
     border-bottom: 1px solid hsl(var(--border));
   }
-  .md th {
-    font-weight: 600;
-    border-bottom: 1.5px solid hsl(var(--foreground) / 0.6);
-  }
+  .md tr:last-child td { border-bottom: 0; }
+  .md th { font-weight: 600; background: hsl(var(--muted)); }
+}
+
+/* ---------- Motion (all of it opts out under reduced motion) ---------- */
+
+@property --beam-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .rise-in {
-    animation: riseIn 260ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  .rise-in,
+  .interrupt-bubble-enter {
+    animation: riseIn 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
 
-  .interrupt-bubble-enter {
-    animation: riseIn 260ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  .text-gradient, .marker { animation: gradientFlow 8s ease-in-out infinite; }
+
+  .beam-border::before { animation: beamSpin 4s linear infinite; }
+
+  .btn-glow::after { animation: shimmer 3.2s ease-in-out infinite; }
+
+  .aurora-blob { animation: auroraDrift var(--dur, 18s) ease-in-out infinite alternate; }
+
+  .float-slow { animation: floatY 6s ease-in-out infinite; }
+
+  .marquee-track { animation: marquee var(--marquee-duration, 40s) linear infinite; }
+  .marquee:hover .marquee-track { animation-play-state: paused; }
+
+  .orbit { animation: orbitSpin var(--orbit-duration, 24s) linear infinite; }
+  .orbit-counter { animation: orbitSpin var(--orbit-duration, 24s) linear infinite reverse; }
+
+  .pulse-ring::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: inherit;
+    border: 2px solid currentColor;
+    animation: pulseRing 1.8s ease-out infinite;
   }
+
+  .reveal {
+    opacity: 0;
+    transform: translateY(18px);
+    filter: blur(6px);
+    transition:
+      opacity 700ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      filter 700ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+  .reveal.is-visible { opacity: 1; transform: none; filter: none; }
+
+  .word-swap-enter { animation: wordIn 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 }
 
 @keyframes riseIn {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(10px); filter: blur(4px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@keyframes gradientFlow {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+@keyframes beamSpin { to { --beam-angle: 360deg; } }
+@keyframes shimmer {
+  0%, 55% { transform: translateX(-120%); }
+  100% { transform: translateX(120%); }
+}
+@keyframes auroraDrift {
+  0% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); }
+  50% { transform: translate3d(var(--dx, 40px), var(--dy, -30px), 0) scale(1.15) rotate(25deg); }
+  100% { transform: translate3d(calc(var(--dx, 40px) * -0.6), calc(var(--dy, -30px) * -0.8), 0) scale(0.95) rotate(-15deg); }
+}
+@keyframes floatY {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@keyframes orbitSpin { to { transform: rotate(360deg); } }
+@keyframes pulseRing {
+  0% { opacity: 0.7; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.6); }
+}
+@keyframes wordIn {
+  from { opacity: 0; transform: translateY(0.45em) rotateX(-60deg); filter: blur(6px); }
+  to { opacity: 1; transform: none; filter: none; }
 }
 
-/* Three small dots, written rather than bounced. */
+/* Thinking dots. */
 .typing-dots span {
   display: inline-block;
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   margin-right: 3px;
   border-radius: 999px;
   background: currentColor;
-  opacity: 0.25;
-  animation: typingDot 1.2s infinite ease-in-out;
+  opacity: 0.3;
+  animation: typingDot 1.1s infinite ease-in-out;
 }
 .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
 .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
-
 @keyframes typingDot {
-  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
-  30% { opacity: 0.9; transform: translateY(-2px); }
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0) scale(1); }
+  30% { opacity: 1; transform: translateY(-3px) scale(1.15); }
 }
+
+/* Blinking caret for typed text. */
+.caret::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.12em;
+  background: hsl(var(--primary));
+  animation: caretBlink 1s steps(1) infinite;
+}
+@keyframes caretBlink { 50% { opacity: 0; } }

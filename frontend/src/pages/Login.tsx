@@ -56,7 +56,7 @@ export default function Login() {
                 <button
                     type="submit"
                     disabled={loading}
-                    className="flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+                    className="btn-glow flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold disabled:opacity-60"
                 >
                     {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                     Sign in

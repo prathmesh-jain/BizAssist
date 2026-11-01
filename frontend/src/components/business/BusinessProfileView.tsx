@@ -47,16 +47,16 @@ export default function BusinessProfileView() {
     if (!profile || profile.status !== 'confirmed') {
         return (
             <Page>
-                <div className="bg-card border border-border rounded-lg p-8 text-center">
+                <div className="bg-card border border-border rounded-2xl p-8 text-center">
                     <Briefcase className="w-7 h-7 mx-auto text-muted-foreground" />
-                    <h2 className="font-display mt-3 text-2xl font-medium text-foreground">No business profile yet</h2>
+                    <h2 className="font-display mt-3 text-2xl font-bold text-foreground">No business profile yet</h2>
                     <p className="mt-1 text-muted-foreground max-w-md mx-auto">
                         {manager
                             ? 'Tell BizAssist about your business. It researches public information and you confirm what is right.'
                             : `An admin of ${me.organization.name} hasn't set up the business profile yet.`}
                     </p>
                     {manager && (
-                        <button onClick={() => navigate('/app/onboarding')} className="mt-5 px-5 py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-semibold">
+                        <button onClick={() => navigate('/app/onboarding')} className="mt-5 px-5 py-2.5 rounded-xl btn-glow text-sm font-semibold">
                             {researching ? 'View research progress' : profile ? 'Continue setup' : 'Set up business profile'}
                         </button>
                     )}
@@ -94,7 +94,7 @@ export default function BusinessProfileView() {
     if (editing) {
         return (
             <Page>
-                <h1 className="font-display text-3xl font-medium text-foreground mb-6">Edit business profile</h1>
+                <h1 className="font-display text-3xl font-bold text-foreground mb-6">Edit business profile</h1>
                 <ProfileReview steps={steps} initial={draftFromProfile(profile)} busy={busy} error={actionError}
                     onConfirm={save} onBack={() => setEditing(false)} confirmLabel="Save changes" />
             </Page>
@@ -106,10 +106,10 @@ export default function BusinessProfileView() {
 
     return (
         <Page>
-            <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-6">
+            <div className="rise-in flex flex-wrap items-end justify-between gap-4 border-b border-primary/25 pb-6">
                 <div className="min-w-0">
-                    <p className="eyebrow mb-2">Your business</p>
-                    <h1 className="font-display text-3xl sm:text-[2.1rem] leading-tight font-medium text-foreground break-words">{String(a.name ?? '')}</h1>
+                    <p className="eyebrow mb-3 inline-flex items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1"><span className="h-1.5 w-1.5 rounded-full bg-brand-gradient" />Your business</p>
+                    <h1 className="font-display text-3xl sm:text-[2.6rem] leading-[1.05] font-bold text-foreground break-words">{String(a.name ?? '')}</h1>
                     <p className="text-muted-foreground mt-1">
                         {[profile.subdomain, label('industry', a.industry)].filter(Boolean).join(' · ')}
                         {a.website && (
@@ -120,10 +120,10 @@ export default function BusinessProfileView() {
                 </div>
                 {manager && (
                     <div className="flex flex-wrap gap-2">
-                        <button onClick={rerun} disabled={busy} className="flex items-center gap-2 px-4 py-2 rounded-md border border-border text-sm text-foreground hover:bg-muted disabled:opacity-50">
+                        <button onClick={rerun} disabled={busy} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border text-sm text-foreground hover:bg-muted disabled:opacity-50">
                             <RefreshCw className={`w-4 h-4 ${researching ? 'animate-spin' : ''}`} /> {researching ? 'Research running' : 'Research again'}
                         </button>
-                        <button onClick={() => setEditing(true)} className="flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-semibold">
+                        <button onClick={() => setEditing(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl btn-glow text-sm font-semibold">
                             <Pencil className="w-4 h-4" /> Edit
                         </button>
                     </div>
@@ -135,7 +135,7 @@ export default function BusinessProfileView() {
 
             <dl className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {SUMMARY_FIELDS.filter((k) => a[k] !== undefined).map((k) => (
-                    <div key={k} className="rounded-md border border-border bg-card p-4">
+                    <div key={k} className="rounded-xl border border-border bg-card p-4">
                         <dt className="eyebrow flex items-center gap-2">
                             {questions[k]?.label ?? k}
                             {profile.provenance[k] && <BasisBadge basis={profile.provenance[k].basis} />}
@@ -147,11 +147,11 @@ export default function BusinessProfileView() {
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
                 {LIST_FIELDS.filter(([k]) => Array.isArray(a[k]) && (a[k] as string[]).length).map(([k, title]) => (
-                    <div key={k} className="rounded-lg border border-border bg-card p-5">
+                    <div key={k} className="rounded-2xl border border-border bg-card p-5">
                         <h3 className="eyebrow">{title}</h3>
                         <div className="mt-2 flex flex-wrap gap-2">
                             {(a[k] as string[]).map((v) => (
-                                <span key={v} className="rounded-md border border-border bg-background px-2.5 py-1 text-sm text-foreground">{label(k, v)}</span>
+                                <span key={v} className="rounded-xl border border-border bg-background px-2.5 py-1 text-sm text-foreground">{label(k, v)}</span>
                             ))}
                         </div>
                     </div>
@@ -159,8 +159,8 @@ export default function BusinessProfileView() {
             </div>
 
             {profile.competitors.length > 0 && (
-                <section className="mt-6 rounded-lg border border-border bg-card p-5">
-                    <h3 className="font-display text-xl font-medium text-foreground">Competitors</h3>
+                <section className="mt-6 rounded-2xl border border-border bg-card p-5">
+                    <h3 className="font-display text-xl font-bold text-foreground">Competitors</h3>
                     <ul className="mt-3 divide-y divide-border">
                         {profile.competitors.map((c) => (
                             <li key={c.name} className="py-3">
@@ -177,8 +177,8 @@ export default function BusinessProfileView() {
             )}
 
             {profile.opportunities.length > 0 && (
-                <section className="mt-6 rounded-lg border border-border bg-card p-5">
-                    <h3 className="font-display text-xl font-medium text-foreground">Focus areas</h3>
+                <section className="mt-6 rounded-2xl border border-border bg-card p-5">
+                    <h3 className="font-display text-xl font-bold text-foreground">Focus areas</h3>
                     <ul className="mt-3 space-y-3">
                         {profile.opportunities.map((o) => (
                             <li key={o.title}>

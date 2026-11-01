@@ -142,10 +142,10 @@ export default function SettingsView() {
                 <GoogleCalendarCard />
 
                 {/* Google Sheets Integration - flagship card */}
-                <div className="bg-card border border-border rounded-lg p-5 sm:p-6">
+                <div className="bg-card border border-border rounded-2xl p-5 sm:p-6">
                     <div className="flex flex-col sm:flex-row sm:items-start gap-5">
                         {/* Sheets Icon */}
-                        <div className="w-11 h-11 rounded-md border border-border bg-background flex items-center justify-center shrink-0">
+                        <div className="w-11 h-11 rounded-xl border border-border bg-background flex items-center justify-center shrink-0">
                             <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none">
                                 <rect x="3" y="3" width="18" height="18" rx="2" fill="#0F9D58" />
                                 <rect x="3" y="3" width="18" height="6" rx="2" fill="#188038" />
@@ -176,7 +176,7 @@ export default function SettingsView() {
                                     <button
                                         onClick={handleConnectGoogleSheets}
                                         disabled={isConnecting}
-                                        className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md font-medium text-sm disabled:opacity-60"
+                                        className="flex items-center gap-2 px-4 py-2 btn-glow rounded-xl font-semibold text-sm disabled:opacity-60"
                                     >
                                         {isConnecting ? (
                                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -210,7 +210,7 @@ export default function SettingsView() {
                 </div>
 
                 <p className="eyebrow pt-6">AI</p>
-                <div className="bg-card border border-border rounded-lg overflow-hidden">
+                <div className="bg-card border border-border rounded-2xl overflow-hidden">
                     <div className="space-y-5 p-5 sm:p-6">
                         <div>
                             <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -231,13 +231,13 @@ export default function SettingsView() {
                                 value={apiKeyInput}
                                 onChange={(e) => setApiKeyInput(e.target.value)}
                                 placeholder={aiSettings?.has_api_key ? 'Paste a new key to replace the saved one' : 'sk-…'}
-                                className="mt-4 w-full rounded-md border border-input bg-background px-3 py-2.5 font-mono text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+                                className="mt-4 w-full rounded-xl border border-input bg-background px-3 py-2.5 font-mono text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
                             />
                             <div className="mt-3 flex flex-wrap gap-3">
                                 <button
                                     onClick={handleSaveAISettings}
                                     disabled={isLoading}
-                                    className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-60"
+                                    className="px-4 py-2 rounded-xl btn-glow text-sm font-medium hover:bg-primary/90 disabled:opacity-60"
                                 >
                                     {isLoading ? 'Saving…' : 'Save AI settings'}
                                 </button>
@@ -245,7 +245,7 @@ export default function SettingsView() {
                                     <button
                                         onClick={handleClearApiKey}
                                         disabled={isLoading}
-                                        className="px-4 py-2 rounded-md border border-border text-sm text-foreground hover:bg-muted disabled:opacity-60"
+                                        className="px-4 py-2 rounded-xl border border-border text-sm text-foreground hover:bg-muted disabled:opacity-60"
                                     >
                                         Remove key
                                     </button>
@@ -282,7 +282,7 @@ export default function SettingsView() {
                                 <select
                                     value={item.value}
                                     onChange={(e) => item.onChange(e.target.value)}
-                                    className="min-w-[170px] rounded-md border border-input bg-background px-3 py-2 font-mono text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+                                    className="min-w-[170px] rounded-xl border border-input bg-background px-3 py-2 font-mono text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
                                 >
                                     {MODEL_OPTIONS.map(model => (
                                         <option key={model} value={model}>{model}</option>
@@ -299,7 +299,7 @@ export default function SettingsView() {
                             <span className="font-mono text-xs text-muted-foreground">text-embedding-3-small</span>
                         </div>
                         {(saveMessage || error) && (
-                            <div className={`rounded-md px-4 py-3 text-sm font-medium ${error ? 'bg-destructive/10 text-destructive border border-destructive/20' : 'bg-success/10 text-success border border-success/25'}`}>
+                            <div className={`rounded-xl px-4 py-3 text-sm font-medium ${error ? 'bg-destructive/10 text-destructive border border-destructive/20' : 'bg-success/10 text-success border border-success/25'}`}>
                                 {error || saveMessage}
                             </div>
                         )}
@@ -307,7 +307,7 @@ export default function SettingsView() {
                 </div>
 
                 <p className="eyebrow pt-6">Safety</p>
-                <div className="bg-card border border-border rounded-lg p-5 sm:p-6">
+                <div className="bg-card border border-border rounded-2xl p-5 sm:p-6">
                     <div className="flex items-start justify-between gap-4 flex-wrap">
                         <div>
                             <h3 className="text-lg font-semibold text-foreground">Keep it on topic</h3>

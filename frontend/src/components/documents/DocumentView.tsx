@@ -132,7 +132,7 @@ export default function DocumentView() {
                                 <button
                                     onClick={handleUpload}
                                     disabled={isUploading || blocked}
-                                    className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                                    className="flex items-center gap-2 btn-glow rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50"
                                 >
                                     {isUploading && <Loader2 className="w-4 h-4 animate-spin" />}
                                     {isUploading ? 'Reading…' : 'Add document'}
@@ -140,7 +140,7 @@ export default function DocumentView() {
                                 <button
                                     onClick={() => setFile(null)}
                                     disabled={isUploading}
-                                    className="rounded-md border border-border px-3 py-2 text-sm text-foreground hover:bg-muted disabled:opacity-50"
+                                    className="rounded-xl border border-border px-3 py-2 text-sm text-foreground hover:bg-muted disabled:opacity-50"
                                 >
                                     Cancel
                                 </button>
@@ -173,7 +173,7 @@ export default function DocumentView() {
 
                 <section>
                     <div className="flex items-baseline justify-between border-b border-foreground/70 pb-2">
-                        <h2 className="font-display text-xl font-medium">On file</h2>
+                        <h2 className="font-display text-xl font-bold">On file</h2>
                         <span className="text-sm text-muted-foreground tabular-nums">
                             {documents.length} {documents.length === 1 ? 'document' : 'documents'}
                         </span>
@@ -199,7 +199,7 @@ export default function DocumentView() {
                                     <button
                                         onClick={() => handleDelete(doc)}
                                         disabled={deleting === doc.id}
-                                        className="rounded-md p-2 text-muted-foreground opacity-100 hover:bg-destructive/10 hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 disabled:opacity-50"
+                                        className="rounded-xl p-2 text-muted-foreground opacity-100 hover:bg-destructive/10 hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 disabled:opacity-50"
                                         aria-label={`Remove ${doc.filename}`}
                                         title="Remove"
                                     >

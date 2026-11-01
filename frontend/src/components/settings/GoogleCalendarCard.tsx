@@ -65,9 +65,9 @@ export default function GoogleCalendarCard() {
     };
 
     return (
-        <div className="bg-card border border-border rounded-lg p-5 sm:p-6">
+        <div className="bg-card border border-border rounded-2xl p-5 sm:p-6">
             <div className="flex flex-col sm:flex-row sm:items-start gap-5">
-                <div className="w-11 h-11 rounded-md border border-border bg-background flex items-center justify-center shrink-0">
+                <div className="w-11 h-11 rounded-xl border border-border bg-background flex items-center justify-center shrink-0">
                     <CalendarDays className="w-5 h-5 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -96,7 +96,7 @@ export default function GoogleCalendarCard() {
                     {status?.connected && (
                         <ul className="mt-3 flex flex-wrap gap-2">
                             {EXAMPLES.map((e) => (
-                                <li key={e} className="rounded-md border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground">“{e}”</li>
+                                <li key={e} className="rounded-xl border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground">“{e}”</li>
                             ))}
                         </ul>
                     )}
@@ -108,7 +108,7 @@ export default function GoogleCalendarCard() {
                             <button
                                 onClick={disconnect}
                                 disabled={busy}
-                                className="flex items-center gap-2 px-3.5 py-2 rounded-md border border-border text-sm text-foreground hover:bg-muted disabled:opacity-50"
+                                className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-border text-sm text-foreground hover:bg-muted disabled:opacity-50"
                             >
                                 {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unplug className="w-4 h-4" />} Disconnect
                             </button>
@@ -116,7 +116,7 @@ export default function GoogleCalendarCard() {
                             <button
                                 onClick={connect}
                                 disabled={busy || status === null}
-                                className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-md font-medium text-sm disabled:opacity-60"
+                                className="flex items-center gap-2 px-4 py-2 btn-glow rounded-xl font-semibold text-sm disabled:opacity-60"
                             >
                                 {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarDays className="w-4 h-4" />}
                                 {busy ? 'Waiting for Google…' : 'Connect Google Calendar'}

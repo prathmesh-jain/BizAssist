@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import type { AnswerValue, OnboardingQuestion } from '../../types';
 
 const inputClass =
-    'w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary';
+    'w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/15 focus:border-primary';
 
 interface Props {
     question: OnboardingQuestion;
@@ -148,7 +148,7 @@ function Tags({ id, question, value, onChange, disabled }: Omit<Props, 'adornmen
         setDraft('');
     };
     return (
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-background px-2 py-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background px-2 py-2">
             {tags.map((t) => (
                 <span key={t} className="flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-sm text-foreground">
                     {t}

@@ -41,7 +41,7 @@ const InterruptBubble: React.FC<InterruptBubbleProps> = ({ chatId, interrupt }) 
     }[interruptType];
 
     return (
-        <div className="interrupt-bubble-enter mb-8 ml-11 max-w-xl rounded-lg border border-accent/40 bg-accent/[0.06] p-4 sm:p-5" role="group" aria-label={label}>
+        <div className="interrupt-bubble-enter beam-border mb-8 ml-11 max-w-xl rounded-2xl bg-card p-4 sm:p-5 shadow-[0_16px_50px_-24px_hsl(var(--glow-2)/0.6)]" role="group" aria-label={label}>
             <p className="eyebrow !text-accent">{label}</p>
             <h3 className="mt-1.5 text-[15px] font-medium leading-snug text-foreground">
                 {interrupt.question || 'Can I go ahead?'}
@@ -86,7 +86,7 @@ const InterruptBubble: React.FC<InterruptBubbleProps> = ({ chatId, interrupt }) 
                     <button
                         onClick={() => handleAction('accept')}
                         disabled={isLoading}
-                        className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                        className="btn-glow flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-50"
                     >
                         <Check className="w-4 h-4" />
                         {interruptType === 'yes_no_confirmation' ? 'Yes' : 'Go ahead'}
@@ -94,7 +94,7 @@ const InterruptBubble: React.FC<InterruptBubbleProps> = ({ chatId, interrupt }) 
                     <button
                         onClick={() => handleAction('reject')}
                         disabled={isLoading}
-                        className="flex items-center gap-1.5 rounded-md border border-border bg-card px-4 py-2 text-sm text-foreground hover:bg-muted disabled:opacity-50"
+                        className="flex items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 text-sm text-foreground hover:bg-muted disabled:opacity-50"
                     >
                         <X className="w-4 h-4" />
                         {interruptType === 'yes_no_confirmation' ? 'No' : 'Not now'}
