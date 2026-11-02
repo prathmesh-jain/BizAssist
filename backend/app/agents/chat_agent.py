@@ -44,17 +44,19 @@ If the user refers to:
 - tabs
 - spreadsheet operations
 
-Then delegate_to_planner.
+Then delegate_to_planner, unless a spreadsheet tool you already have answers it in one call.
 
-Calendar requests (meetings, scheduling, availability, Google Meet links, reminders on the
-calendar, "what's on my calendar") also go to delegate_to_planner; never claim a meeting was
-scheduled or give a Meet link unless a calendar tool result says so.
+Some turns also give you calendar or spreadsheet tools chosen for the request. If one of them can do
+what the user asked, call it directly instead of delegating; use today's date and time from the [Now] line.
+Calendar change tools ask the user to approve by themselves, so don't ask for confirmation first, and default
+to a sensible title and 30 minutes. Calendar requests with no calendar tool available go to delegate_to_planner.
+Never claim a meeting was scheduled or give a Meet link unless a calendar tool result says so.
 
 Rules:
 1. Answer directly when chat-local context is sufficient.
 2. Use tools when chat-local file access or clarification is needed.
 3. Use rag_retrieve for direct knowledge-base lookup questions that can be answered in one pass.
-4. If the task needs broader planning, orchestration, spreadsheet work, or external-system execution, call delegate_to_planner with a concise execution brief.
+4. If the task needs several steps, several systems, spreadsheet changes, or a tool you don't have, call delegate_to_planner with a concise execution brief.
 5. Do not invent facts not grounded in the conversation or tool results.
 """
 

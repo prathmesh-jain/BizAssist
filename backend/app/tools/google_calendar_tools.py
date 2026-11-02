@@ -168,7 +168,7 @@ def get_calendar_tools(*, user_id: str, organization_id: str):
             if conflicts:
                 question += f" It overlaps {len(conflicts)} existing event(s)."
             if not request_approval(question, details):
-                return {"ok": False, "cancelled": True, "message": "The user declined; nothing was created."}
+                return {"ok": False, "cancelled": True, "message": "The user declined, so nothing was created. Tell them it was cancelled; do not ask again or retry."}
             event = await calendar.create_event(draft)
             result: dict[str, Any] = {"ok": True, "created": True, "event": event}
             if draft.add_meet and not event.get("meet_link"):
@@ -233,7 +233,7 @@ def get_calendar_tools(*, user_id: str, organization_id: str):
             if not changes:
                 return {"ok": False, "error": "Nothing to change."}
             if not request_approval(f"Update “{current.get('summary')}”?", summary):
-                return {"ok": False, "cancelled": True, "message": "The user declined; the event is unchanged."}
+                return {"ok": False, "cancelled": True, "message": "The user declined, so the event is unchanged. Tell them it was cancelled; do not ask again or retry."}
             event = await calendar.update_event(event_id, changes)
             return {"ok": True, "updated": True, "event": event}
         try:
@@ -253,7 +253,7 @@ def get_calendar_tools(*, user_id: str, organization_id: str):
                 {"event": current.get("summary"), "when": start,
                  "attendees_notified": [a.get("email") for a in current.get("attendees") or []] or None},
             ):
-                return {"ok": False, "cancelled": True, "message": "The user declined; the event was kept."}
+                return {"ok": False, "cancelled": True, "message": "The user declined, so the event was kept. Tell them it was cancelled; do not ask again or retry."}
             await calendar.delete_event(event_id)
             return {"ok": True, "deleted": True}
         try:

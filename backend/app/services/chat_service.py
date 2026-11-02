@@ -3,6 +3,7 @@ import logging
 import asyncio
 import base64
 import re
+import time
 from datetime import datetime, timezone
 from typing import AsyncGenerator
 from langgraph.types import Command
@@ -14,6 +15,9 @@ from app.db.base import session_scope
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+# Strong references so background tasks aren't garbage-collected mid-run.
+_background_tasks: set[asyncio.Task] = set()
 
 
 async def _extract_image_sample(file_bytes: bytes, content_type: str, user_id: str, session: AsyncSession) -> str:
@@ -97,6 +101,36 @@ async def generate_chat_title(first_message: str, user_id: str, session: AsyncSe
     return (response.content.strip()[:60]) or "New Chat"
 
 
+def new_messages_since(before: list, after: list) -> list:
+    """Messages added during a run, by id. Position can't be used: chat removes its tool
+    exchange and the summarizer replaces old messages, so the list can shrink during a run."""
+    seen = {getattr(m, "id", None) for m in before}
+    return [m for m in after if getattr(m, "id", None) not in seen]
+
+
+async def _title_new_chat(first_message: str, chat_id: str, user_id: str, organization_id: str) -> str | None:
+    """Generate and save a chat title in its own session. A failure just keeps the default title."""
+    try:
+        async with session_scope() as session:
+            title = await generate_chat_title(first_message, user_id, session)
+            await ChatRepository.update_title(session, chat_id, organization_id, user_id, title)
+            return title
+    except Exception:
+        logger.warning("Chat title generation failed for chat %s", chat_id, exc_info=True)
+        return None
+
+
+async def _title_event(title_task: asyncio.Task | None, chat_id: str, *, timeout: float = 3.0) -> str | None:
+    """SSE event for the new title. Waits briefly; a slower title still saves and shows on reload."""
+    if title_task is None:
+        return None
+    done, _ = await asyncio.wait({title_task}, timeout=timeout)
+    title = title_task.result() if done else None
+    if not title:
+        return None
+    return f"data: {json.dumps({'type': 'title_update', 'chat_id': chat_id, 'title': title})}\n\n"
+
+
 async def stream_agent_response(
     user_message: str | None,
     chat_id: str,
@@ -134,8 +168,11 @@ async def _stream_agent_response(
     graph = get_compiled_graph()
 
     from app.services.business_profile_service import business_context_text
+    from app.services.google_calendar_service import connection_status
 
     business_context = await business_context_text(session, organization_id)
+    calendar_status = await connection_status(session, user_id=user_id, organization_id=organization_id)
+    user_timezone = calendar_status.get("timezone") or ""
 
     combined_user = (user_message or "").strip()
     if user_message_context:
@@ -149,10 +186,14 @@ async def _stream_agent_response(
         "organization_id": organization_id,
         "role": role,
         "business_context": business_context,
+        "user_timezone": user_timezone,
     }
 
     full_response = ""
     yielded_any = False
+    started_at = last_step_at = time.monotonic()
+    step_timings: list[str] = []
+    first_token_ms: int | None = None
 
     # Organization-aware thread ID
     thread_id = f"{organization_id}_{chat_id}"
@@ -160,11 +201,19 @@ async def _stream_agent_response(
 
     # Get current state before run to calculate new messages later
     pre_run_state = await graph.aget_state(config)
-    pre_run_msgs_count = len(pre_run_state.values.get("messages") or [])
+    pre_run_messages = pre_run_state.values.get("messages") or []
+    pre_run_msgs_count = len(pre_run_messages)
+
+    # Name a new chat alongside the run so the answer never waits for it.
+    title_task: asyncio.Task | None = None
+    if user_message and not is_resume and pre_run_msgs_count == 0:
+        title_task = asyncio.create_task(_title_new_chat(user_message, chat_id, user_id, organization_id))
+        _background_tasks.add(title_task)
+        title_task.add_done_callback(_background_tasks.discard)
 
     # Use Command(resume=...) if resuming, otherwise use initial_state
     # On resume, refresh the role too so a demotion during a pending interrupt takes effect.
-    input_data = initial_state if not is_resume else Command(resume=resume_value, update={"role": role, "business_context": business_context})
+    input_data = initial_state if not is_resume else Command(resume=resume_value, update={"role": role, "business_context": business_context, "user_timezone": user_timezone})
 
     max_attempts = 1 if is_resume else max(int(getattr(settings, "agent_run_retries", 2) or 2), 1)
 
@@ -183,6 +232,9 @@ async def _stream_agent_response(
 
                 if chunk_type == "updates":
                     for node_name, node_output in data.items():
+                        now = time.monotonic()
+                        step_timings.append(f"{node_name}={int((now - last_step_at) * 1000)}ms")
+                        last_step_at = now
                         # Detect Interrupts
                         if node_name == "__interrupt__":
                             if node_output:
@@ -213,6 +265,9 @@ async def _stream_agent_response(
                                     logger.exception("Failed to persist interrupt")
 
                                 yield f"data: {json.dumps({'type': 'interrupt', 'interrupt_id': interrupt_obj.id, 'content': interrupt_payload})}\n\n"
+                                title_event = await _title_event(title_task, chat_id)
+                                if title_event:
+                                    yield title_event
                                 return
 
                         # Capture Tool Calls & Citations
@@ -241,6 +296,8 @@ async def _stream_agent_response(
                     if metadata.get("langgraph_node") in ("chat", "unsafe"):
                         token = msg.content
                         if token:
+                            if first_token_ms is None:
+                                first_token_ms = int((time.monotonic() - started_at) * 1000)
                             yielded_any = True
                             full_response += token
                             yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
@@ -277,10 +334,15 @@ async def _stream_agent_response(
                 yield f"data: {json.dumps({'type': 'error', 'content': err_msg})}\n\n"
             break
 
+    logger.info(
+        "agent.run.timing chat_id=%s total=%sms first_token=%sms steps=%s",
+        chat_id, int((time.monotonic() - started_at) * 1000), first_token_ms, " ".join(step_timings),
+    )
+
     # ── 5. Persist assistant message(s) ─────────────────────────────────────
     final_state = await graph.aget_state(config)
     all_msgs = final_state.values.get("messages") or []
-    new_msgs = all_msgs[pre_run_msgs_count:]
+    new_msgs = new_messages_since(pre_run_messages, all_msgs)
 
     if new_msgs:
         for m in new_msgs:
@@ -288,7 +350,7 @@ async def _stream_agent_response(
             # Compare by content, since the checkpointed copy has a LangGraph-assigned id.
             if not is_resume and m.type == "human" and m.content == combined_user:
                 continue
-            if m.type == "tool":
+            if m.type in ("tool", "system"):  # tool output and summary blocks aren't chat history
                 continue
             if m.type == "ai" and bool(getattr(m, "tool_calls", None)):
                 continue
@@ -310,17 +372,8 @@ async def _stream_agent_response(
                 tool_calls=m_tool_calls,
             )
 
-        # Count user messages and update title if first message
-        messages = await MessageRepository.list_by_chat(session, chat_id, limit=1000)
-        user_msg_count = sum(1 for m in messages if m.role == "user")
-        if user_msg_count == 1 and user_message:
-            try:
-                title = await generate_chat_title(user_message, user_id, session)
-            except Exception:
-                # A missing title must not break the stream; the chat keeps its default title.
-                logger.warning("Chat title generation failed for chat %s", chat_id, exc_info=True)
-            else:
-                await ChatRepository.update_title(session, chat_id, organization_id, user_id, title)
-                yield f"data: {json.dumps({'type': 'title_update', 'chat_id': chat_id, 'title': title})}\n\n"
+    title_event = await _title_event(title_task, chat_id)
+    if title_event:
+        yield title_event
 
     yield f"data: {json.dumps({'type': 'done'})}\n\n"

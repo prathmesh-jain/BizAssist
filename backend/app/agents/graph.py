@@ -13,7 +13,7 @@ from app.agents.guardrail import guardrail_node, unsafe_node
 from app.agents.memory import summarization_node
 from app.agents.planner_agent import planner_node
 from app.agents.state import AgentState
-from app.agents.tooling import common_tool_node, last_message_has_tool_calls
+from app.agents.tooling import common_tool_node, last_message_has_tool_calls, select_chat_tool_ids
 from app.config import get_settings
 
 settings = get_settings()
@@ -64,7 +64,11 @@ async def close_checkpointer() -> None:
 def route_from_guardrail(state: AgentState) -> str:
     if not state.get("is_safe", True):
         return "unsafe"
-    return "chat"
+    return "select_tools"
+
+
+def select_tools_node(state: AgentState) -> dict:
+    return {"chat_tool_ids": select_chat_tool_ids(state)}
 
 
 def route_from_chat(state: AgentState) -> str:
@@ -99,6 +103,7 @@ def get_compiled_graph():
     graph.add_node("summarize", summarization_node)
     graph.add_node("guardrail", guardrail_node)
     graph.add_node("unsafe", unsafe_node)
+    graph.add_node("select_tools", select_tools_node)
     graph.add_node("chat", chat_node)
     graph.add_node("planner", planner_node)
     graph.add_node("executor", executor_node)
@@ -112,11 +117,12 @@ def get_compiled_graph():
         route_from_guardrail,
         {
             "unsafe": "unsafe",
-            "chat": "chat",
+            "select_tools": "select_tools",
         },
     )
 
     graph.add_edge("unsafe", END)
+    graph.add_edge("select_tools", "chat")
 
     graph.add_conditional_edges(
         "chat",

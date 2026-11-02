@@ -350,7 +350,42 @@ def get_registry_control_tools(state: AgentState) -> list:
     return [search_available_tools]
 
 
+# Tools chat may use directly for single-step requests. Calendar changes pause for approval
+# inside the tool. Spreadsheet writes stay with the planner: they need headers and ranges first.
+CHAT_FAST_TOOL_IDS = (
+    "calendar_list_events", "calendar_find_free_slots", "calendar_create_event", "calendar_update_event",
+    "calendar_delete_event", "sheets_list_tabs", "sheets_read_range", "sheets_get_headers", "sheets_get_metadata",
+)
+CHAT_TOOL_LIMIT = 4
+CHAT_TOOL_MIN_SCORE = 4.0  # at least one tag or tool-name match; a chance word isn't enough
+
+
+def select_chat_tool_ids(state: AgentState) -> list[str]:
+    """Pick tools for this turn from the user's message, before chat's first model call.
+
+    Keyword-only on purpose: it costs no network time, and no match simply leaves chat with
+    delegate_to_planner, whose executor still has semantic search. A message that matches
+    nothing falls back to the previous one, so "and on Friday?" keeps its context.
+    """
+    from app.agents.tool_registry import get_tool_registry
+
+    candidates = list(CHAT_FAST_TOOL_IDS)
+    if not state.get("user_timezone"):
+        candidates.append("calendar_now")  # otherwise local time is already in the prompt
+
+    registry = get_tool_registry()
+    human_messages = [
+        str(getattr(m, "content", "") or "") for m in state.get("messages") or [] if getattr(m, "type", "") == "human"
+    ]
+    for text in reversed(human_messages[-2:]):
+        selected = registry.keyword_search(text, tool_ids=candidates, limit=CHAT_TOOL_LIMIT, min_score=CHAT_TOOL_MIN_SCORE)
+        if selected:
+            return selected
+    return []
+
+
 def get_chat_local_tools(state: AgentState) -> list:
+    from app.agents.tool_registry import get_tool_registry
     from app.tools.chat_attachments_tools import get_chat_attachment_read_tools
 
     user_id, chat_id = _state_ids(state)
@@ -359,6 +394,7 @@ def get_chat_local_tools(state: AgentState) -> list:
     tools.extend(get_rag_tools(state))
     tools.extend(get_document_listing_tools(state))
     tools.extend(get_chat_attachment_read_tools(user_id=user_id, chat_id=chat_id))
+    tools.extend(get_tool_registry().load(state.get("chat_tool_ids") or [], state))
     return tools
 
 
@@ -447,7 +483,8 @@ async def common_tool_node(state: AgentState) -> dict:
     node = ToolNode(tools)
     result = await node.ainvoke(state)
 
-    active_tool_ids = list(state.get("active_tool_ids") or await select_initial_tool_ids(state))
+    # The executor stores its selection, so nothing here needs to search again.
+    active_tool_ids = list(state.get("active_tool_ids") or [])
     tool_calls_made = list(state.get("tool_calls_made") or [])
     result.setdefault("active_agent", active_agent)
 

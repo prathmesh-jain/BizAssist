@@ -1,4 +1,5 @@
 import logging
+import re
 from sqlalchemy.ext.asyncio import AsyncSession
 from langchain_openai import ChatOpenAI
 from app.config import get_settings
@@ -10,6 +11,10 @@ from app.services.user_settings_service import (
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+# gpt-5, gpt-5-mini, gpt-5-nano (with optional date). Later 5.x models name their efforts differently.
+_GPT5_MINIMAL_EFFORT = re.compile(r"^gpt-5(-mini|-nano)?(-\d{4}-\d{2}-\d{2})?$")
+
 
 async def get_llm(
     model_name: str = None,
@@ -52,6 +57,10 @@ async def get_llm(
         api_key = settings.openai_api_key
         if model_name is None:
             model_name = settings.primary_model
+
+    # GPT-5 models reason by default, which took a planner call to 12s+. Routing-style work doesn't need it.
+    if purpose in ("fast", "nano") and _GPT5_MINIMAL_EFFORT.match(model_name or ""):
+        kwargs.setdefault("reasoning_effort", "minimal")
 
     logger.info(f"Initializing LLM: {model_name} (temp={temperature}, streaming={streaming}, retries={max_retries})")
 

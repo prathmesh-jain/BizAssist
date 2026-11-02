@@ -16,6 +16,10 @@ class AgentState(TypedDict, total=False):
     organization_id: str  # Added for multi-tenancy
     role: str  # caller's organization role; tools enforce app.authz rules with it
     business_context: str  # confirmed business profile summary, refreshed every turn
+    user_timezone: str  # IANA zone from the user's connected calendar, when known
+
+    # Tools chat may call directly this turn, chosen from the user's message
+    chat_tool_ids: list[str]
 
     # Observability
     tool_calls_made: list[str]

@@ -45,6 +45,20 @@ def _tokenize(value: str) -> list[str]:
     return [token for token in cleaned.split() if token]
 
 
+# Words that say nothing about which tool is needed.
+_STOPWORDS = frozenset(
+    "a about all am an and any are at be can could do does for from get give have how i in is it let me my "
+    "need of on or our please show tell that the this to us want was we were what when where which who will "
+    "with would you your".split()
+)
+
+
+def _meaningful_tokens(value: str) -> set[str]:
+    tokens = {token for token in _tokenize(value) if token not in _STOPWORDS}
+    # Simple plural handling so "meetings" also matches "meeting".
+    return tokens | {token[:-1] for token in tokens if len(token) > 3 and token.endswith("s")}
+
+
 class MetadataToolSearchBackend:
     """Lexical fallback search over tool metadata."""
 
@@ -177,6 +191,18 @@ class ToolRegistry:
     def register(self, metadata: ToolMetadata, loader: ToolLoader) -> None:
         self._metadata[metadata.id] = metadata
         self._loaders[metadata.id] = loader
+
+    def keyword_search(self, query: str, *, tool_ids: Iterable[str], limit: int, min_score: float) -> list[str]:
+        """Instant, local ranking of the given tools for a query. No network calls."""
+        tokens = _meaningful_tokens(query)
+        scorer = MetadataToolSearchBackend()
+        scored = [
+            (scorer._score(self._metadata[tool_id], tokens), tool_id)
+            for tool_id in tool_ids
+            if tool_id in self._metadata
+        ]
+        ranked = sorted((item for item in scored if item[0] >= min_score), key=lambda item: (-item[0], item[1]))
+        return [tool_id for _, tool_id in ranked[:limit]]
 
     async def search(
         self,
@@ -467,8 +493,9 @@ def get_tool_registry() -> ToolRegistry:
                 name="calendar_list_events",
                 description="List the user's Google Calendar events and meetings in a date range.",
                 integration="google_calendar",
-                tags=("calendar", "meetings", "events", "schedule", "agenda", "list"),
-                examples=("what meetings do I have tomorrow", "show my schedule this week"),
+                tags=("calendar", "meetings", "meeting", "events", "event", "schedule", "agenda", "list", "planned",
+                      "plans", "weekend", "today", "tomorrow", "week", "busy", "appointment", "appointments"),
+                examples=("what meetings do I have tomorrow", "show my schedule this week", "what do I have planned this weekend"),
             ),
             ToolMetadata(
                 id="calendar_find_free_slots",
@@ -483,8 +510,10 @@ def get_tool_registry() -> ToolRegistry:
                 name="calendar_create_event",
                 description="Create a calendar event, meeting, reminder or Google Meet call (asks the user to approve first).",
                 integration="google_calendar",
-                tags=("calendar", "schedule", "meeting", "google_meet", "invite", "reminder", "create", "recurring"),
-                examples=("schedule a meeting with Rahul tomorrow at 3 PM", "remind me two days before the contract expires"),
+                tags=("calendar", "schedule", "meeting", "google_meet", "invite", "reminder", "remind", "create",
+                      "recurring", "book", "call", "arrange"),
+                examples=("schedule a meeting with Rahul tomorrow at 3 PM", "remind me two days before the contract expires",
+                          "book a call with Priya next Monday"),
             ),
             ToolMetadata(
                 id="calendar_update_event",
