@@ -86,6 +86,10 @@ async def test_research_requires_name_and_api_key_and_runs_one_at_a_time(make_us
     resp = await owner.post("/api/business-profile/research")
     assert resp.status_code == 400 and "business name" in resp.json()["detail"]
 
+    await owner.put("/api/business-profile/answers", json={"answers": {"name": "Sharma Grocers"}})
+    resp = await owner.post("/api/business-profile/research")
+    assert resp.status_code == 400 and "city and country" in resp.json()["detail"]
+
     await owner.put("/api/business-profile/answers", json={"answers": ANSWERS})
     resp = await owner.post("/api/business-profile/research")
     assert resp.status_code == 400 and "OpenAI API key" in resp.json()["detail"]

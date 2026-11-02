@@ -154,6 +154,8 @@ async def start_research(session: AsyncSession, actor: CurrentUserContext) -> Bu
     answers = answers_of(profile)
     if not answers.get("name"):
         raise BusinessProfileError("Save at least the business name before starting research.")
+    if not answers.get("location"):
+        raise BusinessProfileError("Add your city and country first; research uses them to find local competitors.")
     try:
         # BYOK: research runs on the requesting user's OpenAI key.
         await require_user_openai_api_key(actor.user.id, session)

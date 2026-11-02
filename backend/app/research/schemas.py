@@ -38,11 +38,6 @@ class PublicFact(BaseModel):
     sources: list[str] = Field(default_factory=list)
 
 
-class WebsitePick(BaseModel):
-    url: Optional[str] = Field(description="The business's own official website from the results, or null if none is clearly it.")
-    reason: str = ""
-
-
 class ProfileProposal(BaseModel):
     description: SourcedValue = Field(description="Two or three sentences on what the business does.")
     industry: SourcedValue = Field(description=f"One of: {', '.join(INDUSTRIES)}.")

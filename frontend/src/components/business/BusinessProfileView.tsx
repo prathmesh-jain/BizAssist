@@ -10,7 +10,7 @@ import { BasisBadge, SourceLinks } from './Provenance';
 import { hostOf } from '../../lib/url';
 import type { AnswerValue, OnboardingQuestion } from '../../types';
 
-const SUMMARY_FIELDS = ['location', 'industry', 'business_model', 'scale', 'geography'];
+const SUMMARY_FIELDS = ['address', 'location', 'industry', 'business_model', 'scale', 'geography'];
 const LIST_FIELDS: [string, string][] = [
     ['products_services', 'Products and services'],
     ['customer_segments', 'Customers'],

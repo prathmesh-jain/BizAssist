@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from app.research.schemas import (
     BUSINESS_MODELS, GEOGRAPHIES, INDUSTRIES, SCALES,
-    CompetitorAnalysis, OpportunityAnalysis, ProfileProposal, SearchPlan, SourcedList, SourcedValue, WebsitePick,
+    CompetitorAnalysis, OpportunityAnalysis, ProfileProposal, SearchPlan, SourcedList, SourcedValue,
 )
 from app.research.search import SearchError, SearchProvider, SearchResult
 from app.research.website import WebPage, WebsiteFetchError
@@ -84,25 +84,13 @@ class ResearchWorkflow:
         if not name:
             raise ValueError("A business name is required to run research.")
         location = (onboarding.get("location") or "").strip()
+        address = (onboarding.get("address") or "").strip()
         country = _country_code(onboarding.get("country"))
         user_json = json.dumps(_compact(onboarding), ensure_ascii=False, indent=1)
 
-        # 1. Official website
+        # 1. Website analysis: only a site the user gave us. A blank website means none is known;
+        # guessing one from search results risks treating someone else's page as theirs.
         website = (onboarding.get("website") or "").strip() or None
-        if not website:
-            await self._step("Looking for the official website")
-            results = await self._safe_search(f"{name} {location} official website".strip(), country)
-            if results:
-                pick = await self._structured(
-                    WebsitePick,
-                    "Pick the business's own official website from search results. Return null unless one result is "
-                    "clearly the official site of this exact business (not a directory, marketplace listing, or namesake).",
-                    f"Business: {name}\nLocation: {location or 'unknown'}\n\nResults:\n{_format_results(results)}",
-                )
-                if pick.url and pick.url in {r.url for r in results}:
-                    website = pick.url
-
-        # 2. Website analysis
         pages: list[WebPage] = []
         if website:
             await self._step(f"Reading {urlparse(website if '://' in website else 'https://' + website).hostname}")
@@ -113,11 +101,11 @@ class ResearchWorkflow:
             except WebsiteFetchError as exc:
                 self._warnings.append(f"Could not read the website: {exc}")
 
-        # 3. Public information
+        # 2. Public information
         await self._step("Searching for public information about the business")
         mentions = await self._safe_search(f'"{name}" {location}'.strip(), country)
 
-        # 4. Classification
+        # 3. Classification
         await self._step("Classifying the business")
         proposal = await self._structured(
             ProfileProposal,
@@ -126,9 +114,9 @@ class ResearchWorkflow:
             f"Website pages:\n{_format_pages(pages) or '(none)'}\n\n"
             f"Search results:\n{_format_results(mentions) or '(none)'}",
         )
-        profile = self._merge_profile(proposal, onboarding, website)
+        profile = self._merge_profile(proposal, onboarding)
 
-        # 5. Scale-aware competitors
+        # 4. Scale-aware competitors
         await self._step("Finding comparable competitors")
         summary = _profile_summary(profile)
         plan = await self._structured(
@@ -140,7 +128,14 @@ class ResearchWorkflow:
         )
         competitor_results: list[SearchResult] = []
         own_host = _host(profile["website"]["value"])
-        for query in plan.queries[:4]:
+        queries = _competitor_queries(
+            plan.queries,
+            sector=profile["subdomain"]["value"] or profile["industry"]["value"],
+            address=address,
+            location=profile["location"]["value"] or location,
+            geography=profile["geography"]["value"],
+        )
+        for query in queries:
             for r in await self._safe_search(query, country):
                 if _host(r.url) != own_host and r.url not in {c.url for c in competitor_results}:
                     competitor_results.append(r)
@@ -150,13 +145,14 @@ class ResearchWorkflow:
                 CompetitorAnalysis,
                 "Identify the business's competitors from the search results.\n"
                 "- Prefer direct competitors of similar scale in the same geography and customer segment.\n"
+                "- For a local or regional business, a competitor must operate in or serve the same area.\n"
                 "- A much larger company may appear only as 'indirect' with relative_scale 'much_larger', and only "
                 "when customers genuinely choose between them.\n"
                 "- Exclude the business itself, directories, review aggregators and news sites.\n" + EVIDENCE_RULES,
                 f"The business:\n{summary}\n\nSearch results:\n{_format_results(competitor_results)}",
             )
 
-        # 6. Trends and opportunities
+        # 5. Trends and opportunities
         await self._step("Looking at industry trends and improvement opportunities")
         sector = profile["subdomain"]["value"] or profile["industry"]["value"] or "small business"
         region = location or "global"
@@ -182,7 +178,7 @@ class ResearchWorkflow:
             "competitors": [
                 {**c.model_dump(), "sources": _valid(c.sources, known)}
                 for c in competitors.competitors
-                if _host(c.website) != own_host and c.name.strip().lower() != name.lower()
+                if not (own_host and _host(c.website) == own_host) and c.name.strip().lower() != name.lower()
             ][:MAX_COMPETITORS],
             "industry_trends": [
                 {"summary": t.summary, "sources": _valid(t.sources, known)}
@@ -201,7 +197,7 @@ class ResearchWorkflow:
             "search_provider": getattr(self._search, "name", "unknown"),
         }
 
-    def _merge_profile(self, proposal: ProfileProposal, onboarding: dict, website: str | None) -> dict:
+    def _merge_profile(self, proposal: ProfileProposal, onboarding: dict) -> dict:
         known = set(self._sources)
         profile: dict[str, dict] = {}
 
@@ -238,12 +234,37 @@ class ResearchWorkflow:
         user_site = (onboarding.get("website") or "").strip()
         if user_site:
             profile["website"] = {"value": user_site, "basis": "user_provided", "sources": [], "note": ""}
-        elif website:
-            profile["website"] = {"value": website, "basis": "verified", "sources": [website], "note": "Found by search."}
         else:
             profile["website"] = {"value": None, "basis": "unknown", "sources": [], "note": ""}
         profile["name"] = {"value": onboarding.get("name"), "basis": "user_provided", "sources": [], "note": ""}
+        if (onboarding.get("address") or "").strip():
+            profile["address"] = {"value": onboarding["address"], "basis": "user_provided", "sources": [], "note": ""}
         return profile
+
+
+def _competitor_queries(
+    planned: list[str],
+    *,
+    sector: str | None,
+    address: str,
+    location: str | None,
+    geography: str | None,
+    limit: int = 4,
+) -> list[str]:
+    """Competitor searches, guaranteed local unless the business's market is wider than its area.
+
+    The model's queries can drop the place name, and an unplaced query finds national
+    giants, so the location is enforced here rather than left to the prompt.
+    """
+    queries = [q.strip() for q in planned if q.strip()]
+    if location and geography not in ("national", "international"):
+        places = [part.strip().lower() for part in location.split(",") if part.strip()]
+        queries = [q if any(place in q.lower() for place in places) else f"{q} {location}" for q in queries]
+        if sector:
+            sector = sector.replace("_", " ")
+            local = ([f"{sector} near {address}, {location}"] if address else []) + [f"{sector} in {location}"]
+            queries = local + queries
+    return list(dict.fromkeys(queries))[:limit]
 
 
 def _opportunity_basis(basis: str, cited: list[str], known: set[str]) -> str:
@@ -290,7 +311,7 @@ def _format_pages(pages: list[WebPage]) -> str:
 
 def _profile_summary(profile: dict) -> str:
     lines = []
-    for key in ("name", "website", "location", "industry", "subdomain", "business_model", "scale", "geography",
+    for key in ("name", "website", "address", "location", "industry", "subdomain", "business_model", "scale", "geography",
                 "products_services", "customer_segments", "description"):
         value = profile.get(key, {}).get("value")
         if value not in (None, "", []):

@@ -3,13 +3,13 @@ import pytest
 
 from app.research.schemas import (
     Competitor, CompetitorAnalysis, Opportunity, OpportunityAnalysis, ProfileProposal, PublicFact,
-    SearchPlan, SourcedList, SourcedValue, Trend, WebsitePick,
+    SearchPlan, SourcedList, SourcedValue, Trend,
 )
 from app.research.search import SearchError, SearchResult
 from app.research.website import (
     WebPage, WebsiteFetchError, _ensure_public_host, extract_page, normalize_url, pick_interesting_links,
 )
-from app.research.workflow import ResearchWorkflow
+from app.research.workflow import ResearchWorkflow, _competitor_queries
 
 pytestmark = pytest.mark.no_db
 
@@ -31,9 +31,6 @@ class FakeSearch:
         self.queries.append(query)
         if self.fail_on and self.fail_on in query:
             raise SearchError("quota exceeded")
-        if "official website" in query:
-            return [SearchResult("Sharma Grocers - Home", SHOP, "Fresh groceries in Andheri"),
-                    SearchResult("Sharma Grocers on Justdial", "https://justdial.example/sharma", "Listing")]
         if "trends" in query:
             return [SearchResult("Grocery trends 2026", TREND, "Quick commerce growth in metros")]
         if query.startswith('"Sharma Grocers"'):
@@ -75,7 +72,6 @@ def proposal(**overrides) -> ProfileProposal:
 
 def responses(**overrides):
     data = {
-        WebsitePick: WebsitePick(url=SHOP, reason="official"),
         ProfileProposal: proposal(),
         SearchPlan: SearchPlan(queries=["kirana store Andheri West", "grocery delivery Andheri"]),
         CompetitorAnalysis: CompetitorAnalysis(competitors=[
@@ -115,13 +111,12 @@ async def test_workflow_produces_sourced_proposal_and_enforces_provenance():
     workflow = ResearchWorkflow(
         structured=fake_structured(responses()), search=search, analyze_website=site_reader, progress=on_progress,
     )
-    result = await workflow.run({"name": "Sharma Grocers", "location": "Andheri, Mumbai", "country": "IN",
+    result = await workflow.run({"name": "Sharma Grocers", "website": SHOP, "location": "Andheri, Mumbai", "country": "IN",
                                  "industry": "retail", "goals": ["improve_retention"]})
     profile = result["profile"]
 
-    # Website discovered by search and read.
-    assert profile["website"] == {"value": SHOP, "basis": "verified", "sources": [SHOP], "note": "Found by search."}
-    assert progress[:2] == ["Looking for the official website", "Reading sharmagrocers.example"]
+    assert profile["website"]["basis"] == "user_provided"
+    assert progress[0] == "Reading sharmagrocers.example"
 
     # User answers win; differing research is kept as a suggestion.
     assert profile["location"]["value"] == "Andheri, Mumbai" and profile["location"]["basis"] == "user_provided"
@@ -152,7 +147,7 @@ async def test_workflow_produces_sourced_proposal_and_enforces_provenance():
     assert any("Andheri" in q for q in search.queries[3:])  # competitor queries are local
 
 
-async def test_website_pick_must_come_from_results_and_failures_become_warnings():
+async def test_failures_become_warnings():
     async def broken_reader(url):
         raise WebsiteFetchError("timeout")
 
@@ -166,13 +161,38 @@ async def test_website_pick_must_come_from_results_and_failures_become_warnings(
     assert any("Could not read the website" in w for w in result["warnings"])
     assert any("quota exceeded" in w for w in result["warnings"])
 
-    hallucinated = ResearchWorkflow(
-        structured=fake_structured({**responses(), WebsitePick: WebsitePick(url="https://hallucinated.example", reason="x")}),
-        search=FakeSearch(),
-        analyze_website=site_reader,
+
+async def test_no_website_means_no_website_search_and_competitors_without_sites_stay():
+    reads = []
+
+    async def reader(url):
+        reads.append(url)
+        return []
+
+    search = FakeSearch()
+    rival = Competitor(name="Corner Kirana", competition="direct", relative_scale="similar", rationale="Next door")
+    workflow = ResearchWorkflow(
+        structured=fake_structured({**responses(), CompetitorAnalysis: CompetitorAnalysis(competitors=[rival])}),
+        search=search,
+        analyze_website=reader,
     )
-    result = await hallucinated.run({"name": "Sharma Grocers"})
-    assert result["profile"]["website"]["value"] is None
+    result = await workflow.run({"name": "Sharma Grocers", "location": "Mumbai, India", "address": "S.V. Road, Andheri West"})
+    assert reads == []
+    assert not any("website" in q for q in search.queries)
+    assert result["profile"]["website"] == {"value": None, "basis": "unknown", "sources": [], "note": ""}
+    assert result["profile"]["address"]["value"] == "S.V. Road, Andheri West"
+    assert [c["name"] for c in result["competitors"]] == ["Corner Kirana"]
+    assert "grocery near S.V. Road, Andheri West, Mumbai, India" in search.queries
+
+
+def test_competitor_queries_are_forced_local_unless_the_market_is_wider():
+    args = dict(sector="food_beverage", address="S.V. Road", location="Mumbai, India", geography="local")
+    assert _competitor_queries(["best cafes", "cafes in Mumbai", "tea shops"], **args) == [
+        "food beverage near S.V. Road, Mumbai, India", "food beverage in Mumbai, India",
+        "best cafes Mumbai, India", "cafes in Mumbai",
+    ]
+    assert _competitor_queries(["saas crm vendors"], **{**args, "geography": "international"}) == ["saas crm vendors"]
+    assert _competitor_queries(["cafes"], sector=None, address="", location=None, geography=None) == ["cafes"]
 
 
 async def test_workflow_requires_a_name():

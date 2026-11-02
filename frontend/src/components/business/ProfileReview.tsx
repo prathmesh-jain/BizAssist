@@ -9,7 +9,7 @@ import type {
 import type { Included, ReviewDraft } from './reviewDraft';
 
 const PROFILE_FIELDS = [
-    'name', 'website', 'location', 'industry', 'subdomain', 'business_model', 'scale', 'geography',
+    'name', 'website', 'address', 'location', 'industry', 'subdomain', 'business_model', 'scale', 'geography',
     'description', 'products_services', 'customer_segments',
 ];
 const PREFERENCE_FIELDS = ['goals', 'challenges', 'monitoring_preferences'];
