@@ -1,5 +1,6 @@
 import React from 'react';
 import { LogoMark } from '../components/ui/Logo';
+import { usePageMeta } from '../lib/seo';
 
 /**
  * OAuthCallback — minimal page rendered inside the OAuth popup window.
@@ -13,6 +14,7 @@ import { LogoMark } from '../components/ui/Logo';
  * It must NOT render the full Dashboard (that's what was happening before).
  */
 export default function OAuthCallback() {
+    usePageMeta({ title: 'Connecting Google', noindex: true });
     React.useEffect(() => {
         const run = async () => {
             const params = new URLSearchParams(window.location.search);

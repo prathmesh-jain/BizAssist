@@ -5,8 +5,10 @@ import { useAuth } from '../context/AuthContext';
 import { postLoginPath } from '../lib/session';
 import AuthLayout, { Field, FormError, GoogleButton, OrDivider } from '../components/auth/AuthLayout';
 import { friendlyAuthError } from '../lib/authErrors';
+import { usePageMeta } from '../lib/seo';
 
 export default function Signup() {
+    usePageMeta({ title: 'Create your workspace', description: 'Create a BizAssist workspace in minutes. Connect your documents, Google Sheets and Calendar, then just ask.', path: '/signup' });
     const navigate = useNavigate();
     const { signUpWithEmail, signInWithGoogle } = useAuth();
     const [email, setEmail] = React.useState('');

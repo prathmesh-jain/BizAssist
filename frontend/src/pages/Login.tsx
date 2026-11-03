@@ -5,8 +5,10 @@ import { useAuth } from '../context/AuthContext';
 import { postLoginPath } from '../lib/session';
 import AuthLayout, { Field, FormError, GoogleButton, OrDivider } from '../components/auth/AuthLayout';
 import { friendlyAuthError } from '../lib/authErrors';
+import { usePageMeta } from '../lib/seo';
 
 export default function Login() {
+    usePageMeta({ title: 'Sign in', description: 'Sign in to BizAssist, the AI assistant that knows your business.', path: '/login' });
     const navigate = useNavigate();
     const { signInWithEmail, signInWithGoogle } = useAuth();
     const [email, setEmail] = React.useState('');

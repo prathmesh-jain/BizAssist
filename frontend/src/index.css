@@ -48,25 +48,25 @@
     --popover: 0 0% 100%;
     --popover-foreground: 215 28% 14%;
 
-    --primary: 150 62% 38%;           /* fresh green #25A060 */
+    --primary: 150 62% 31%;           /* green #1E804F (white text passes WCAG AA) */
     --primary-foreground: 0 0% 100%;
     --secondary: 210 25% 96%;
     --secondary-foreground: 215 28% 16%;
     --muted: 210 25% 96%;
-    --muted-foreground: 215 12% 46%;
-    --accent: 150 62% 38%;
+    --muted-foreground: 215 12% 42%;
+    --accent: 150 62% 31%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 72% 54%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 150 62% 36%;
+    --success: 150 62% 29%;
     --warning: 34 92% 46%;
     --highlight: 145 60% 95%;         /* mint wash for selected items and badges */
     --sidebar: 0 0% 100%;
 
     --border: 214 24% 91%;
     --input: 214 20% 86%;
-    --ring: 150 62% 38%;
+    --ring: 150 62% 31%;
 
     --shadow-color: 215 40% 30%;
     --wash-1: 150 70% 90%;
@@ -74,7 +74,7 @@
     --wash-strength: 1;
 
     /* Pastel chips (background / foreground). */
-    --tint-green: 145 60% 94%;  --tint-green-fg: 150 62% 32%;
+    --tint-green: 145 60% 94%;  --tint-green-fg: 150 62% 28%;
     --tint-blue: 212 90% 95%;   --tint-blue-fg: 214 75% 48%;
     --tint-violet: 262 85% 96%; --tint-violet-fg: 262 55% 52%;
     --tint-amber: 38 95% 93%;   --tint-amber-fg: 30 85% 42%;
@@ -446,7 +446,7 @@
     animation: pulseRing 2.4s ease-out infinite;
   }
 
-  .reveal {
+  .js .reveal {
     opacity: 0;
     transform: translateY(12px);
     transition:
@@ -454,7 +454,7 @@
       transform 600ms var(--ease-out-soft);
     transition-delay: var(--reveal-delay, 0ms);
   }
-  .reveal.is-visible { opacity: 1; transform: none; }
+  .js .reveal.is-visible { opacity: 1; transform: none; }
 
   .word-swap-enter { animation: wordIn 420ms var(--ease-out-soft) both; }
 }

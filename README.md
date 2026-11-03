@@ -241,6 +241,34 @@ micro-interactions.
 - **Shared pieces** in `src/components/ui/`: `Logo`/`LogoMark`, `PageHeader`, `StatusChip`, `GoogleIcon`.
 - **Markdown** in assistant replies is styled by the `.md` class.
 
+### SEO and social sharing
+
+The production site is **https://bizassist.prathmeshjain.in**. That URL is hard-coded in `frontend/index.html`,
+`frontend/src/lib/seo.ts`, `frontend/scripts/prerender.mjs`, and `public/robots.txt`, `sitemap.xml`, and the
+legal pages, so update all of them if the domain changes.
+
+- **Prerendered landing page**: `npm run build` also runs an SSR build (`vite.prerender.config.ts`, with a
+  signed-out auth stub so no Firebase runs at build time) and `scripts/prerender.mjs`, which writes the landing
+  page's real HTML into `dist/index.html`. Crawlers and link previews see the full content without JavaScript;
+  in the browser React mounts over it as usual.
+- **Per-route shells**: the same script writes `dist/login.html` and `dist/signup.html` with their own titles,
+  descriptions, and canonical URLs, plus `dist/app.html` (`noindex`) for the app. `frontend/vercel.json` rewrites
+  `/login`, `/signup`, and all other paths to these files, and adds `X-Robots-Tag: noindex` on `/app`, `/invite`,
+  and `/oauth-callback`. At runtime, `usePageMeta()` (`src/lib/seo.ts`) keeps the title, description, canonical
+  URL, and robots tag in sync on client-side navigation.
+- **Structured data**: Organization, WebSite, and SoftwareApplication JSON-LD in `index.html`, plus FAQPage
+  generated from `src/content/faq.ts`, which also drives the landing page's FAQ section. Keep those answers factual.
+- **Social cards**: Open Graph and Twitter `summary_large_image` tags pointing at `public/og-image.png` (1200×630).
+- **Icons**: `favicon.ico` (16/32/48), `favicon.svg`, `apple-touch-icon.png`, `icon-192/512.png`, a maskable icon,
+  and `site.webmanifest`.
+- **Crawling**: `public/robots.txt` (blocks `/app`, `/invite`, and `/oauth-callback`) and `public/sitemap.xml`.
+  Bump `lastmod` when public pages change.
+- **Accessibility**: the light-theme green (`#1E804F`) and muted text meet WCAG AA contrast. Lighthouse on the
+  built site scores 100 for SEO and accessibility.
+
+After deploying, submit the sitemap in Google Search Console (the site-verification meta tag is already in
+`index.html`) and Bing Webmaster Tools, and check the card with the LinkedIn Post Inspector or opengraph.xyz.
+
 ## Local setup
 
 ### Prerequisites

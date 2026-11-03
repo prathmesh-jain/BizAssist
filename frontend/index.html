@@ -2,16 +2,103 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="google-site-verification" content="yEa3aO3fncThDamelKLCx9WXvH9OeXwXOF4gB-UBqYs" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="theme-color" content="#f6f9fb" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0d1218" media="(prefers-color-scheme: dark)" />
-    <title>BizAssist: an assistant that knows your business</title>
+    <meta name="google-site-verification" content="yEa3aO3fncThDamelKLCx9WXvH9OeXwXOF4gB-UBqYs" />
+
+    <!-- Primary meta. Per-route values are set at build time (scripts/prerender.mjs) and at runtime (src/lib/seo.ts). -->
+    <title>BizAssist: AI business assistant for documents, Google Sheets and Calendar</title>
     <meta
       name="description"
-      content="BizAssist learns how your business works, then helps with the day-to-day: answering from your documents, keeping Google Sheets and Calendar up to date, and researching competitors. It asks before it changes anything."
+      content="BizAssist is an AI assistant for small businesses. It learns your business, answers from your documents, updates Google Sheets, books Google Calendar and Meet, and researches competitors, all from one chat."
     />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="canonical" href="https://bizassist.prathmeshjain.in/" />
+    <meta name="application-name" content="BizAssist" />
+    <meta name="apple-mobile-web-app-title" content="BizAssist" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- Icons and app manifest -->
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#f6f9fb" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0d1218" media="(prefers-color-scheme: dark)" />
+
+    <!-- Open Graph (Facebook, LinkedIn, WhatsApp, Slack, Discord…) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="BizAssist" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content="https://bizassist.prathmeshjain.in/" />
+    <meta property="og:title" content="BizAssist: AI business assistant for documents, Google Sheets and Calendar" />
+    <meta
+      property="og:description"
+      content="Run your business, not your paperwork. BizAssist answers from your documents, updates Google Sheets, books meetings and researches competitors, all from one chat."
+    />
+    <meta property="og:image" content="https://bizassist.prathmeshjain.in/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="BizAssist: one chat for your documents, Google Sheets and Calendar" />
+
+    <!-- X / Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="BizAssist: AI business assistant for documents, Google Sheets and Calendar" />
+    <meta
+      name="twitter:description"
+      content="Run your business, not your paperwork. BizAssist answers from your documents, updates Google Sheets, books meetings and researches competitors, all from one chat."
+    />
+    <meta name="twitter:image" content="https://bizassist.prathmeshjain.in/og-image.png" />
+    <meta name="twitter:image:alt" content="BizAssist: one chat for your documents, Google Sheets and Calendar" />
+
+    <!-- Structured data: who we are, the site, and the product. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://bizassist.prathmeshjain.in/#organization",
+            "name": "BizAssist",
+            "url": "https://bizassist.prathmeshjain.in/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://bizassist.prathmeshjain.in/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://bizassist.prathmeshjain.in/#website",
+            "name": "BizAssist",
+            "alternateName": ["Biz Assist", "BizAssist AI"],
+            "url": "https://bizassist.prathmeshjain.in/",
+            "inLanguage": "en",
+            "publisher": { "@id": "https://bizassist.prathmeshjain.in/#organization" }
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://bizassist.prathmeshjain.in/#app",
+            "name": "BizAssist",
+            "url": "https://bizassist.prathmeshjain.in/",
+            "applicationCategory": "BusinessApplication",
+            "operatingSystem": "Web",
+            "description": "An AI assistant for small businesses that learns your business, answers from your documents, updates Google Sheets, manages Google Calendar and Meet, and researches competitors.",
+            "image": "https://bizassist.prathmeshjain.in/og-image.png",
+            "featureList": [
+              "Business profile research with cited sources",
+              "Answers from uploaded documents (PDF, DOCX, TXT)",
+              "Google Sheets read and write",
+              "Google Calendar and Google Meet scheduling with approval",
+              "Team roles: owner, admin, member, viewer"
+            ],
+            "publisher": { "@id": "https://bizassist.prathmeshjain.in/#organization" }
+          }
+        ]
+      }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -19,35 +106,29 @@
       href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400..800&family=Geist+Mono:wght@400;500&display=swap"
     />
     <script>
-      // Apply the saved (or system) theme before first paint to avoid a flash.
+      // Mark JS as available (enables scroll-reveal) and apply the saved or system theme before first paint.
       (function () {
+        var root = document.documentElement;
+        root.classList.add('js');
         try {
           var saved = JSON.parse(localStorage.getItem('theme-storage') || 'null');
           var theme = saved && saved.state && saved.state.theme;
           if (!theme) theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-          document.documentElement.classList.add(theme);
+          root.classList.add(theme);
         } catch (e) {
-          document.documentElement.classList.add('light');
+          root.classList.add('light');
         }
       })();
     </script>
   </head>
   <body>
-    <div id="root"></div>
-    <footer style="display:none;">
-      <div>
-        <strong>BizAssist</strong>
-        <span style="opacity:0.8;margin-left:0.4rem;">
-          - an assistant that knows your business: documents, Google Sheets, Calendar and research.
-        </span>
-      </div>
-      <nav style="display:flex;gap:0.75rem;flex-wrap:wrap;font-size:0.85rem;">
-        <a href="https://bizassist.prathmeshjain.online/privacy-policy.html">Privacy Policy</a>
-        <span style="opacity:0.5;">|</span>
-        <a href="https://bizassist.prathmeshjain.online/terms-conditions.html">Terms &amp; Conditions</a>
-      </nav>
-    </footer>
-
+    <div id="root"><!--app-html--></div>
+    <noscript>
+      <p style="font-family:system-ui,sans-serif;padding:1rem;text-align:center">
+        BizAssist needs JavaScript to run. Read our
+        <a href="/privacy-policy.html">Privacy Policy</a> and <a href="/terms-conditions.html">Terms &amp; Conditions</a>.
+      </p>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

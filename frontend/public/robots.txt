@@ -1,0 +1,8 @@
+# BizAssist: https://bizassist.prathmeshjain.in
+User-agent: *
+Allow: /
+Disallow: /app
+Disallow: /invite
+Disallow: /oauth-callback
+
+Sitemap: https://bizassist.prathmeshjain.in/sitemap.xml
