@@ -7,6 +7,7 @@ import useOrgStore, { hasPermission } from '../store/orgStore';
 import type { Message, ToolStatus } from '../types';
 import { Menu } from 'lucide-react';
 import Logo from '../components/ui/Logo';
+import { usePageMeta } from '../lib/seo';
 
 const Sidebar = React.lazy(() => import('../components/layout/Sidebar'));
 const ChatWindow = React.lazy(() => import('../components/chat/ChatWindow'));
@@ -39,6 +40,7 @@ function useOnboardingRedirect() {
 }
 
 export default function Dashboard() {
+    usePageMeta({ title: 'Workspace', noindex: true });
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
     const navigate = useNavigate();
     const location = useLocation();

@@ -8,12 +8,14 @@ import { useAuth } from '../context/AuthContext';
 import { firebaseAuth } from '../firebase';
 import { getPendingInviteToken, setPendingInviteToken, switchOrganization } from '../lib/session';
 import type { InvitationPreview } from '../types';
+import { usePageMeta } from '../lib/seo';
 
 const tokenFromHash = () => new URLSearchParams(window.location.hash.replace(/^#/, '')).get('token');
 
 const errorDetail = apiErrorDetail;
 
 export default function InvitePage() {
+    usePageMeta({ title: 'Join your team', noindex: true });
     const { user, loading, logout } = useAuth();
     // Remember the token across the sign-in redirect, then drop it from the address bar.
     const [token] = React.useState(() => {

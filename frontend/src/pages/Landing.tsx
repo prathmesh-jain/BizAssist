@@ -13,9 +13,11 @@ import Marquee from '../components/fx/Marquee';
 import ScrollTilt from '../components/fx/ScrollTilt';
 import SpotlightCard from '../components/fx/SpotlightCard';
 import useTypewriter from '../components/fx/useTypewriter';
+import { FAQS } from '../content/faq';
+import { usePageMeta } from '../lib/seo';
 
-const TERMS_URL = 'https://bizassist.prathmeshjain.online/terms-conditions.html';
-const PRIVACY_URL = 'https://bizassist.prathmeshjain.online/privacy-policy.html';
+const TERMS_URL = '/terms-conditions.html';
+const PRIVACY_URL = '/privacy-policy.html';
 
 const PROMPTS = [
     'What’s on my calendar this week?',
@@ -31,6 +33,7 @@ const PROMPTS = [
 export default function Landing() {
     const { user, loading } = useAuth();
     const { theme, toggleTheme } = useThemeStore();
+    usePageMeta({ path: '/' });
 
     // Wake the backend early so the app is ready by the time someone signs in.
     useEffect(() => {
@@ -48,7 +51,7 @@ export default function Landing() {
                 <nav className="glass mx-auto flex h-14 max-w-5xl items-center justify-between rounded-full pl-4 pr-2 shadow-soft">
                     <Link to="/" aria-label="BizAssist home"><Logo size="sm" /></Link>
                     <div className="hidden items-center gap-1 md:flex">
-                        {[['#features', 'Features'], ['#how', 'How it works'], ['#trust', 'Trust']].map(([href, label]) => (
+                        {[['#features', 'Features'], ['#how', 'How it works'], ['#trust', 'Trust'], ['#faq', 'FAQ']].map(([href, label]) => (
                             <a key={href} href={href} className="rounded-full px-3.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground">
                                 {label}
                             </a>
@@ -250,6 +253,29 @@ export default function Landing() {
                     </div>
                 </section>
 
+                {/* FAQ */}
+                <section id="faq" aria-labelledby="faq-title" className="mx-auto max-w-3xl scroll-mt-24 px-4 pb-24 sm:px-6">
+                    <Reveal className="text-center">
+                        <p className="eyebrow">FAQ</p>
+                        <h2 id="faq-title" className="font-display mt-3 text-4xl font-semibold leading-tight sm:text-5xl">
+                            Questions, answered.
+                        </h2>
+                    </Reveal>
+                    <div className="mt-10 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+                        {FAQS.map((f) => (
+                            <details key={f.q} className="group px-5 py-1 sm:px-6 [&_summary::-webkit-details-marker]:hidden">
+                                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-left text-[15px] font-semibold">
+                                    <h3>{f.q}</h3>
+                                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground transition-transform duration-200 group-open:rotate-45 group-open:border-primary/40 group-open:text-primary" aria-hidden="true">
+                                        +
+                                    </span>
+                                </summary>
+                                <p className="pb-5 pr-10 text-[15px] leading-relaxed text-muted-foreground">{f.a}</p>
+                            </details>
+                        ))}
+                    </div>
+                </section>
+
                 {/* Closing CTA */}
                 <section className="px-4 pb-24 sm:px-6">
                     <Reveal className="mx-auto max-w-6xl">
@@ -272,15 +298,38 @@ export default function Landing() {
             </main>
 
             <footer className="border-t border-border">
-                <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-muted-foreground sm:px-6 md:flex-row md:items-center md:justify-between">
-                    <div className="flex items-center gap-3">
+                <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 text-sm sm:px-6 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
+                    <div>
                         <Logo size="sm" />
-                        <span>© {new Date().getFullYear()}</span>
+                        <p className="mt-3 max-w-xs leading-relaxed text-muted-foreground">
+                            The AI assistant that knows your business: documents, Google Sheets, Calendar and research in one chat.
+                        </p>
                     </div>
-                    <div className="flex items-center gap-5">
-                        <a className="hover:text-foreground" href={PRIVACY_URL}>Privacy</a>
-                        <a className="hover:text-foreground" href={TERMS_URL}>Terms</a>
-                    </div>
+                    <nav aria-label="Product">
+                        <p className="eyebrow mb-3">Product</p>
+                        <ul className="space-y-2 text-muted-foreground">
+                            <li><a className="link-underline hover:text-foreground" href="#features">Features</a></li>
+                            <li><a className="link-underline hover:text-foreground" href="#how">How it works</a></li>
+                            <li><a className="link-underline hover:text-foreground" href="#faq">FAQ</a></li>
+                        </ul>
+                    </nav>
+                    <nav aria-label="Account">
+                        <p className="eyebrow mb-3">Account</p>
+                        <ul className="space-y-2 text-muted-foreground">
+                            <li><Link className="link-underline hover:text-foreground" to="/signup">Create a workspace</Link></li>
+                            <li><Link className="link-underline hover:text-foreground" to="/login">Sign in</Link></li>
+                        </ul>
+                    </nav>
+                    <nav aria-label="Legal">
+                        <p className="eyebrow mb-3">Legal</p>
+                        <ul className="space-y-2 text-muted-foreground">
+                            <li><a className="link-underline hover:text-foreground" href={PRIVACY_URL}>Privacy Policy</a></li>
+                            <li><a className="link-underline hover:text-foreground" href={TERMS_URL}>Terms &amp; Conditions</a></li>
+                        </ul>
+                    </nav>
+                </div>
+                <div className="border-t border-border">
+                    <p className="mx-auto max-w-6xl px-4 py-5 text-xs text-muted-foreground sm:px-6">© {new Date().getFullYear()} BizAssist</p>
                 </div>
             </footer>
         </div>

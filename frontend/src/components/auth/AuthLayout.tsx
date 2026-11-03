@@ -28,9 +28,9 @@ export default function AuthLayout({
                 </div>
                 <p className="text-xs text-muted-foreground">
                     By continuing you agree to the{' '}
-                    <a className="underline underline-offset-2 hover:text-foreground" href="https://bizassist.prathmeshjain.online/terms-conditions.html">Terms</a>
+                    <a className="underline underline-offset-2 hover:text-foreground" href="/terms-conditions.html">Terms</a>
                     {' '}and{' '}
-                    <a className="underline underline-offset-2 hover:text-foreground" href="https://bizassist.prathmeshjain.online/privacy-policy.html">Privacy Policy</a>.
+                    <a className="underline underline-offset-2 hover:text-foreground" href="/privacy-policy.html">Privacy Policy</a>.
                 </p>
             </div>
 
