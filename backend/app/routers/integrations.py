@@ -89,6 +89,18 @@ async def google_calendar_status(user: ChatUser, session = Depends(get_db_sessio
     return await calendar_service.connection_status(session, user_id=user.user.id, organization_id=user.organization.id)
 
 
+@router.get("/google-calendar/events")
+async def google_calendar_events(start: str, end: str, user: ChatUser, session = Depends(get_db_session, scope="function")):
+    """The signed-in member's own events, read live from Google; nothing is stored."""
+    calendar = calendar_service.GoogleCalendar(session, organization_id=user.organization.id, user_id=user.user.id)
+    try:
+        utc = calendar_service.zone("UTC")
+        events = await calendar.events_for_view(calendar_service.parse_when(start, utc), calendar_service.parse_when(end, utc))
+    except GoogleOAuthError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"events": events}
+
+
 @router.post("/google-calendar/connect")
 async def google_calendar_connect(user: ChatUser, session = Depends(get_db_session, scope="function")):
     try:

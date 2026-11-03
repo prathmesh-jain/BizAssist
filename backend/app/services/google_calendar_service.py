@@ -29,6 +29,8 @@ CALENDAR_SCOPES = [
 ]
 API = "https://www.googleapis.com/calendar/v3"
 NOT_CONNECTED = "Google Calendar is not connected. Connect it in Settings → Integrations."
+MAX_VIEW_RANGE = timedelta(days=100)
+MAX_VIEW_PAGES = 8
 
 
 class CalendarError(GoogleOAuthError):
@@ -201,6 +203,19 @@ def simplify_event(event: dict) -> dict:
     }
 
 
+def event_for_view(event: dict) -> dict:
+    """What the calendar page shows. Kept apart from simplify_event, which goes to the model."""
+    return {
+        **simplify_event(event),
+        "description": event.get("description"),
+        "organizer": (event.get("organizer") or {}).get("email"),
+        "attendees": [
+            {"email": a.get("email"), "name": a.get("displayName"), "response": a.get("responseStatus")}
+            for a in event.get("attendees") or [] if not a.get("resource")
+        ],
+    }
+
+
 def find_free_slots(
     busy: list[tuple[datetime, datetime]],
     *,
@@ -294,6 +309,24 @@ class GoogleCalendar:
             params["q"] = query
         data = await self._request("GET", "/calendars/primary/events", params=params)
         return [simplify_event(e) for e in data.get("items", []) if e.get("status") != "cancelled"]
+
+    async def events_for_view(self, time_min: datetime, time_max: datetime) -> list[dict]:
+        """Every event in the range, following Google's pages, for the calendar page."""
+        if time_max <= time_min or time_max - time_min > MAX_VIEW_RANGE:
+            raise CalendarError("Choose a date range of up to 100 days.")
+        params = {
+            "timeMin": rfc3339(time_min), "timeMax": rfc3339(time_max), "singleEvents": "true",
+            "orderBy": "startTime", "maxResults": 250,
+        }
+        events: list[dict] = []
+        for _ in range(MAX_VIEW_PAGES):
+            data = await self._request("GET", "/calendars/primary/events", params=params)
+            events += [event_for_view(e) for e in data.get("items", []) if e.get("status") != "cancelled"]
+            if not data.get("nextPageToken"):
+                return events
+            params = {**params, "pageToken": data["nextPageToken"]}
+        logger.warning("calendar.view.truncated user_id=%s", self._user_id)
+        return events
 
     async def get_event(self, event_id: str) -> dict:
         return await self._request("GET", f"/calendars/primary/events/{event_id}")
