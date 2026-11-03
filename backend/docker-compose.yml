@@ -1,0 +1,33 @@
+# Backend only; it connects to your existing PostgreSQL through DATABASE_URL and migrates it on start.
+# App settings come from .env, and BACKEND_PORT optionally changes the published port.
+#
+#   docker compose up -d --build
+name: bizassist-backend
+
+services:
+  api:
+    build: .
+    image: bizassist-backend
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in your environment or .env}
+    networks:
+      - dokploy-network
+    volumes:
+      - chat-attachments:/app/tmp
+    shm_size: 1gb # Chromium for business research runs out of memory on Docker's 64 MB default
+    init: true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+    restart: unless-stopped
+
+networks:
+  dokploy-network:
+    external: true
+
+volumes:
+  chat-attachments:
