@@ -4,11 +4,33 @@
     <meta charset="UTF-8" />
     <meta name="google-site-verification" content="yEa3aO3fncThDamelKLCx9WXvH9OeXwXOF4gB-UBqYs" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BizAssist - AI Business Finance Assistant</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#f6f9fb" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0d1218" media="(prefers-color-scheme: dark)" />
+    <title>BizAssist: an assistant that knows your business</title>
     <meta
       name="description"
-      content="BizAssist is an AI-powered business finance assistant that helps you analyze invoices and financial documents, manage expenses, and work with Google Sheets."
+      content="BizAssist learns how your business works, then helps with the day-to-day: answering from your documents, keeping Google Sheets and Calendar up to date, and researching competitors. It asks before it changes anything."
     />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400..800&family=Geist+Mono:wght@400;500&display=swap"
+    />
+    <script>
+      // Apply the saved (or system) theme before first paint to avoid a flash.
+      (function () {
+        try {
+          var saved = JSON.parse(localStorage.getItem('theme-storage') || 'null');
+          var theme = saved && saved.state && saved.state.theme;
+          if (!theme) theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          document.documentElement.classList.add(theme);
+        } catch (e) {
+          document.documentElement.classList.add('light');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
@@ -16,13 +38,13 @@
       <div>
         <strong>BizAssist</strong>
         <span style="opacity:0.8;margin-left:0.4rem;">
-          - AI business finance assistant for invoices, expenses & Google Sheets.
+          - an assistant that knows your business: documents, Google Sheets, Calendar and research.
         </span>
       </div>
       <nav style="display:flex;gap:0.75rem;flex-wrap:wrap;font-size:0.85rem;">
-        <a href="https://bizassist.prathmeshjain.online/privacy-policy.html" style="color:#38bdf8;">Privacy Policy</a>
+        <a href="https://bizassist.prathmeshjain.online/privacy-policy.html">Privacy Policy</a>
         <span style="opacity:0.5;">|</span>
-        <a href="https://bizassist.prathmeshjain.online/terms-conditions.html" style="color:#38bdf8;">Terms &amp; Conditions</a>
+        <a href="https://bizassist.prathmeshjain.online/terms-conditions.html">Terms &amp; Conditions</a>
       </nav>
     </footer>
 

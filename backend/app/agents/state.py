@@ -9,11 +9,18 @@ class AgentState(TypedDict, total=False):
     """
     messages: Annotated[list[BaseMessage], add_messages]  # message accumulation
     message_summary: str  # summarized older messages for context
-    
+
     # Infrastructure / Auth
     user_id: str
     chat_id: str
-    
+    organization_id: str  # Added for multi-tenancy
+    role: str  # caller's organization role; tools enforce app.authz rules with it
+    business_context: str  # confirmed business profile summary, refreshed every turn
+    user_timezone: str  # IANA zone from the user's connected calendar, when known
+
+    # Tools chat may call directly this turn, chosen from the user's message
+    chat_tool_ids: list[str]
+
     # Observability
     tool_calls_made: list[str]
 
@@ -33,7 +40,7 @@ class AgentState(TypedDict, total=False):
     last_tool_search_category: str
     consecutive_tool_searches: int
     last_tool_search_query: str
-    
+
     # Guardrail (transient state for the safety node)
     is_safe: bool
     guardrail_reason: str

@@ -4,6 +4,9 @@ from typing import Any, Optional
 
 from langchain_core.tools import tool
 
+from app.authz import can
+from app.db.base import session_scope
+
 from app.services.google_sheets_service import (
     GoogleOAuthError,
     batch_update,
@@ -30,14 +33,14 @@ def _build_header_map(headers: list[str]) -> dict[str, dict[str, Any]]:
             continue
         m[key] = {"index": idx, "header": str(h)}
     return m
-async def _resolve_sheet_tab(*, sid: str, preferred_tab: str | None, user_id: str) -> str:
+async def _resolve_sheet_tab(*, sid: str, preferred_tab: str | None, call) -> str:
     """Return a sheet tab name that exists.
 
     If preferred_tab is provided and exists, return it; otherwise return the first tab.
     """
     pref = (preferred_tab or "").strip()
     try:
-        meta = await get_spreadsheet_metadata(user_id=user_id, spreadsheet_id=sid)
+        meta = await call(get_spreadsheet_metadata, spreadsheet_id=sid)
         titles = [
             (s.get("properties") or {}).get("title")
             for s in (meta.get("sheets") or [])
@@ -54,11 +57,36 @@ async def _resolve_sheet_tab(*, sid: str, preferred_tab: str | None, user_id: st
     return pref or "Sheet1"
 
 
-def get_sheets_tools(*, user_id: str, chat_id: str | None = None):
-    """Factory returning user-scoped LangChain tools for Google Sheets."""
+# Service calls that change spreadsheet contents or structure.
+_WRITE_OPERATIONS = {
+    append_values,
+    update_values,
+    clear_values,
+    batch_update,
+    create_sheet_tab,
+    rename_sheet_tab,
+    delete_sheet_tab,
+    resize_sheet_grid,
+    insert_dimension,
+    delete_dimension,
+}
+
+
+def get_sheets_tools(*, user_id: str, organization_id: str, role: str | None, chat_id: str | None = None):
+    """Factory returning organization-scoped LangChain tools for Google Sheets."""
+
+    async def _call(fn, **kwargs):
+        if fn in _WRITE_OPERATIONS and not can(role, "integration.use_write"):
+            # Surfaces to the model as a normal tool error ({"ok": False, ...}).
+            raise GoogleOAuthError(
+                f"Your role ({role or 'none'}) can read spreadsheets but not modify them."
+            )
+        # Each Sheets call gets its own short-lived session (token refreshes are persisted on exit).
+        async with session_scope() as session:
+            return await fn(user_id=user_id, organization_id=organization_id, session=session, **kwargs)
 
     async def _get_headers_for_tab(*, sid: str, tab: str) -> dict:
-        result = await read_values(user_id=user_id, spreadsheet_id=sid, range_a1=f"{tab}!A1:Z1")
+        result = await _call(read_values, spreadsheet_id=sid, range_a1=f"{tab}!A1:Z1")
         values = (result.get("values") or []) if isinstance(result, dict) else []
         headers: list[str] = []
         if values and isinstance(values, list) and values[0] and isinstance(values[0], list):
@@ -86,10 +114,10 @@ def get_sheets_tools(*, user_id: str, chat_id: str | None = None):
             - error: str (present only when ok=false)
         """
         try:
-            sid = spreadsheet_id or await get_default_spreadsheet_id(user_id)
+            sid = spreadsheet_id or await _call(get_default_spreadsheet_id)
             if not sid:
                 return {"ok": False, "error": "No default spreadsheet configured. Connect Google Sheets again."}
-            meta = await get_spreadsheet_metadata(user_id=user_id, spreadsheet_id=sid)
+            meta = await _call(get_spreadsheet_metadata, spreadsheet_id=sid)
             titles = [
                 (s.get("properties") or {}).get("title")
                 for s in (meta.get("sheets") or [])
@@ -121,10 +149,10 @@ def get_sheets_tools(*, user_id: str, chat_id: str | None = None):
             - error: str (present only when ok=false)
         """
         try:
-            sid = spreadsheet_id or await get_default_spreadsheet_id(user_id)
+            sid = spreadsheet_id or await _call(get_default_spreadsheet_id)
             if not sid:
                 return {"ok": False, "error": "No default spreadsheet configured. Connect Google Sheets again."}
-            result = await read_values(user_id=user_id, spreadsheet_id=sid, range_a1=range_a1)
+            result = await _call(read_values, spreadsheet_id=sid, range_a1=range_a1)
             return {"ok": True, "data": result}
         except GoogleOAuthError as e:
             return {"ok": False, "error": str(e)}
@@ -149,11 +177,11 @@ def get_sheets_tools(*, user_id: str, chat_id: str | None = None):
             - error: str (present only when ok=false)
         """
         try:
-            sid = spreadsheet_id or await get_default_spreadsheet_id(user_id)
+            sid = spreadsheet_id or await _call(get_default_spreadsheet_id)
             if not sid:
                 return {"ok": False, "error": "No default spreadsheet configured. Connect Google Sheets again."}
 
-            tab = await _resolve_sheet_tab(sid=sid, preferred_tab=sheet_name, user_id=user_id)
+            tab = await _resolve_sheet_tab(sid=sid, preferred_tab=sheet_name, call=_call)
             parsed = await _get_headers_for_tab(sid=sid, tab=tab)
             return {"ok": True, "sheet_name": tab, "headers": parsed["headers"], "header_map": parsed["header_map"]}
         except GoogleOAuthError as e:
@@ -178,10 +206,10 @@ def get_sheets_tools(*, user_id: str, chat_id: str | None = None):
             This is a *lightweight* metadata call (fields are restricted in the service).
         """
         try:
-            sid = spreadsheet_id or await get_default_spreadsheet_id(user_id)
+            sid = spreadsheet_id or await _call(get_default_spreadsheet_id)
             if not sid:
                 return {"ok": False, "error": "No default spreadsheet configured. Connect Google Sheets again."}
-            result = await get_spreadsheet_metadata(user_id=user_id, spreadsheet_id=sid)
+            result = await _call(get_spreadsheet_metadata, spreadsheet_id=sid)
             sheets = [s.get("properties", {}).get("title") for s in result.get("sheets", [])]
             return {
                 "ok": True,
@@ -223,12 +251,12 @@ def get_sheets_tools(*, user_id: str, chat_id: str | None = None):
             - error: str (present only when ok=false)
         """
         try:
-            sid = spreadsheet_id or await get_default_spreadsheet_id(user_id)
+            sid = spreadsheet_id or await _call(get_default_spreadsheet_id)
             if not sid:
                 return {"ok": False, "error": "No default spreadsheet configured. Connect Google Sheets again."}
 
-            result = await append_values(
-                user_id=user_id,
+            result = await _call(
+                append_values,
                 spreadsheet_id=sid,
                 range_a1=range_a1,
                 values=values,
@@ -265,12 +293,12 @@ def get_sheets_tools(*, user_id: str, chat_id: str | None = None):
             - error: str (present only when ok=false)
         """
         try:
-            sid = spreadsheet_id or await get_default_spreadsheet_id(user_id)
+            sid = spreadsheet_id or await _call(get_default_spreadsheet_id)
             if not sid:
                 return {"ok": False, "error": "No default spreadsheet configured. Connect Google Sheets again."}
 
-            result = await update_values(
-                user_id=user_id,
+            result = await _call(
+                update_values,
                 spreadsheet_id=sid,
                 range_a1=range_a1,
                 values=values,
@@ -298,12 +326,12 @@ def get_sheets_tools(*, user_id: str, chat_id: str | None = None):
             - error: str (present only when ok=false)
         """
         try:
-            sid = spreadsheet_id or await get_default_spreadsheet_id(user_id)
+            sid = spreadsheet_id or await _call(get_default_spreadsheet_id)
             if not sid:
                 return {"ok": False, "error": "No default spreadsheet configured. Connect Google Sheets again."}
 
-            result = await clear_values(
-                user_id=user_id,
+            result = await _call(
+                clear_values,
                 spreadsheet_id=sid,
                 range_a1=range_a1,
             )
@@ -343,11 +371,11 @@ def get_sheets_tools(*, user_id: str, chat_id: str | None = None):
             when possible because they are simpler and less error-prone.
         """
         try:
-            sid = spreadsheet_id or await get_default_spreadsheet_id(user_id)
+            sid = spreadsheet_id or await _call(get_default_spreadsheet_id)
             if not sid:
                 return {"ok": False, "error": "No default spreadsheet configured. Connect Google Sheets again."}
-            result = await batch_update(
-                user_id=user_id,
+            result = await _call(
+                batch_update,
                 spreadsheet_id=sid,
                 requests=requests,
                 include_spreadsheet_in_response=include_spreadsheet_in_response,
@@ -372,10 +400,10 @@ def get_sheets_tools(*, user_id: str, chat_id: str | None = None):
             - error: str (present only when ok=false)
         """
         try:
-            sid = spreadsheet_id or await get_default_spreadsheet_id(user_id)
+            sid = spreadsheet_id or await _call(get_default_spreadsheet_id)
             if not sid:
                 return {"ok": False, "error": "No default spreadsheet configured. Connect Google Sheets again."}
-            result = await create_sheet_tab(user_id=user_id, spreadsheet_id=sid, title=title)
+            result = await _call(create_sheet_tab, spreadsheet_id=sid, title=title)
             return {"ok": True, "data": result}
         except GoogleOAuthError as e:
             return {"ok": False, "error": str(e)}
@@ -396,10 +424,10 @@ def get_sheets_tools(*, user_id: str, chat_id: str | None = None):
             - error: str (present only when ok=false)
         """
         try:
-            sid = spreadsheet_id or await get_default_spreadsheet_id(user_id)
+            sid = spreadsheet_id or await _call(get_default_spreadsheet_id)
             if not sid:
                 return {"ok": False, "error": "No default spreadsheet configured. Connect Google Sheets again."}
-            result = await rename_sheet_tab(user_id=user_id, spreadsheet_id=sid, sheet_title=sheet_name, new_title=new_title)
+            result = await _call(rename_sheet_tab, spreadsheet_id=sid, sheet_title=sheet_name, new_title=new_title)
             return {"ok": True, "data": result}
         except GoogleOAuthError as e:
             return {"ok": False, "error": str(e)}
@@ -421,10 +449,10 @@ def get_sheets_tools(*, user_id: str, chat_id: str | None = None):
             - error: str (present only when ok=false)
         """
         try:
-            sid = spreadsheet_id or await get_default_spreadsheet_id(user_id)
+            sid = spreadsheet_id or await _call(get_default_spreadsheet_id)
             if not sid:
                 return {"ok": False, "error": "No default spreadsheet configured. Connect Google Sheets again."}
-            result = await delete_sheet_tab(user_id=user_id, spreadsheet_id=sid, sheet_title=sheet_name)
+            result = await _call(delete_sheet_tab, spreadsheet_id=sid, sheet_title=sheet_name)
             return {"ok": True, "data": result}
         except GoogleOAuthError as e:
             return {"ok": False, "error": str(e)}
@@ -456,11 +484,11 @@ def get_sheets_tools(*, user_id: str, chat_id: str | None = None):
             You must provide at least one of row_count or column_count.
         """
         try:
-            sid = spreadsheet_id or await get_default_spreadsheet_id(user_id)
+            sid = spreadsheet_id or await _call(get_default_spreadsheet_id)
             if not sid:
                 return {"ok": False, "error": "No default spreadsheet configured. Connect Google Sheets again."}
-            result = await resize_sheet_grid(
-                user_id=user_id,
+            result = await _call(
+                resize_sheet_grid,
                 spreadsheet_id=sid,
                 sheet_title=sheet_name,
                 row_count=row_count,
@@ -501,11 +529,11 @@ def get_sheets_tools(*, user_id: str, chat_id: str | None = None):
             - error: str (present only when ok=false)
         """
         try:
-            sid = spreadsheet_id or await get_default_spreadsheet_id(user_id)
+            sid = spreadsheet_id or await _call(get_default_spreadsheet_id)
             if not sid:
                 return {"ok": False, "error": "No default spreadsheet configured. Connect Google Sheets again."}
-            result = await insert_dimension(
-                user_id=user_id,
+            result = await _call(
+                insert_dimension,
                 spreadsheet_id=sid,
                 sheet_title=sheet_name,
                 dimension=dimension,
@@ -546,11 +574,11 @@ def get_sheets_tools(*, user_id: str, chat_id: str | None = None):
             - error: str (present only when ok=false)
         """
         try:
-            sid = spreadsheet_id or await get_default_spreadsheet_id(user_id)
+            sid = spreadsheet_id or await _call(get_default_spreadsheet_id)
             if not sid:
                 return {"ok": False, "error": "No default spreadsheet configured. Connect Google Sheets again."}
-            result = await delete_dimension(
-                user_id=user_id,
+            result = await _call(
+                delete_dimension,
                 spreadsheet_id=sid,
                 sheet_title=sheet_name,
                 dimension=dimension,

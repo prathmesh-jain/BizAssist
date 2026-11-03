@@ -1,4 +1,7 @@
-import { PlusCircle, MessageSquare, LogOut, Settings, FileText, X, Sun, Moon, Pencil, Trash2 } from 'lucide-react';
+import { Plus, MessageSquare, LogOut, Settings, FileText, X, Sun, Moon, Pencil, Trash2, Users, Briefcase, CalendarDays } from 'lucide-react';
+import Logo from '../ui/Logo';
+import type { Chat } from '../../types';
+import OrgSwitcher from './OrgSwitcher';
 import useChatStore from '../../store/chatStore';
 import useThemeStore from '../../store/themeStore';
 import React from 'react';
@@ -82,193 +85,221 @@ export default function Sidebar({ isOpen, setIsOpen, currentView, setCurrentView
     };
 
     const menuItems = [
-        { id: 'chat', label: 'Chat Assistant', icon: MessageSquare },
-        { id: 'documents', label: 'Knowledge Base', icon: FileText },
+        { id: 'chat', label: 'Assistant', icon: MessageSquare },
+        { id: 'calendar', label: 'Calendar', icon: CalendarDays },
+        { id: 'business', label: 'Your business', icon: Briefcase },
+        { id: 'documents', label: 'Documents', icon: FileText },
+        { id: 'team', label: 'Team', icon: Users },
         { id: 'settings', label: 'Settings', icon: Settings },
     ];
+
+    const groups = groupChatsByDate(chats.slice(0, 30));
+    const displayName = user?.displayName || user?.email?.split('@')[0] || 'You';
 
     return (
         <>
             {deleteTarget && (
-                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-                    <div className="w-full max-w-md rounded-2xl border border-border bg-card shadow-2xl p-6">
-                        <h3 className="text-lg font-bold text-foreground">Delete Chat?</h3>
+                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/60 backdrop-blur-sm p-4">
+                    <div role="alertdialog" aria-modal="true" className="rise-in shadow-lifted w-full max-w-sm rounded-xl border border-border bg-card p-6">
+                        <h3 className="font-display text-lg font-semibold text-foreground">Delete this conversation?</h3>
                         <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                            This will permanently delete
-                            <span className="font-semibold text-foreground"> {deleteTarget.title}</span>
-                            {' '}and its message history.
+                            <span className="font-medium text-foreground">{deleteTarget.title}</span> and all its messages will be gone for good.
                         </p>
-                        <div className="mt-6 flex items-center justify-end gap-3">
+                        <div className="mt-6 flex items-center justify-end gap-2">
                             <button
                                 onClick={() => setDeleteTarget(null)}
                                 disabled={isDeletingChat}
-                                className="px-4 py-2 rounded-xl border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                                className="px-4 py-2 rounded-md border border-border text-sm text-foreground hover:bg-muted disabled:opacity-50"
                             >
-                                Cancel
+                                Keep it
                             </button>
                             <button
                                 onClick={handleConfirmDelete}
                                 disabled={isDeletingChat}
-                                className="px-4 py-2 rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-50"
+                                className="px-4 py-2 rounded-md bg-destructive text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
                             >
-                                {isDeletingChat ? 'Deleting...' : 'Delete'}
+                                {isDeletingChat ? 'Deleting…' : 'Delete'}
                             </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Mobile Backdrop */}
+            {/* Mobile backdrop */}
             {isOpen && (
                 <div
-                    className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden"
+                    className="fixed inset-0 bg-foreground/25 z-40 lg:hidden"
                     onClick={() => setIsOpen(false)}
                 />
             )}
 
-            {/* Sidebar */}
             <aside className={`
-        fixed lg:static top-0 left-0 bottom-0 z-50 w-64 bg-card border-r border-border transition-all duration-300 ease-in-out lg:translate-x-0
-        ${isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'}
-        flex flex-col h-full
-      `}>
-                <div className="flex flex-col h-full">
-                    {/* Logo / Header */}
-                    <div className="p-3 border-b border-border flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold">
-                                B
-                            </div>
-                            <h1 className="text-xl font-bold bg-linear-to-r from-primary to-blue-400 bg-clip-text text-transparent">
-                                BizAssist
-                            </h1>
-                        </div>
-                        <button
-                            onClick={toggleTheme}
-                            className="flex items-center justify-center px-2 py-2 rounded-xl text-foreground transition-all"
-                        >
-                            <span className="flex items-center">
-                                {theme === 'dark' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-                            </span>
-                        </button>
-                        <button className="lg:hidden text-muted-foreground hover:text-foreground p-1" onClick={() => setIsOpen(false)}>
-                            <X className="w-5 h-5" />
-                        </button>
-                    </div>
+                fixed lg:static top-0 left-0 bottom-0 z-50 w-[272px] shrink-0 bg-sidebar/80 backdrop-blur-xl border-r border-border
+                transition-transform duration-200 ease-out lg:translate-x-0
+                ${isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'}
+                flex flex-col h-full
+            `}>
+                <div className="flex items-center justify-between px-4 h-16 shrink-0">
+                    <Logo size="sm" />
+                    <button className="lg:hidden p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted" onClick={() => setIsOpen(false)} aria-label="Close menu">
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
 
-                    {/* New Chat Button */}
-                    <div className="p-2">
-                        <button
-                            onClick={handleCreateChat}
-                            className="w-full flex items-center justify-center space-x-2 bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 px-4 rounded-xl transition-all font-medium shadow-sm hover:shadow-md active:scale-[0.98]"
-                        >
-                            <PlusCircle className="w-5 h-5" />
-                            <span>New Interaction</span>
-                        </button>
-                    </div>
+                <OrgSwitcher />
 
-                    {/* Navigation */}
-                    <nav className="flex-1 overflow-y-auto px-3 py-1 space-y-1">
-                        {menuItems.map((item) => (
+                <div className="px-3 pt-3">
+                    <button
+                        onClick={handleCreateChat}
+                        className="btn-glow group w-full flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold"
+                    >
+                        <Plus className="w-4 h-4 transition-transform duration-200 group-hover:rotate-90" strokeWidth={2.5} />
+                        New conversation
+                    </button>
+                </div>
+
+                <nav className="px-3 pt-4 space-y-0.5" aria-label="Main">
+                    {menuItems.map((item) => {
+                        const active = currentView === item.id;
+                        return (
                             <button
                                 key={item.id}
                                 onClick={() => {
                                     setCurrentView(item.id);
                                     if (window.innerWidth < 1024) setIsOpen(false);
                                 }}
-                                className={`
-                  w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all group
-                  ${currentView === item.id
-                                        ? 'bg-primary/10 text-primary border border-primary/20'
-                                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'}
-                `}
+                                aria-current={active ? 'page' : undefined}
+                                className={`group relative w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm ${active
+                                    ? 'bg-highlight text-primary font-semibold'
+                                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
                             >
-                                <item.icon className={`w-5 h-5 transition-transform group-hover:scale-110 ${currentView === item.id ? 'text-primary' : ''}`} />
-                                <span className="font-medium">{item.label}</span>
+                                <item.icon
+                                    className={`w-4 h-4 transition-transform duration-200 ${active ? 'text-primary' : 'group-hover:scale-110'}`}
+                                    strokeWidth={active ? 2.25 : 2}
+                                />
+                                {item.label}
                             </button>
-                        ))}
-                    </nav>
+                        );
+                    })}
+                </nav>
 
-                    {/* Chat History */}
-                    <div className="flex-[1.4] overflow-y-auto px-3 py-2 border-t border-border">
-                        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 py-2">
-                            Recent Chats
-                        </h3>
-                        <div className="space-y-1">
-                            {chats.length === 0 ? (
-                                <p className="text-sm text-muted-foreground px-3 py-2">No chats yet</p>
-                            ) : (
-                                chats.slice(0, 10).map((chat) => (
-                                    <div
-                                        key={chat.id}
-                                        onClick={() => handleChatSelect(chat.id)}
-                                        className={`
-                                            w-full flex items-center space-x-2 px-3 py-2 rounded-xl transition-all group cursor-pointer
-                                            ${activeChatId === chat.id
-                                                ? 'bg-primary/10 text-primary border border-primary/20'
-                                                : 'text-muted-foreground hover:bg-muted hover:text-foreground'}
-                                        `}
-                                    >
-                                        <MessageSquare className="w-4 h-4 shrink-0" />
-                                        {editingChatId === chat.id ? (
-                                            <input
-                                                type="text"
-                                                value={editingTitle}
-                                                onChange={(e) => setEditingTitle(e.target.value)}
-                                                onBlur={handleSaveRename}
-                                                onKeyDown={(e) => e.key === 'Enter' && handleSaveRename()}
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="flex-1 bg-transparent border-b border-primary focus:outline-none text-sm"
-                                                autoFocus
-                                            />
-                                        ) : (
-                                            <>
-                                                <span className="text-sm font-medium truncate flex-1">{chat.title}</span>
-                                                <div className="hidden group-hover:flex items-center space-x-1">
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); handleRename(chat.id); }}
-                                                        className="p-1 hover:bg-primary/20 rounded"
-                                                    >
-                                                        <Pencil className="w-3 h-3" />
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => handleDelete(chat.id, e)}
-                                                        className="p-1 hover:bg-destructive/20 rounded text-destructive"
-                                                    >
-                                                        <Trash2 className="w-3 h-3" />
-                                                    </button>
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Theme Toggle & User Profile */}
-                    <div className="p-4 border-t border-border space-y-4">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3 truncate">
-                                <div className="w-9 h-9 rounded-xl bg-primary/20 border border-primary/10 flex items-center justify-center text-primary font-bold shrink-0 overflow-hidden shadow-inner">
-                                    {user?.photoURL ? (
-                                        <img src={user.photoURL} alt="profile" />
-                                    ) : (
-                                        user?.email?.[0]?.toUpperCase() || 'U'
-                                    )}
-                                </div>
-                                <div className="text-sm truncate">
-                                    <p className="font-semibold text-foreground truncate">{user?.displayName || 'User'}</p>
-                                    <p className="text-muted-foreground text-xs truncate">{user?.email || ''}</p>
-                                </div>
+                <div className="mt-5 flex-1 min-h-0 overflow-y-auto px-3 pb-3">
+                    {chats.length === 0 ? (
+                        <p className="px-3 text-sm text-muted-foreground leading-relaxed">
+                            Your conversations will be listed here.
+                        </p>
+                    ) : (
+                        groups.map((group) => (
+                            <div key={group.label} className="mb-4">
+                                <p className="eyebrow px-3 pb-1.5">{group.label}</p>
+                                <ul className="space-y-px">
+                                    {group.chats.map((chat) => {
+                                        const active = activeChatId === chat.id && currentView === 'chat';
+                                        return (
+                                            <li
+                                                key={chat.id}
+                                                onClick={() => handleChatSelect(chat.id)}
+                                                className={`group relative flex items-center gap-1 rounded-lg pl-3 pr-1 py-1.5 cursor-pointer text-sm transition-colors ${active
+                                                    ? 'bg-muted text-foreground font-medium'
+                                                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                                            >
+                                                {active && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-primary" />}
+                                                {editingChatId === chat.id ? (
+                                                    <input
+                                                        type="text"
+                                                        value={editingTitle}
+                                                        onChange={(e) => setEditingTitle(e.target.value)}
+                                                        onBlur={handleSaveRename}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') handleSaveRename();
+                                                            if (e.key === 'Escape') { setEditingChatId(null); setEditingTitle(''); }
+                                                        }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        aria-label="Conversation title"
+                                                        className="flex-1 min-w-0 bg-transparent border-b border-primary focus:outline-none"
+                                                        autoFocus
+                                                    />
+                                                ) : (
+                                                    <>
+                                                        <span className="truncate flex-1">{chat.title}</span>
+                                                        <span className="hidden group-hover:flex group-focus-within:flex items-center">
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); handleRename(chat.id); }}
+                                                                className="p-1 rounded text-muted-foreground hover:text-foreground"
+                                                                aria-label={`Rename ${chat.title}`}
+                                                            >
+                                                                <Pencil className="w-3.5 h-3.5" />
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => handleDelete(chat.id, e)}
+                                                                className="p-1 rounded text-muted-foreground hover:text-destructive"
+                                                                aria-label={`Delete ${chat.title}`}
+                                                            >
+                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </span>
+                                                    </>
+                                                )}
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
                             </div>
-                            <button onClick={handleLogout} className="p-2 text-muted-foreground hover:text-destructive transition-colors rounded-lg hover:bg-destructive/10" title="Log out">
-                                <LogOut className="w-5 h-5" />
-                            </button>
+                        ))
+                    )}
+                </div>
+
+                <div className="shrink-0 border-t border-border p-3">
+                    <div className="flex items-center gap-2.5">
+                        <Avatar name={displayName} photoURL={user?.photoURL} />
+                        <div className="min-w-0 flex-1 text-sm leading-tight">
+                            <p className="font-medium text-foreground truncate">{displayName}</p>
+                            <p className="text-muted-foreground text-xs truncate">{user?.email || ''}</p>
                         </div>
+                        <button
+                            onClick={toggleTheme}
+                            className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
+                            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+                            title={theme === 'dark' ? 'Light theme' : 'Dark theme'}
+                        >
+                            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                        </button>
+                        <button onClick={handleLogout} className="p-2 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10" title="Sign out" aria-label="Sign out">
+                            <LogOut className="w-4 h-4" />
+                        </button>
                     </div>
                 </div>
             </aside>
         </>
     );
+}
+
+function Avatar({ name, photoURL }: { name: string; photoURL?: string | null }) {
+    if (photoURL) {
+        return <img src={photoURL} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />;
+    }
+    const initials = name.split(/[\s._-]+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('') || 'U';
+    return (
+        <span className="chip-blue w-8 h-8 rounded-full text-xs font-semibold flex items-center justify-center shrink-0">
+            {initials}
+        </span>
+    );
+}
+
+/** Bucket conversations the way people remember them: today, this week, earlier. */
+function groupChatsByDate(chats: Chat[]): { label: string; chats: Chat[] }[] {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const day = 24 * 60 * 60 * 1000;
+    const buckets: { label: string; test: (t: number) => boolean; chats: Chat[] }[] = [
+        { label: 'Today', test: (t) => t >= startOfToday, chats: [] },
+        { label: 'Yesterday', test: (t) => t >= startOfToday - day, chats: [] },
+        { label: 'Past week', test: (t) => t >= startOfToday - 7 * day, chats: [] },
+        { label: 'Earlier', test: () => true, chats: [] },
+    ];
+    for (const chat of chats) {
+        const t = new Date(chat.updated_at || chat.created_at).getTime() || 0;
+        buckets.find((b) => b.test(t))!.chats.push(chat);
+    }
+    return buckets.filter((b) => b.chats.length);
 }

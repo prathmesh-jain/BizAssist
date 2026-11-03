@@ -1,16 +1,22 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+type Theme = 'light' | 'dark';
+
 interface ThemeState {
-    theme: 'light' | 'dark';
+    theme: Theme;
     toggleTheme: () => void;
-    setTheme: (theme: 'light' | 'dark') => void;
+    setTheme: (theme: Theme) => void;
 }
+
+// First visit follows the operating system; after that, the user's choice sticks.
+const systemTheme = (): Theme =>
+    typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 
 const useThemeStore = create<ThemeState>()(
     persist(
         (set) => ({
-            theme: 'dark', // Default to dark as requested "modern and sleek" often favors dark
+            theme: systemTheme(),
             toggleTheme: () =>
                 set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' })),
             setTheme: (theme) => set({ theme }),

@@ -9,7 +9,8 @@ from typing import Any
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from app.database import messages_col
+from app.db.base import session_scope
+from app.repositories import MessageRepository
 
 logger = logging.getLogger(__name__)
 
@@ -33,16 +34,12 @@ async def list_chat_attachments_metadata(*, user_id: str, chat_id: str | None) -
     if not chat_id:
         return []
 
-    cursor = messages_col().find(
-        {"chat_id": chat_id, "user_id": user_id, "attachments": {"$ne": None}},
-        projection={"attachments": 1, "created_at": 1},
-    )
-    docs = await cursor.to_list(length=100)
+    async with session_scope() as session:
+        attachment_lists = await MessageRepository.list_attachments(session, chat_id, limit=100)
 
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for d in docs:
-        atts = d.get("attachments") or []
+    for atts in attachment_lists:
         if not isinstance(atts, list):
             continue
         for a in atts:
@@ -70,6 +67,10 @@ def get_chat_attachments_tools(*, user_id: str, chat_id: str | None):
     (via the persisted `stored_path` in message attachments).
     """
 
+    async def _attachment_lists() -> list[list]:
+        async with session_scope() as session:
+            return await MessageRepository.list_attachments(session, chat_id, limit=100)
+
     async def _find_attachment_by_filename(*, filename: str) -> dict[str, Any] | None:
         if not chat_id:
             return None
@@ -78,15 +79,9 @@ def get_chat_attachments_tools(*, user_id: str, chat_id: str | None):
         if not search_value:
             return None
 
-        cursor = messages_col().find(
-            {"chat_id": chat_id, "user_id": user_id, "attachments": {"$ne": None}},
-            projection={"attachments": 1},
-        )
-        docs = await cursor.to_list(length=100)
-
         candidates: list[tuple[float, dict[str, Any]]] = []
-        for doc in docs:
-            for att in (doc.get("attachments") or []):
+        for atts in await _attachment_lists():
+            for att in atts:
                 if not isinstance(att, dict):
                     continue
                 name = str(att.get("filename") or "").strip()
@@ -112,16 +107,7 @@ def get_chat_attachments_tools(*, user_id: str, chat_id: str | None):
             return None
 
         if attachment_id:
-            doc = await messages_col().find_one(
-                {
-                    "chat_id": chat_id,
-                    "user_id": user_id,
-                    "attachments.id": attachment_id,
-                },
-                projection={"attachments": 1},
-            )
-            atts = (doc or {}).get("attachments") or []
-            if isinstance(atts, list):
+            for atts in await _attachment_lists():
                 att = next((a for a in atts if isinstance(a, dict) and a.get("id") == attachment_id), None)
                 if att:
                     return att

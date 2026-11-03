@@ -7,16 +7,17 @@ class Settings(BaseSettings):
     # LLM — override any of these in .env to swap models
     primary_model: str = "gpt-4.1-mini"    # chat, analytics, invoice
     fast_model: str = "gpt-4.1-mini"        # title gen, summarization
-    nano_model: str = "gpt-4.1-nano"        # safety check only (cheapest)
+    nano_model: str = "gpt-4.1-mini"        # safety check only (gpt-4.1-nano was retired by OpenAI)
     user_secrets_encryption_key: str = ""
+    # Allow custom LLM base URLs on private addresses (e.g. Ollama on localhost). Local development only.
+    allow_private_llm_base_urls: bool = False
 
     #chunk size and overlap
     chunk_size: float = 1200
     chunk_overlap: float = 120
 
     # Database
-    mongodb_uri: str = "mongodb://localhost:27017"
-    db_name: str = "bizassist"
+    database_url: str = "postgresql+asyncpg://user:password@localhost:5432/bizassist"
 
     # Auth (Firebase)
     firebase_project_id: str = ""
@@ -52,6 +53,18 @@ class Settings(BaseSettings):
 
     # CORS
     cors_origins: list[str] = ["http://localhost:5173"]
+
+    # Public URL of the web app, used to build links such as invitations
+    frontend_url: str = "http://localhost:5173"
+    invitation_ttl_days: int = 7
+
+    # Business research
+    research_search_provider: str = "browser"  # browser | openai | google_api
+    research_search_engines: str = "yahoo,bing,google"  # priority order for the browser provider
+    research_crawler: str = "browser"  # browser (Playwright, renders JS) | http
+    google_search_api_key: str = ""
+    google_search_engine_id: str = ""
+    research_max_website_pages: int = 5
 
     # Guardrails
     use_guardrail: bool = False

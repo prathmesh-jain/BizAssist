@@ -2,22 +2,55 @@ import React from 'react';
 import { useLocation, useNavigate, useParams, Routes, Route, Navigate } from 'react-router-dom';
 import ChatInput from '../components/chat/ChatInput';
 import useChatStore from '../store/chatStore';
+import useBusinessStore from '../store/businessStore';
+import useOrgStore, { hasPermission } from '../store/orgStore';
 import type { Message, ToolStatus } from '../types';
+import { Menu } from 'lucide-react';
+import Logo from '../components/ui/Logo';
 
 const Sidebar = React.lazy(() => import('../components/layout/Sidebar'));
 const ChatWindow = React.lazy(() => import('../components/chat/ChatWindow'));
 const DocumentView = React.lazy(() => import('../components/documents/DocumentView'));
+const CalendarView = React.lazy(() => import('../components/calendar/CalendarView'));
 const SettingsView = React.lazy(() => import('../components/settings/SettingsView'));
+const TeamView = React.lazy(() => import('../components/team/TeamView'));
+const OnboardingFlow = React.lazy(() => import('../components/business/OnboardingFlow'));
+const BusinessProfileView = React.lazy(() => import('../components/business/BusinessProfileView'));
+
+/** Send admins of an organization without a confirmed profile to onboarding, once per visit. */
+function useOnboardingRedirect() {
+    const navigate = useNavigate();
+    const location = useLocation();
+    const { me } = useOrgStore();
+    const { profile, loaded, load } = useBusinessStore();
+    const checked = React.useRef(false);
+    const manager = hasPermission(me, 'business.manage');
+
+    React.useEffect(() => {
+        if (me && manager) load();
+    }, [me, manager, load]);
+
+    React.useEffect(() => {
+        if (checked.current || !me || !loaded) return;
+        checked.current = true;
+        const needsOnboarding = manager && (!profile || (profile.status !== 'confirmed' && !profile.onboarding_dismissed));
+        if (needsOnboarding && location.pathname.startsWith('/app/chat')) navigate('/app/onboarding', { replace: true });
+    }, [me, loaded, manager, profile, location.pathname, navigate]);
+}
 
 export default function Dashboard() {
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
     const navigate = useNavigate();
     const location = useLocation();
     const { messages, streamingMessage, activeTools, isLoading, sendMessage } = useChatStore();
+    useOnboardingRedirect();
 
     const currentView = React.useMemo(() => {
         if (location.pathname.startsWith('/app/settings')) return 'settings';
+        if (location.pathname.startsWith('/app/team')) return 'team';
+        if (location.pathname.startsWith('/app/business') || location.pathname.startsWith('/app/onboarding')) return 'business';
         if (location.pathname.startsWith('/app/documents')) return 'documents';
+        if (location.pathname.startsWith('/app/calendar')) return 'calendar';
         return 'chat';
     }, [location.pathname]);
 
@@ -30,7 +63,7 @@ export default function Dashboard() {
     };
 
     return (
-        <div className="flex h-screen bg-background overflow-hidden font-sans">
+        <div className="flex h-dvh app-wash overflow-hidden">
             <React.Suspense fallback={null}>
                 <Sidebar
                     isOpen={isSidebarOpen}
@@ -72,8 +105,12 @@ export default function Dashboard() {
                         }
                     />
 
+                    <Route path="calendar" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><CalendarView /></FeatureView>} />
                     <Route path="documents" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><DocumentView /></FeatureView>} />
                     <Route path="settings" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><SettingsView /></FeatureView>} />
+                    <Route path="team" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><TeamView /></FeatureView>} />
+                    <Route path="business" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><BusinessProfileView /></FeatureView>} />
+                    <Route path="onboarding" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><OnboardingFlow /></FeatureView>} />
 
                     <Route path="*" element={<Navigate to="chat" replace />} />
                 </Routes>
@@ -112,7 +149,7 @@ function ChatViewWrapper({
     }, [activeChatId, chatId]);
 
     return (
-        <div className="flex-1 flex flex-col h-screen overflow-hidden bg-background">
+        <div className="flex-1 flex flex-col h-dvh overflow-hidden">
             <MobileHeader onMenuClick={onMenuClick} />
             <React.Suspense fallback={<div className="flex-1 bg-background" />}>
                 <ChatWindow
@@ -129,9 +166,9 @@ function ChatViewWrapper({
 
 function FeatureView({ children, onMenuClick }: { children: React.ReactNode; onMenuClick: () => void }) {
     return (
-        <div className="flex-1 h-full overflow-auto bg-background">
+        <div className="flex-1 h-full overflow-auto">
             <MobileHeader onMenuClick={onMenuClick} />
-            <React.Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading...</div>}>
+            <React.Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Loading…</div>}>
                 {children}
             </React.Suspense>
         </div>
@@ -140,16 +177,15 @@ function FeatureView({ children, onMenuClick }: { children: React.ReactNode; onM
 
 function MobileHeader({ onMenuClick }: { onMenuClick: () => void }) {
     return (
-        <header className="h-16 border-b border-border flex items-center px-6 bg-card lg:hidden shrink-0">
+        <header className="h-14 border-b border-border flex items-center gap-2 px-3 bg-sidebar lg:hidden shrink-0 sticky top-0 z-30">
             <button
                 onClick={onMenuClick}
-                className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Open menu"
+                className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
             >
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
+                <Menu className="w-5 h-5" />
             </button>
-            <h1 className="ml-4 font-bold text-foreground">BizAssist</h1>
+            <Logo size="sm" />
         </header>
     );
 }

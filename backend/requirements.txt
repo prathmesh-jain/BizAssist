@@ -4,8 +4,9 @@ python-multipart
 pydantic[email]
 
 # Database
-motor
-pymongo
+sqlalchemy[asyncio]
+asyncpg
+alembic
 
 # Auth (Firebase)
 firebase-admin
@@ -14,10 +15,15 @@ firebase-admin
 openai
 langchain
 langchain-openai
+langchain-anthropic
 langchain-community
 langgraph
-langgraph-checkpoint-mongodb
+langgraph-checkpoint-postgres
+psycopg[binary,pool]
 langchain-text-splitters
+
+# Browser automation (web search + website crawling for research)
+playwright
 
 # Vector Store
 qdrant-client
@@ -31,12 +37,14 @@ pillow
 
 # Google OAuth / Sheets
 google-auth
+cryptography
 
 # Config
 pydantic-settings
 python-dotenv
 
 # Utilities
+tzdata  # IANA timezones for zoneinfo (Windows has no system database)
 httpx
 aiofiles
 tenacity

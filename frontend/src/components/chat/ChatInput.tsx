@@ -1,5 +1,6 @@
 import React from 'react';
-import { Send, Paperclip, X, FileText } from 'lucide-react';
+import { ArrowUp, Paperclip, X, FileText } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import useSettingsStore from '../../store/settingsStore';
 
 interface Attachment {
@@ -77,11 +78,11 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
         const newAttachments: Attachment[] = files
             .filter(file => {
                 if (!ALLOWED_ALL_TYPES.has(file.type)) {
-                    setWarning(`Unsupported file type: ${file.name}. Only PDF, images, and TXT files are allowed.`);
+                    setWarning(`${file.name} can’t be attached. Use a PDF, an image, or a .txt file.`);
                     return false;
                 }
                 if (file.size > MAX_FILE_SIZE) {
-                    setWarning(`File "${file.name}" is too large. Maximum size is 10MB.`);
+                    setWarning(`${file.name} is over 10 MB. Try a smaller file.`);
                     return false;
                 }
                 return true;
@@ -89,7 +90,7 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
             .map(file => {
                 const isImage = ALLOWED_IMAGE_TYPES.includes(file.type);
                 const attachment: Attachment = {
-                    id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                    id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
                     file,
                     type: isImage ? 'image' : 'file',
                 };
@@ -143,104 +144,99 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
         });
     };
 
+    const disabled = isLoading || (!settingsPending && !chatEnabled);
+
     return (
-        <div className="p-4 bg-background border-t border-border">
-            {warning && (
-                <div className="max-w-5xl mx-auto mb-3 px-4 py-2 rounded-xl border border-destructive/30 bg-destructive/10 text-destructive text-sm font-semibold">
-                    {warning}
-                </div>
-            )}
-            {attachments.length > 0 && (
-                <div className="max-w-5xl mx-auto mb-3 flex flex-wrap gap-2">
-                    {attachments.map(att => (
-                        <div
-                            key={att.id}
-                            className="relative group flex items-center gap-2 bg-muted rounded-lg px-2 py-1 pr-8"
-                        >
-                            {att.type === 'image' && att.preview ? (
-                                <img
-                                    src={att.preview}
-                                    alt={att.file.name}
-                                    className="w-8 h-8 object-cover rounded"
-                                />
-                            ) : (
-                                <div className="w-8 h-8 bg-primary/10 rounded flex items-center justify-center">
-                                    <FileText className="w-5 h-5 text-primary" />
+        <div className="shrink-0 px-4 sm:px-6 pb-4 pt-2">
+            <div className="max-w-3xl mx-auto">
+                {!settingsPending && !chatEnabled && (
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/30 bg-warning/10 px-4 py-2.5 text-sm text-foreground">
+                        <span>Chat needs an AI provider set up before it can answer.</span>
+                        <Link to="/app/settings" className="font-medium text-primary underline underline-offset-4">Set it up in Settings</Link>
+                    </div>
+                )}
+                {warning && (
+                    <div role="alert" className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+                        {warning}
+                    </div>
+                )}
+
+                <div className={`beam-border beam-on-focus shadow-soft rounded-xl bg-card transition-[border-color,box-shadow] duration-200 ${disabled ? 'opacity-70' : ''}`}>
+                    {attachments.length > 0 && (
+                        <div className="flex flex-wrap gap-2 px-3 pt-3">
+                            {attachments.map(att => (
+                                <div key={att.id} className="flex items-center gap-2 rounded-md border border-border bg-background py-1 pl-1 pr-1.5">
+                                    {att.type === 'image' && att.preview ? (
+                                        <img src={att.preview} alt="" className="w-7 h-7 object-cover rounded" />
+                                    ) : (
+                                        <span className="w-7 h-7 rounded bg-muted flex items-center justify-center">
+                                            <FileText className="w-4 h-4 text-muted-foreground" />
+                                        </span>
+                                    )}
+                                    <span className="text-sm text-foreground max-w-40 truncate">{att.file.name}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => removeAttachment(att.id)}
+                                        aria-label={`Remove ${att.file.name}`}
+                                        className="p-0.5 rounded text-muted-foreground hover:text-destructive"
+                                    >
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
                                 </div>
-                            )}
-                            <span className="text-sm text-foreground max-w-38 truncate">
-                                {att.file.name}
+                            ))}
+                        </div>
+                    )}
+
+                    <textarea
+                        ref={textareaRef}
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder={!settingsPending && !chatEnabled ? 'Add your AI provider in Settings to start' : 'Ask about your business, documents, sheets, or calendar…'}
+                        rows={1}
+                        disabled={disabled}
+                        aria-label="Message"
+                        className="block w-full resize-none bg-transparent px-4 pt-3.5 pb-1 text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/80 focus:outline-none disabled:cursor-not-allowed"
+                        style={{ minHeight: '52px', maxHeight: '200px' }}
+                    />
+
+                    <div className="flex items-center justify-between px-2 pb-2">
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleFileSelect}
+                            multiple
+                            accept={ALLOWED_IMAGE_TYPES.concat(ALLOWED_FILE_TYPES).join(',')}
+                            className="hidden"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={disabled}
+                            className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"
+                            title="Attach a PDF, image, or text file (or paste an image)"
+                        >
+                            <Paperclip className="w-4 h-4" />
+                            <span className="hidden sm:inline">Attach</span>
+                        </button>
+                        <div className="flex items-center gap-3">
+                            <span className="hidden md:inline text-xs text-muted-foreground">
+                                <kbd className="font-mono">Shift</kbd> + <kbd className="font-mono">Enter</kbd> for a new line
                             </span>
                             <button
-                                type="button"
-                                onClick={() => removeAttachment(att.id)}
-                                className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-destructive/20 text-muted-foreground hover:text-destructive"
+                                onClick={handleSend}
+                                disabled={!canSend}
+                                aria-label="Send message"
+                                className={`flex h-8 w-8 items-center justify-center rounded-lg ${canSend
+                                    ? 'btn-glow'
+                                    : 'bg-muted text-muted-foreground'}`}
                             >
-                                <X className="w-3 h-3" />
+                                <ArrowUp className="w-4 h-4" strokeWidth={2.5} />
                             </button>
                         </div>
-                    ))}
-                </div>
-            )}
-
-            <div className="max-w-5xl mx-auto relative group">
-                <textarea
-                    ref={textareaRef}
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                        placeholder={
-                            settingsPending
-                                ? "Ask BizAssist anything... (paste images with Ctrl+V)"
-                                : chatEnabled
-                                    ? "Ask BizAssist anything... (paste images with Ctrl+V)"
-                                    : "Add your OpenAI API key in Settings to enable chat"
-                        }
-                    rows={1}
-                        disabled={isLoading || (!settingsPending && !chatEnabled)}
-                    className={`w-full bg-card text-foreground border border-border rounded-2xl py-4 pl-5 pr-24 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 resize-none transition-all shadow-sm group-hover:shadow-md ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    style={{ minHeight: '60px', maxHeight: '200px' }}
-                />
-
-                <div className="absolute right-2.5 top-2.5 bottom-2.5 flex items-center gap-1">
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileSelect}
-                        multiple
-                        accept={ALLOWED_IMAGE_TYPES.concat(ALLOWED_FILE_TYPES).join(',')}
-                        className="hidden"
-                    />
-                    <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isLoading || (!settingsPending && !chatEnabled)}
-                        className="p-2.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-all disabled:opacity-50"
-                        title="Attach files"
-                    >
-                        <Paperclip className="w-5 h-5" />
-                    </button>
-                    <button
-                        onClick={handleSend}
-                        disabled={!canSend}
-                        className={`p-2.5 rounded-xl transition-all active:scale-95 ${canSend
-                            ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20'
-                            : 'text-muted-foreground bg-muted/50 cursor-not-allowed'
-                            }`}
-                    >
-                        <Send className="w-5 h-5" />
-                    </button>
+                    </div>
                 </div>
             </div>
-
-            <div className="max-w-5xl mx-auto mt-3 flex items-center justify-between text-[11px] text-muted-foreground uppercase font-semibold tracking-tight px-1 opacity-70">
-                <span className="hidden sm:block">Shift + Enter for new line • Ctrl+V to paste images</span>
-            </div>
-            {!settingsPending && !chatEnabled && (
-                <div className="max-w-5xl mx-auto mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
-                    Add your OpenAI API key in `Settings` before using chat.
-                </div>
-            )}
         </div>
     );
 }

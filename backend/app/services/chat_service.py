@@ -3,23 +3,30 @@ import logging
 import asyncio
 import base64
 import re
-from datetime import datetime
+import time
+from datetime import datetime, timezone
 from typing import AsyncGenerator
-from bson import ObjectId
 from langgraph.types import Command
-from app.database import chats_col, messages_col
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.config import get_settings
+from app.repositories import ChatRepository, MessageRepository
+from app.db.base import session_scope
+from app.services.llm_providers import text_of
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
+# Strong references so background tasks aren't garbage-collected mid-run.
+_background_tasks: set[asyncio.Task] = set()
 
-async def _extract_image_sample(file_bytes: bytes, content_type: str, user_id: str) -> str:
+
+async def _extract_image_sample(file_bytes: bytes, content_type: str, user_id: str, session: AsyncSession) -> str:
     from langchain_core.messages import SystemMessage, HumanMessage
     from app.services.llm_service import get_llm
 
     b64 = base64.b64encode(file_bytes).decode("utf-8")
-    llm = await get_llm(user_id=user_id, purpose="primary", temperature=0)
+    llm = await get_llm(user_id=user_id, purpose="primary", temperature=0, session=session)
     prompt = (
         "You are given an image uploaded by a user. "
         "Extract all visible text from the image in structured format "
@@ -43,13 +50,14 @@ async def _extract_image_sample(file_bytes: bytes, content_type: str, user_id: s
             ),
         ]
     )
-    return (resp.content or "").strip()
+    return text_of(resp.content).strip()
 
 
 async def extract_text_from_image_bytes(
     file_bytes: bytes,
     content_type: str,
     user_id: str,
+    session: AsyncSession,
 ) -> str:
     """Extract plain text from an uploaded image using an LLM.
 
@@ -62,7 +70,7 @@ async def extract_text_from_image_bytes(
     if not ctype.startswith("image/"):
         return ""
     try:
-        return await _extract_image_sample(file_bytes, ctype, user_id)
+        return await _extract_image_sample(file_bytes, ctype, user_id, session)
     except Exception:
         logger.exception("Failed to extract text from image bytes")
         return ""
@@ -79,11 +87,11 @@ def build_attachment_event_text(attachments: list[dict]) -> str:
     return "User uploaded file(s): " + ", ".join(names[:5])
 
 
-async def generate_chat_title(first_message: str, user_id: str) -> str:
+async def generate_chat_title(first_message: str, user_id: str, session: AsyncSession) -> str:
     """Generate a short title from the first user message."""
     from app.services.llm_service import get_llm
 
-    llm = await get_llm(user_id=user_id, purpose="fast", temperature=0)
+    llm = await get_llm(user_id=user_id, purpose="fast", temperature=0, session=session)
     response = await llm.ainvoke([
         {"role": "system", "content": (
             "Generate a short, descriptive title (3–5 words) for a business conversation "
@@ -91,13 +99,83 @@ async def generate_chat_title(first_message: str, user_id: str) -> str:
         )},
         {"role": "user", "content": first_message},
     ])
-    return (response.content.strip()[:60]) or "New Chat"
+    return text_of(response.content).strip()[:60] or "New Chat"
+
+
+def calendar_change_event(tool_name: str, content) -> dict | None:
+    """What the UI needs to offer "view in calendar" after the agent changed an event."""
+    action = {"calendar_create_event": "created", "calendar_update_event": "updated", "calendar_delete_event": "deleted"}.get(tool_name)
+    if not action:
+        return None
+    try:
+        payload = json.loads(content) if isinstance(content, str) else content
+    except ValueError:
+        return None
+    if not isinstance(payload, dict) or not payload.get("ok"):
+        return None
+    event = payload.get("event") or {}
+    return {
+        "action": action,
+        "title": event.get("title"),
+        "start": event.get("start"),
+        "meet_link": event.get("meet_link"),
+    }
+
+
+def new_messages_since(before: list, after: list) -> list:
+    """Messages added during a run, by id. Position can't be used: chat removes its tool
+    exchange and the summarizer replaces old messages, so the list can shrink during a run."""
+    seen = {getattr(m, "id", None) for m in before}
+    return [m for m in after if getattr(m, "id", None) not in seen]
+
+
+async def _title_new_chat(first_message: str, chat_id: str, user_id: str, organization_id: str) -> str | None:
+    """Generate and save a chat title in its own session. A failure just keeps the default title."""
+    try:
+        async with session_scope() as session:
+            title = await generate_chat_title(first_message, user_id, session)
+            await ChatRepository.update_title(session, chat_id, organization_id, user_id, title)
+            return title
+    except Exception:
+        logger.warning("Chat title generation failed for chat %s", chat_id, exc_info=True)
+        return None
+
+
+async def _title_event(title_task: asyncio.Task | None, chat_id: str, *, timeout: float = 3.0) -> str | None:
+    """SSE event for the new title. Waits briefly; a slower title still saves and shows on reload."""
+    if title_task is None:
+        return None
+    done, _ = await asyncio.wait({title_task}, timeout=timeout)
+    title = title_task.result() if done else None
+    if not title:
+        return None
+    return f"data: {json.dumps({'type': 'title_update', 'chat_id': chat_id, 'title': title})}\n\n"
 
 
 async def stream_agent_response(
     user_message: str | None,
     chat_id: str,
     user_id: str,
+    organization_id: str,
+    role: str = "viewer",
+    **kwargs,
+) -> AsyncGenerator[str, None]:
+    """SSE generator for an agent run. It owns its DB session: the request's session is
+    committed before the response starts, so work done while streaming needs its own."""
+    async with session_scope() as session:
+        async for event in _stream_agent_response(
+            user_message, chat_id, user_id, organization_id, session, role=role, **kwargs
+        ):
+            yield event
+
+
+async def _stream_agent_response(
+    user_message: str | None,
+    chat_id: str,
+    user_id: str,
+    organization_id: str,
+    session: AsyncSession,
+    role: str = "viewer",
     user_message_context: str | None = None,
     is_resume: bool = False,
     resume_value: str | bool | dict | None = None,
@@ -110,6 +188,13 @@ async def stream_agent_response(
 
     graph = get_compiled_graph()
 
+    from app.services.business_profile_service import business_context_text
+    from app.services.google_calendar_service import connection_status
+
+    business_context = await business_context_text(session, organization_id)
+    calendar_status = await connection_status(session, user_id=user_id, organization_id=organization_id)
+    user_timezone = calendar_status.get("timezone") or ""
+
     combined_user = (user_message or "").strip()
     if user_message_context:
         combined_user = (combined_user + "\n\n" + user_message_context.strip()).strip()
@@ -119,29 +204,48 @@ async def stream_agent_response(
         "messages": graph_messages,
         "user_id": user_id,
         "chat_id": chat_id,
+        "organization_id": organization_id,
+        "role": role,
+        "business_context": business_context,
+        "user_timezone": user_timezone,
     }
 
     full_response = ""
     yielded_any = False
-    
-    thread_id = f"{user_id}_{chat_id}"
+    started_at = last_step_at = time.monotonic()
+    step_timings: list[str] = []
+    first_token_ms: int | None = None
+
+    # Organization-aware thread ID
+    thread_id = f"{organization_id}_{chat_id}"
     config = {"configurable": {"thread_id": thread_id}}
-    
+
     # Get current state before run to calculate new messages later
     pre_run_state = await graph.aget_state(config)
-    pre_run_msgs_count = len(pre_run_state.values.get("messages") or [])
-    
+    pre_run_messages = pre_run_state.values.get("messages") or []
+    pre_run_msgs_count = len(pre_run_messages)
+
+    # Name a new chat alongside the run so the answer never waits for it.
+    title_task: asyncio.Task | None = None
+    if user_message and not is_resume and pre_run_msgs_count == 0:
+        title_task = asyncio.create_task(_title_new_chat(user_message, chat_id, user_id, organization_id))
+        _background_tasks.add(title_task)
+        title_task.add_done_callback(_background_tasks.discard)
+
     # Use Command(resume=...) if resuming, otherwise use initial_state
-    input_data = initial_state if not is_resume else Command(resume=resume_value)
+    # On resume, refresh the role too so a demotion during a pending interrupt takes effect.
+    input_data = initial_state if not is_resume else Command(resume=resume_value, update={"role": role, "business_context": business_context, "user_timezone": user_timezone})
 
     max_attempts = 1 if is_resume else max(int(getattr(settings, "agent_run_retries", 2) or 2), 1)
-    
+
     for attempt in range(1, max_attempts + 1):
+        # A retry resumes from the last checkpoint; re-sending the input would duplicate the user message.
+        attempt_input = input_data if attempt == 1 else None
         try:
             async for part in graph.astream(
-                input_data, 
-                config=config, 
-                stream_mode=["messages", "updates"], 
+                attempt_input,
+                config=config,
+                stream_mode=["messages", "updates"],
                 version="v2"
             ):
                 chunk_type = part["type"]
@@ -149,6 +253,9 @@ async def stream_agent_response(
 
                 if chunk_type == "updates":
                     for node_name, node_output in data.items():
+                        now = time.monotonic()
+                        step_timings.append(f"{node_name}={int((now - last_step_at) * 1000)}ms")
+                        last_step_at = now
                         # Detect Interrupts
                         if node_name == "__interrupt__":
                             if node_output:
@@ -163,26 +270,26 @@ async def stream_agent_response(
                                     "data": val.get("data") if is_dict else None,
                                     "is_pending": True
                                 }
-                                
+
                                 # Persist to DB
                                 try:
-                                    await messages_col().update_many(
-                                        {"chat_id": chat_id, "interrupt.is_pending": True},
-                                        {"$set": {"interrupt.is_pending": False, "interrupt.resolution": "stale"}}
+                                    await MessageRepository.mark_interrupts_resolved(session, chat_id, "stale")
+                                    await MessageRepository.create(
+                                        session,
+                                        chat_id=chat_id,
+                                        user_id=user_id,
+                                        role="assistant",
+                                        content="",
+                                        interrupt=interrupt_payload,
                                     )
-                                    await messages_col().insert_one({
-                                        "chat_id": chat_id,
-                                        "user_id": user_id,
-                                        "role": "assistant",
-                                        "content": "",
-                                        "interrupt": interrupt_payload,
-                                        "created_at": datetime.utcnow(),
-                                    })
                                 except Exception:
                                     logger.exception("Failed to persist interrupt")
 
                                 yield f"data: {json.dumps({'type': 'interrupt', 'interrupt_id': interrupt_obj.id, 'content': interrupt_payload})}\n\n"
-                                return 
+                                title_event = await _title_event(title_task, chat_id)
+                                if title_event:
+                                    yield title_event
+                                return
 
                         # Capture Tool Calls & Citations
                         if node_name in ("chat", "planner", "executor") and isinstance(node_output, dict):
@@ -194,7 +301,7 @@ async def stream_agent_response(
                                     if hasattr(m, "tool_calls") and m.tool_calls:
                                         for tc in m.tool_calls:
                                             yield f"data: {json.dumps({'type': 'tool_start', 'name': tc['name']})}\n\n"
-                                    
+
                                     if hasattr(m, "content") and m.content:
                                         citations = list(dict.fromkeys(re.findall(r"\[Source:\s*([^\]]+)\]", str(m.content))))
                                         if citations:
@@ -204,12 +311,17 @@ async def stream_agent_response(
                             for m in node_output.get("messages") or []:
                                 if getattr(m, "type", "") == "tool" and getattr(m, "name", None):
                                     yield f"data: {json.dumps({'type': 'tool_end', 'name': m.name})}\n\n"
+                                    change = calendar_change_event(m.name, m.content)
+                                    if change:
+                                        yield f"data: {json.dumps({'type': 'calendar_change', **change})}\n\n"
 
                 elif chunk_type == "messages":
                     msg, metadata = data
                     if metadata.get("langgraph_node") in ("chat", "unsafe"):
-                        token = msg.content
+                        token = text_of(msg.content)
                         if token:
+                            if first_token_ms is None:
+                                first_token_ms = int((time.monotonic() - started_at) * 1000)
                             yielded_any = True
                             full_response += token
                             yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
@@ -221,13 +333,19 @@ async def stream_agent_response(
             if not yielded_any and attempt < max_attempts:
                 await asyncio.sleep(0.2)
                 continue
-            
+
             if not yielded_any:
                 # Provide specific error messages for common issues
                 error_msg = str(e)
                 error_msg_lower = error_msg.lower()
-                
-                if "invalid_api_key" in error_msg_lower or "incorrect api key" in error_msg_lower or "api key" in error_msg_lower:
+
+                if "model_not_found" in error_msg_lower or "has been deprecated" in error_msg_lower:
+                    model = re.search(r"model `([^`]+)`", error_msg)
+                    err_msg = (
+                        f"The model {model.group(1) + ' ' if model else ''}is not available on your OpenAI account "
+                        "anymore. Choose another model in Settings."
+                    )
+                elif "invalid_api_key" in error_msg_lower or "incorrect api key" in error_msg_lower or "api key" in error_msg_lower:
                     err_msg = "Invalid API key. Please check your API key in Settings."
                 elif "authentication" in error_msg_lower or "unauthorized" in error_msg_lower:
                     err_msg = "Authentication failed. Please check your API key in Settings."
@@ -240,18 +358,23 @@ async def stream_agent_response(
                 yield f"data: {json.dumps({'type': 'error', 'content': err_msg})}\n\n"
             break
 
+    logger.info(
+        "agent.run.timing chat_id=%s total=%sms first_token=%sms steps=%s",
+        chat_id, int((time.monotonic() - started_at) * 1000), first_token_ms, " ".join(step_timings),
+    )
+
     # ── 5. Persist assistant message(s) ─────────────────────────────────────
     final_state = await graph.aget_state(config)
     all_msgs = final_state.values.get("messages") or []
-    new_msgs = all_msgs[pre_run_msgs_count:]
+    new_msgs = new_messages_since(pre_run_messages, all_msgs)
 
     if new_msgs:
         for m in new_msgs:
-            # Skip persisting the very first human message of a run if it was already persisted
-            # in the router before calling this function.
-            if not is_resume and m == graph_messages[0]:
+            # Skip the run's own human message: the router already persisted it.
+            # Compare by content, since the checkpointed copy has a LangGraph-assigned id.
+            if not is_resume and m.type == "human" and m.content == combined_user:
                 continue
-            if m.type == "tool":
+            if m.type in ("tool", "system"):  # tool output and summary blocks aren't chat history
                 continue
             if m.type == "ai" and bool(getattr(m, "tool_calls", None)):
                 continue
@@ -264,20 +387,17 @@ async def stream_agent_response(
 
             m_tool_calls = [{"name": tc["name"]} for tc in m.tool_calls] if hasattr(m, "tool_calls") and m.tool_calls else None
 
-            await messages_col().insert_one({
-                "chat_id": chat_id,
-                "user_id": user_id,
-                "role": role,
-                "content": m.content,
-                "tool_calls": m_tool_calls,
-                "tool_call_id": getattr(m, "tool_call_id", None),
-                "created_at": datetime.utcnow(),
-            })
+            await MessageRepository.create(
+                session,
+                chat_id=chat_id,
+                user_id=user_id,
+                role=role,
+                content=text_of(m.content),
+                tool_calls=m_tool_calls,
+            )
 
-        user_msg_count = await messages_col().count_documents({"chat_id": chat_id, "role": "user"})
-        if user_msg_count == 1 and user_message:
-            title = await generate_chat_title(user_message, user_id)
-            await chats_col().update_one({"_id": ObjectId(chat_id)}, {"$set": {"title": title, "updated_at": datetime.utcnow()}})
-            yield f"data: {json.dumps({'type': 'title_update', 'chat_id': chat_id, 'title': title})}\n\n"
+    title_event = await _title_event(title_task, chat_id)
+    if title_event:
+        yield title_event
 
     yield f"data: {json.dumps({'type': 'done'})}\n\n"

@@ -9,6 +9,9 @@ interface SettingsState {
     error: string;
     fetchAISettings: () => Promise<void>;
     updateAISettings: (payload: {
+        provider?: string;
+        base_url?: string;
+        api_key?: string;
         openai_api_key?: string;
         clear_api_key?: boolean;
         guardrail_enabled?: boolean;

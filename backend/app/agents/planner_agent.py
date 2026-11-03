@@ -5,9 +5,11 @@ from typing import Any
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
+from app.agents.business_context import with_business_context
 from app.agents.state import AgentState
 from app.agents.tooling import get_planner_tools
 from app.config import get_settings
+from app.services.llm_providers import supports_openai_strict_schema
 from app.services.llm_service import get_llm
 
 logger = logging.getLogger(__name__)
@@ -39,6 +41,12 @@ Rules:
 2. Use request_clarification if a critical detail is missing.
 3. Use search_available_tools if executor capabilities need to be explored.
 4. Keep the plan concise, operational, and grounded.
+5. Calendar and meeting requests always mean the user's own connected Google Calendar. Never ask which
+   calendar or account. Copy relative dates ("tomorrow at 3 PM") into the plan word for word: the executor
+   resolves them in the user's timezone with calendar_now, so do not convert them to dates yourself.
+6. Do not ask about optional meeting details: derive a title from the request (e.g. "Meeting with Rahul"),
+   default to 30 minutes, and plan the steps. The user reviews the details in an approval step before anything
+   is created. Ask only when the meeting time is missing or an attendee is named without an email address.
 """
 
 
@@ -64,6 +72,8 @@ def _extract_structured_payload(result: Any) -> tuple[BaseMessage | None, Planne
         raw = result.get("raw")
         parsed = result.get("parsed")
         return raw if isinstance(raw, BaseMessage) else None, parsed if isinstance(parsed, PlannerOutput) else None
+    if isinstance(result, BaseMessage):
+        return result, None
     return None, result if isinstance(result, PlannerOutput) else None
 
 
@@ -131,13 +141,18 @@ async def planner_node(state: AgentState) -> dict:
         temperature=0,
         streaming=False,
     )
-    unified_model = llm.with_structured_output(
-        schema=PlannerOutput,
-        method="json_schema",
-        include_raw=True,
-        strict=True,
-        tools=get_planner_tools(state),
-    )
+    planner_tools = get_planner_tools(state)
+    if supports_openai_strict_schema(llm):
+        unified_model = llm.with_structured_output(
+            schema=PlannerOutput,
+            method="json_schema",
+            include_raw=True,
+            strict=True,
+            tools=planner_tools,
+        )
+    else:
+        # Other providers: submitting the plan is itself a tool call, so plans and tools share one mechanism.
+        unified_model = llm.bind_tools([*planner_tools, PlannerOutput], tool_choice="any")
 
     planner_input = f"Execution brief:\n{execution_brief}"
     clarifications = _recent_planner_clarifications(state)
@@ -146,11 +161,16 @@ async def planner_node(state: AgentState) -> dict:
 
     result = await unified_model.ainvoke(
         [
-            SystemMessage(content=PLANNER_SYSTEM),
+            SystemMessage(content=with_business_context(PLANNER_SYSTEM, state)),
             HumanMessage(content=planner_input),
         ]
     )
     raw_response, parsed = _extract_structured_payload(result)
+    if not parsed and raw_response:
+        for call in getattr(raw_response, "tool_calls", None) or []:
+            if call.get("name") == PlannerOutput.__name__:
+                parsed, raw_response = PlannerOutput(**call["args"]), None
+                break
 
     if raw_response and getattr(raw_response, "tool_calls", None):
         return {

@@ -4,6 +4,7 @@ from langchain_core.messages import AIMessage, SystemMessage
 
 from app.agents.state import AgentState
 from app.config import get_settings
+from app.services.llm_providers import text_of
 from app.services.llm_service import get_llm
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,8 @@ SAFE:
   - search across uploaded documents
   - queries related to Knowledge Base search, retrieve
 - Questions about the current workspace or uploaded content
+- Calendars and scheduling: meetings, Google Meet links, availability, reminders, moving or cancelling events
+- Questions about the business itself: its customers, competitors, market, and how to improve it
 - General conversation and confirmations
 Queries having Knowledge base or documents should be safe unless they asking to do something wrong by just using these keywords as bypass
 
@@ -81,14 +84,9 @@ _REFUSALS = {
 
 
 def _normalize_unsafe_reason(reason: str) -> str:
-    normalized = (reason or "").strip().lower()
-    if normalized in _REFUSALS:
-        return normalized
-    if "sql" in normalized:
-        return "sql_queries"
-    if "code" in normalized or "program" in normalized or "script" in normalized:
-        return "code_generation"
-    return ""
+    """Refusal category from "<category>|<reason>". Anything unrecognized is out of scope, not "code"."""
+    category = (reason or "").split("|", 1)[0].strip().lower()
+    return category if category in _REFUSALS else "out_of_scope"
 
 
 async def guardrail_node(state: AgentState) -> dict:
@@ -112,18 +110,18 @@ async def guardrail_node(state: AgentState) -> dict:
         {"role": "user", "content": last_user_msg},
     ])
 
-    result = str(response.content or "").strip()
-    if result.upper().startswith("SAFE"):
+    result = text_of(response.content).strip()
+    # Refuse only on an explicit verdict: unexpected output shouldn't block a real request.
+    if not result.upper().startswith("UNSAFE"):
         logger.info("Guardrail: SAFE - user %s", state["user_id"])
         return {"is_safe": True, "guardrail_reason": ""}
 
-    reason = _normalize_unsafe_reason(result.replace("UNSAFE|", "").strip())
-    refusal = _REFUSALS.get(reason) or _REFUSALS["code_generation"]
-    log_reason = reason or "generic_out_of_scope"
-    logger.info("Guardrail: UNSAFE (%s) - user %s", log_reason, state["user_id"])
+    reason = _normalize_unsafe_reason(result.split("|", 1)[1] if "|" in result else "")
+    refusal = _REFUSALS[reason]
+    logger.info("Guardrail: UNSAFE (%s) - user %s", reason, state["user_id"])
     return {"is_safe": False, "guardrail_reason": reason, "refusal_message": refusal}
 
 
 async def unsafe_node(state: AgentState) -> dict:
-    refusal = state.get("refusal_message") or _REFUSALS["code_generation"]
+    refusal = state.get("refusal_message") or _REFUSALS["out_of_scope"]
     return {"messages": [AIMessage(content=refusal)]}

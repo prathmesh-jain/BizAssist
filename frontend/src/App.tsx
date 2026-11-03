@@ -3,8 +3,11 @@ import { setTokenGetter, setUnauthorizedHandler } from './api/client';
 import React from 'react';
 import { ThemeProvider } from './components/ThemeProvider';
 import { useAuth } from './context/AuthContext';
+import { postLoginPath } from './lib/session';
+import { LogoMark } from './components/ui/Logo';
 
 const Login = React.lazy(() => import('./pages/Login'));
+const InvitePage = React.lazy(() => import('./pages/InvitePage'));
 const Signup = React.lazy(() => import('./pages/Signup'));
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const OAuthCallback = React.lazy(() => import('./pages/OAuthCallback'));
@@ -33,30 +36,33 @@ function App() {
     <BrowserRouter>
       <ThemeProvider>
         {sessionExpiredOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
-              <h2 className="text-lg font-bold text-foreground">Session expired</h2>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 p-4">
+            <div role="alertdialog" aria-modal="true" className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-xl">
+              <h2 className="font-display text-xl font-semibold text-foreground">You've been signed out</h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                We couldn't validate your credentials. Please sign in again.
+                Your session ended, so we couldn't confirm it's you. Sign in again to carry on.
               </p>
               <div className="mt-5 flex justify-end">
                 <button
-                  className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+                  className="btn-glow rounded-xl px-4 py-2 text-sm font-semibold"
                   onClick={() => {
                     logout().finally(() => {
                       window.location.href = '/login';
                     });
                   }}
                 >
-                  Go to login
+                  Sign in again
                 </button>
               </div>
             </div>
           </div>
         )}
         <Routes>
-          <Route path="/login" element={user ? <Navigate to="/app" replace /> : <RouteSuspense><Login /></RouteSuspense>} />
-          <Route path="/signup" element={user ? <Navigate to="/app" replace /> : <RouteSuspense><Signup /></RouteSuspense>} />
+          <Route path="/login" element={user ? <Navigate to={postLoginPath()} replace /> : <RouteSuspense><Login /></RouteSuspense>} />
+          <Route path="/signup" element={user ? <Navigate to={postLoginPath()} replace /> : <RouteSuspense><Signup /></RouteSuspense>} />
+
+          {/* Invitation links; redirects to login (and back) when signed out */}
+          <Route path="/invite" element={<BackendWarmupGate><RouteSuspense><InvitePage /></RouteSuspense></BackendWarmupGate>} />
 
           {/* OAuth popup callback — must be accessible without auth */}
           <Route path="/oauth-callback" element={<RouteSuspense><OAuthCallback /></RouteSuspense>} />
@@ -100,11 +106,8 @@ function RouteSuspense({ children }: { children: React.ReactNode }) {
 
 function RouteLoader() {
   return (
-    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-6">
-      <div className="flex items-center gap-3 rounded-2xl border border-border bg-card px-5 py-4 shadow-lg">
-        <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-        <span className="text-sm font-medium text-muted-foreground">Loading...</span>
-      </div>
+    <div className="min-h-screen bg-background flex items-center justify-center p-6" aria-busy="true">
+      <LogoMark className="w-9 h-9 animate-pulse" />
     </div>
   );
 }
@@ -176,31 +179,35 @@ function BackendWarmupGate({ children }: { children: React.ReactNode }) {
 
   if (ready) return <>{children}</>;
 
+  // Hosted backends can take a little while to wake up; say so plainly instead of spinning silently.
+  const slow = attempt >= 3;
   return (
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-6">
-      <div className="w-full max-w-xl rounded-3xl border border-border bg-card p-7 shadow-xl">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-2xl bg-primary/15 flex items-center justify-center">
-            <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-          </div>
-          <div>
-            <div className="text-lg font-bold">Starting backend…</div>
-            <div className="text-sm text-muted-foreground">Please wait while we get things ready.</div>
-          </div>
-        </div>
-
-        <div className="mt-5 flex items-center justify-between gap-4">
-          <div className="text-xs text-muted-foreground">
-            Attempts: {attempt}
-            {lastError ? ` • Last: ${lastError}` : ''}
-          </div>
-          <button
-            className="rounded-xl border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground hover:bg-muted transition-colors"
-            onClick={() => window.location.reload()}
-          >
-            Retry
-          </button>
-        </div>
+      <div className="w-full max-w-sm text-center rise-in">
+        <LogoMark className="mx-auto w-10 h-10 animate-pulse" />
+        <h1 className="mt-6 font-display text-2xl font-semibold">
+          {slow ? 'Still waking up…' : 'Getting things ready'}
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {slow
+            ? 'The server was asleep and is starting up. This can take up to a minute the first time.'
+            : 'Connecting to BizAssist.'}
+        </p>
+        {slow && (
+          <>
+            <button
+              className="mt-6 rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-muted"
+              onClick={() => window.location.reload()}
+            >
+              Try again
+            </button>
+            {lastError && (
+              <p className="mt-4 font-mono text-[11px] text-muted-foreground">
+                attempt {attempt} · {lastError}
+              </p>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
