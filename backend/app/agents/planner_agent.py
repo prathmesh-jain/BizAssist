@@ -9,6 +9,7 @@ from app.agents.business_context import with_business_context
 from app.agents.state import AgentState
 from app.agents.tooling import get_planner_tools
 from app.config import get_settings
+from app.services.llm_providers import supports_openai_strict_schema
 from app.services.llm_service import get_llm
 
 logger = logging.getLogger(__name__)
@@ -71,6 +72,8 @@ def _extract_structured_payload(result: Any) -> tuple[BaseMessage | None, Planne
         raw = result.get("raw")
         parsed = result.get("parsed")
         return raw if isinstance(raw, BaseMessage) else None, parsed if isinstance(parsed, PlannerOutput) else None
+    if isinstance(result, BaseMessage):
+        return result, None
     return None, result if isinstance(result, PlannerOutput) else None
 
 
@@ -138,13 +141,18 @@ async def planner_node(state: AgentState) -> dict:
         temperature=0,
         streaming=False,
     )
-    unified_model = llm.with_structured_output(
-        schema=PlannerOutput,
-        method="json_schema",
-        include_raw=True,
-        strict=True,
-        tools=get_planner_tools(state),
-    )
+    planner_tools = get_planner_tools(state)
+    if supports_openai_strict_schema(llm):
+        unified_model = llm.with_structured_output(
+            schema=PlannerOutput,
+            method="json_schema",
+            include_raw=True,
+            strict=True,
+            tools=planner_tools,
+        )
+    else:
+        # Other providers: submitting the plan is itself a tool call, so plans and tools share one mechanism.
+        unified_model = llm.bind_tools([*planner_tools, PlannerOutput], tool_choice="any")
 
     planner_input = f"Execution brief:\n{execution_brief}"
     clarifications = _recent_planner_clarifications(state)
@@ -158,6 +166,11 @@ async def planner_node(state: AgentState) -> dict:
         ]
     )
     raw_response, parsed = _extract_structured_payload(result)
+    if not parsed and raw_response:
+        for call in getattr(raw_response, "tool_calls", None) or []:
+            if call.get("name") == PlannerOutput.__name__:
+                parsed, raw_response = PlannerOutput(**call["args"]), None
+                break
 
     if raw_response and getattr(raw_response, "tool_calls", None):
         return {

@@ -234,7 +234,7 @@ export default function OnboardingFlow() {
                 <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                     {error}
                     {error.includes('API key') && (
-                        <button onClick={() => navigate('/app/settings')} className="block mt-1 font-semibold text-primary hover:underline">Add your OpenAI API key in Settings</button>
+                        <button onClick={() => navigate('/app/settings')} className="block mt-1 font-semibold text-primary hover:underline">Add your AI provider key in Settings</button>
                     )}
                 </div>
             )}

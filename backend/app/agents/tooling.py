@@ -179,16 +179,20 @@ def get_core_tools(state: AgentState) -> list:
         """
         from app.db.base import session_scope
         from app.services.rag_service import retrieve
+        from app.services.user_settings_service import UserSettingsError
 
-        async with session_scope() as session:
-            ctx = await retrieve(
-                query=query,
-                organization_id=organization_id,
-                user_id=user_id,
-                session=session,
-                k=int(k or 5),
-                filename=filename,
-            )
+        try:
+            async with session_scope() as session:
+                ctx = await retrieve(
+                    query=query,
+                    organization_id=organization_id,
+                    user_id=user_id,
+                    session=session,
+                    k=int(k or 5),
+                    filename=filename,
+                )
+        except UserSettingsError as exc:
+            return {"ok": False, "error": str(exc)}
         return {"ok": True, "query": query, "k": int(k or 5), "filename": filename, "context": ctx}
 
     return [request_clarification, rag_retrieve]

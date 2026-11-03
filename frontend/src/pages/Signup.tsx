@@ -37,7 +37,7 @@ export default function Signup() {
                     'A few questions about your business',
                     'BizAssist researches what’s public and shows its sources',
                     'You keep what’s right and correct the rest',
-                    'Add your OpenAI key, then start asking',
+                    'Add your AI provider key, then start asking',
                 ],
             }}
         >

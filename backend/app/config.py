@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     fast_model: str = "gpt-4.1-mini"        # title gen, summarization
     nano_model: str = "gpt-4.1-mini"        # safety check only (gpt-4.1-nano was retired by OpenAI)
     user_secrets_encryption_key: str = ""
+    # Allow custom LLM base URLs on private addresses (e.g. Ollama on localhost). Local development only.
+    allow_private_llm_base_urls: bool = False
 
     #chunk size and overlap
     chunk_size: float = 1200

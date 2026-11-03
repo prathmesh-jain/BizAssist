@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,11 +15,14 @@ from app.models.user import CurrentUserContext
 from app.research.search import build_search_provider
 from app.research.website import analyze_website
 from app.research.workflow import ResearchWorkflow
+from app.services.llm_providers import structured as structured_output
+from app.services.llm_service import get_llm
 from app.services.onboarding_questions import PROFILE_COLUMNS, QUESTIONS, normalize_answers
 from app.services.user_settings_service import (
     UserSettingsError,
     get_user_model_for_purpose,
-    require_user_openai_api_key,
+    get_user_openai_api_key,
+    require_user_llm_credentials,
 )
 from app.config import get_settings
 
@@ -157,10 +159,10 @@ async def start_research(session: AsyncSession, actor: CurrentUserContext) -> Bu
     if not answers.get("location"):
         raise BusinessProfileError("Add your city and country first; research uses them to find local competitors.")
     try:
-        # BYOK: research runs on the requesting user's OpenAI key.
-        await require_user_openai_api_key(actor.user.id, session)
+        # BYOK: research runs on the requesting user's selected provider.
+        await require_user_llm_credentials(actor.user.id, session)
     except UserSettingsError as exc:
-        raise BusinessProfileError("Research runs on your OpenAI API key. Add it in Settings first.") from exc
+        raise BusinessProfileError(f"Research runs on your AI provider. {exc}") from exc
 
     run = BusinessResearchRun(
         organization_id=actor.organization.id,
@@ -199,9 +201,9 @@ def _friendly_error(exc: Exception) -> str:
     text = str(exc)
     lowered = text.lower()
     if "api key" in lowered or "invalid_api_key" in lowered or "401" in lowered:
-        return "OpenAI rejected the API key. Check it in Settings, then try again."
+        return "Your AI provider rejected the API key. Check it in Settings, then try again."
     if "rate limit" in lowered or "quota" in lowered or "429" in lowered:
-        return "OpenAI rate limit or quota reached. Try again later."
+        return "Your AI provider's rate limit or quota was reached. Try again later."
     return f"Research failed: {text[:300]}"
 
 
@@ -237,13 +239,12 @@ async def _finish_run(run_id: str, *, status: str, result: dict | None = None, e
 
 async def _build_workflow(user_id: str, run_id: str) -> ResearchWorkflow:
     async with session_scope() as session:
-        api_key = await require_user_openai_api_key(user_id, session)
+        openai_key = await get_user_openai_api_key(user_id, session)
         model = await get_user_model_for_purpose(user_id, "primary", session)
-
-    llm = ChatOpenAI(model=model, api_key=api_key, temperature=0, max_retries=2)
+        llm = await get_llm(user_id=user_id, purpose="primary", temperature=0, max_retries=2, session=session)
 
     async def structured(schema, system: str, human: str):
-        return await llm.with_structured_output(schema).ainvoke(
+        return await structured_output(llm, schema).ainvoke(
             [SystemMessage(content=system), HumanMessage(content=human)]
         )
 
@@ -252,7 +253,7 @@ async def _build_workflow(user_id: str, run_id: str) -> ResearchWorkflow:
 
     return ResearchWorkflow(
         structured=structured,
-        search=build_search_provider(user_api_key=api_key, model=model),
+        search=build_search_provider(user_api_key=openai_key, model=model),
         analyze_website=lambda url: analyze_website(
             url, max_pages=settings.research_max_website_pages, crawler=settings.research_crawler
         ),

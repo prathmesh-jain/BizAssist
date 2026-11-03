@@ -18,7 +18,7 @@ from app.services.chat_service import (
 )
 from app.services.user_settings_service import (
     UserSettingsError,
-    require_user_openai_api_key,
+    require_user_llm_credentials,
 )
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -65,7 +65,7 @@ def _extract_text_from_pdf_bytes(raw: bytes) -> str:
 
 async def _ensure_chat_enabled(user_id: str, session) -> None:
     try:
-        await require_user_openai_api_key(user_id, session)
+        await require_user_llm_credentials(user_id, session)
     except UserSettingsError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

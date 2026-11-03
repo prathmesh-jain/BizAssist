@@ -151,8 +151,8 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
             <div className="max-w-3xl mx-auto">
                 {!settingsPending && !chatEnabled && (
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/30 bg-warning/10 px-4 py-2.5 text-sm text-foreground">
-                        <span>Chat needs an OpenAI API key before it can answer.</span>
-                        <Link to="/app/settings" className="font-medium text-primary underline underline-offset-4">Add it in Settings</Link>
+                        <span>Chat needs an AI provider set up before it can answer.</span>
+                        <Link to="/app/settings" className="font-medium text-primary underline underline-offset-4">Set it up in Settings</Link>
                     </div>
                 )}
                 {warning && (
@@ -192,7 +192,7 @@ export default function ChatInput({ onSend, isLoading }: ChatInputProps) {
                         value={text}
                         onChange={(e) => setText(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder={!settingsPending && !chatEnabled ? 'Add your OpenAI key in Settings to start' : 'Ask about your business, documents, sheets, or calendar…'}
+                        placeholder={!settingsPending && !chatEnabled ? 'Add your AI provider in Settings to start' : 'Ask about your business, documents, sheets, or calendar…'}
                         rows={1}
                         disabled={disabled}
                         aria-label="Message"

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.repositories import ChatRepository, MessageRepository
 from app.db.base import session_scope
+from app.services.llm_providers import text_of
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -49,7 +50,7 @@ async def _extract_image_sample(file_bytes: bytes, content_type: str, user_id: s
             ),
         ]
     )
-    return (resp.content or "").strip()
+    return text_of(resp.content).strip()
 
 
 async def extract_text_from_image_bytes(
@@ -98,7 +99,27 @@ async def generate_chat_title(first_message: str, user_id: str, session: AsyncSe
         )},
         {"role": "user", "content": first_message},
     ])
-    return (response.content.strip()[:60]) or "New Chat"
+    return text_of(response.content).strip()[:60] or "New Chat"
+
+
+def calendar_change_event(tool_name: str, content) -> dict | None:
+    """What the UI needs to offer "view in calendar" after the agent changed an event."""
+    action = {"calendar_create_event": "created", "calendar_update_event": "updated", "calendar_delete_event": "deleted"}.get(tool_name)
+    if not action:
+        return None
+    try:
+        payload = json.loads(content) if isinstance(content, str) else content
+    except ValueError:
+        return None
+    if not isinstance(payload, dict) or not payload.get("ok"):
+        return None
+    event = payload.get("event") or {}
+    return {
+        "action": action,
+        "title": event.get("title"),
+        "start": event.get("start"),
+        "meet_link": event.get("meet_link"),
+    }
 
 
 def new_messages_since(before: list, after: list) -> list:
@@ -290,11 +311,14 @@ async def _stream_agent_response(
                             for m in node_output.get("messages") or []:
                                 if getattr(m, "type", "") == "tool" and getattr(m, "name", None):
                                     yield f"data: {json.dumps({'type': 'tool_end', 'name': m.name})}\n\n"
+                                    change = calendar_change_event(m.name, m.content)
+                                    if change:
+                                        yield f"data: {json.dumps({'type': 'calendar_change', **change})}\n\n"
 
                 elif chunk_type == "messages":
                     msg, metadata = data
                     if metadata.get("langgraph_node") in ("chat", "unsafe"):
-                        token = msg.content
+                        token = text_of(msg.content)
                         if token:
                             if first_token_ms is None:
                                 first_token_ms = int((time.monotonic() - started_at) * 1000)
@@ -368,7 +392,7 @@ async def _stream_agent_response(
                 chat_id=chat_id,
                 user_id=user_id,
                 role=role,
-                content=m.content,
+                content=text_of(m.content),
                 tool_calls=m_tool_calls,
             )
 

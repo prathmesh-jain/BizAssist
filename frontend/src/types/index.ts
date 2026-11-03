@@ -1,11 +1,21 @@
 export interface AISettings {
-    provider: 'openai';
+    provider: string;
+    base_url: string | null;
     has_api_key: boolean;
     chat_enabled: boolean;
+    has_embedding_key: boolean;
+    saved_key_providers: string[];
     guardrail_enabled: boolean;
     primary_model: string;
     fast_model: string;
     nano_model: string;
+}
+
+export interface CalendarChange {
+    action: 'created' | 'updated' | 'deleted';
+    title: string;
+    start: string;
+    meet_link: string;
 }
 
 export interface Chat {

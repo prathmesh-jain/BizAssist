@@ -15,6 +15,7 @@ firebase-admin
 openai
 langchain
 langchain-openai
+langchain-anthropic
 langchain-community
 langgraph
 langgraph-checkpoint-postgres

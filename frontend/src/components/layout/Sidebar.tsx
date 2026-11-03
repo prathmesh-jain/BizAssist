@@ -1,4 +1,4 @@
-import { Plus, MessageSquare, LogOut, Settings, FileText, X, Sun, Moon, Pencil, Trash2, Users, Briefcase } from 'lucide-react';
+import { Plus, MessageSquare, LogOut, Settings, FileText, X, Sun, Moon, Pencil, Trash2, Users, Briefcase, CalendarDays } from 'lucide-react';
 import Logo from '../ui/Logo';
 import type { Chat } from '../../types';
 import OrgSwitcher from './OrgSwitcher';
@@ -86,6 +86,7 @@ export default function Sidebar({ isOpen, setIsOpen, currentView, setCurrentView
 
     const menuItems = [
         { id: 'chat', label: 'Assistant', icon: MessageSquare },
+        { id: 'calendar', label: 'Calendar', icon: CalendarDays },
         { id: 'business', label: 'Your business', icon: Briefcase },
         { id: 'documents', label: 'Documents', icon: FileText },
         { id: 'team', label: 'Team', icon: Users },

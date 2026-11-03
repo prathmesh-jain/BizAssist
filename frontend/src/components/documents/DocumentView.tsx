@@ -42,7 +42,7 @@ export default function DocumentView() {
         if (!aiSettings) fetchAISettings();
     }, [fetchDocuments, aiSettings, fetchAISettings]);
 
-    const hasApiKey = !!aiSettings?.has_api_key;
+    const hasApiKey = !!aiSettings?.has_embedding_key;
     const settingsPending = !isLoaded && !aiSettings;
     const blocked = !settingsPending && !hasApiKey;
 
@@ -100,7 +100,7 @@ export default function DocumentView() {
 
                 {blocked && (
                     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm">
-                        <span>Reading documents uses your OpenAI key, and none is saved yet.</span>
+                        <span>Reading documents needs an OpenAI key, whichever provider you chat with, and none is saved yet.</span>
                         <Link to="/app/settings" className="font-medium text-primary underline underline-offset-4">Add it in Settings</Link>
                     </div>
                 )}

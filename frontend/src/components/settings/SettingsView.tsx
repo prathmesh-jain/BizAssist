@@ -4,6 +4,7 @@ import PageHeader from '../ui/PageHeader';
 import StatusChip from '../ui/StatusChip';
 import apiClient from '../../api/client';
 import useSettingsStore from '../../store/settingsStore';
+import AIProviderCard from './AIProviderCard';
 import GoogleCalendarCard from './GoogleCalendarCard';
 
 interface ConnectionStatus {
@@ -11,18 +12,10 @@ interface ConnectionStatus {
     auth_url?: string;
 }
 
-// gpt-4.1-nano was retired by OpenAI (requests now fail with model_not_found).
-const MODEL_OPTIONS = ['gpt-4.1', 'gpt-4.1-mini', 'gpt-5-nano'];
-
 export default function SettingsView() {
     const [sheetsStatus, setSheetsStatus] = React.useState<ConnectionStatus | null>(null);
-    const [apiKeyInput, setApiKeyInput] = React.useState('');
     const [guardrailEnabled, setGuardrailEnabled] = React.useState(true);
-    const [primaryModel, setPrimaryModel] = React.useState('gpt-4.1');
-    const [fastModel, setFastModel] = React.useState('gpt-4.1-mini');
-    const [nanoModel, setNanoModel] = React.useState('gpt-4.1-mini');
-    const [saveMessage, setSaveMessage] = React.useState('');
-    const { aiSettings, isLoading, error, fetchAISettings, updateAISettings } = useSettingsStore();
+    const { aiSettings, fetchAISettings } = useSettingsStore();
     const [isConnecting, setIsConnecting] = React.useState(false);
 
     React.useEffect(() => {
@@ -41,9 +34,6 @@ export default function SettingsView() {
     React.useEffect(() => {
         if (!aiSettings) return;
         setGuardrailEnabled(aiSettings.guardrail_enabled);
-        setPrimaryModel(aiSettings.primary_model);
-        setFastModel(aiSettings.fast_model);
-        setNanoModel(aiSettings.nano_model);
     }, [aiSettings]);
 
     const handleConnectGoogleSheets = async () => {
@@ -98,34 +88,6 @@ export default function SettingsView() {
             console.error('Failed to initiate Google Sheets connection', e);
         } finally {
             setIsConnecting(false);
-        }
-    };
-
-    const handleSaveAISettings = async () => {
-        setSaveMessage('');
-        try {
-            await updateAISettings({
-                ...(apiKeyInput.trim() ? { openai_api_key: apiKeyInput.trim() } : {}),
-                guardrail_enabled: guardrailEnabled,
-                primary_model: primaryModel,
-                fast_model: fastModel,
-                nano_model: nanoModel,
-            });
-            setApiKeyInput('');
-            setSaveMessage('AI settings updated.');
-        } catch {
-            setSaveMessage('');
-        }
-    };
-
-    const handleClearApiKey = async () => {
-        setSaveMessage('');
-        try {
-            await updateAISettings({ clear_api_key: true });
-            setApiKeyInput('');
-            setSaveMessage('OpenAI API key removed.');
-        } catch {
-            setSaveMessage('');
         }
     };
 
@@ -210,101 +172,7 @@ export default function SettingsView() {
                 </div>
 
                 <p className="eyebrow pt-6">AI</p>
-                <div className="bg-card border border-border rounded-2xl overflow-hidden">
-                    <div className="space-y-5 p-5 sm:p-6">
-                        <div>
-                            <div className="flex items-center justify-between gap-4 flex-wrap">
-                                <div>
-                                    <h3 className="text-lg font-semibold text-foreground">OpenAI API key</h3>
-                                    <p className="text-sm text-muted-foreground mt-0.5">
-                                        BizAssist runs on your own key, so usage is billed to your OpenAI account. Chat stays off until one is added.
-                                    </p>
-                                </div>
-                                {aiSettings?.has_api_key ? (
-                                    <StatusChip tone="success">Key saved</StatusChip>
-                                ) : (
-                                    <StatusChip tone="warning">Needed</StatusChip>
-                                )}
-                            </div>
-                            <input
-                                type="password"
-                                value={apiKeyInput}
-                                onChange={(e) => setApiKeyInput(e.target.value)}
-                                placeholder={aiSettings?.has_api_key ? 'Paste a new key to replace the saved one' : 'sk-…'}
-                                className="mt-4 w-full rounded-xl border border-input bg-background px-3 py-2.5 font-mono text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
-                            />
-                            <div className="mt-3 flex flex-wrap gap-3">
-                                <button
-                                    onClick={handleSaveAISettings}
-                                    disabled={isLoading}
-                                    className="px-4 py-2 rounded-xl btn-glow text-sm font-medium hover:bg-primary/90 disabled:opacity-60"
-                                >
-                                    {isLoading ? 'Saving…' : 'Save AI settings'}
-                                </button>
-                                {aiSettings?.has_api_key && (
-                                    <button
-                                        onClick={handleClearApiKey}
-                                        disabled={isLoading}
-                                        className="px-4 py-2 rounded-xl border border-border text-sm text-foreground hover:bg-muted disabled:opacity-60"
-                                    >
-                                        Remove key
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="border-t border-border" />
-                        {[
-                            {
-                                label: 'Main model',
-                                desc: 'Conversations, analysis, and reading documents.',
-                                value: primaryModel,
-                                onChange: setPrimaryModel,
-                            },
-                            {
-                                label: 'Fast model',
-                                desc: 'Planning steps, summaries, and chat titles.',
-                                value: fastModel,
-                                onChange: setFastModel,
-                            },
-                            {
-                                label: 'Small model',
-                                desc: 'Quick safety checks.',
-                                value: nanoModel,
-                                onChange: setNanoModel,
-                            },
-                        ].map(item => (
-                            <div key={item.label} className="flex items-center justify-between gap-4 flex-wrap">
-                                <div>
-                                    <p className="font-medium text-foreground text-sm">{item.label}</p>
-                                    <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
-                                </div>
-                                <select
-                                    value={item.value}
-                                    onChange={(e) => item.onChange(e.target.value)}
-                                    className="min-w-[170px] rounded-xl border border-input bg-background px-3 py-2 font-mono text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
-                                >
-                                    {MODEL_OPTIONS.map(model => (
-                                        <option key={model} value={model}>{model}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        ))}
-
-                        <div className="flex items-center justify-between gap-4 flex-wrap">
-                            <div>
-                                <p className="font-medium text-foreground text-sm">Document search</p>
-                                <p className="text-xs text-muted-foreground mt-0.5">Used to index and search your documents. Not changeable yet.</p>
-                            </div>
-                            <span className="font-mono text-xs text-muted-foreground">text-embedding-3-small</span>
-                        </div>
-                        {(saveMessage || error) && (
-                            <div className={`rounded-xl px-4 py-3 text-sm font-medium ${error ? 'bg-destructive/10 text-destructive border border-destructive/20' : 'bg-success/10 text-success border border-success/25'}`}>
-                                {error || saveMessage}
-                            </div>
-                        )}
-                    </div>
-                </div>
+                <AIProviderCard guardrailEnabled={guardrailEnabled} />
 
                 <p className="eyebrow pt-6">Safety</p>
                 <div className="bg-card border border-border rounded-2xl p-5 sm:p-6">

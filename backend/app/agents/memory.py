@@ -2,6 +2,7 @@ import logging
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, AIMessage as LCAIMessage, RemoveMessage
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
 from app.config import get_settings
+from app.services.llm_providers import text_of
 from app.services.llm_service import get_llm
 from app.agents.state import AgentState
 
@@ -86,7 +87,7 @@ async def summarization_node(state: AgentState) -> dict:
                     HumanMessage(content=user_content),
                 ]
             )
-            new_summary = (resp.content or "").strip() or existing_summary
+            new_summary = text_of(resp.content).strip() or existing_summary
     except Exception as exc:
         logger.warning("Graph memory summarization failed: %s", exc)
         new_summary = existing_summary

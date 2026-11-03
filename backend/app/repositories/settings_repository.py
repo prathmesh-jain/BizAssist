@@ -45,39 +45,40 @@ class SettingsRepository:
         return settings
 
     @staticmethod
-    async def update_api_key(
+    async def _get_or_create(session: AsyncSession, user_id: str) -> UserAISettings:
+        settings = await SettingsRepository.get_by_user_id(session, user_id)
+        return settings or await SettingsRepository.create(session, user_id)
+
+    @staticmethod
+    async def update_api_keys(
         session: AsyncSession,
         user_id: str,
-        encrypted_key: str,
+        updates: dict[str, Optional[str]],
     ) -> UserAISettings:
-        """Update or set the encrypted API key."""
-        result = await session.execute(
-            select(UserAISettings).where(UserAISettings.user_id == user_id)
-        )
-        settings = result.scalar_one_or_none()
-
-        if settings:
-            settings.openai_api_key_encrypted = encrypted_key
-        else:
-            settings = await SettingsRepository.create(session, user_id)
-            settings.openai_api_key_encrypted = encrypted_key
-
+        """Set encrypted keys by provider; None removes that provider's key."""
+        settings = await SettingsRepository._get_or_create(session, user_id)
+        keys = dict(settings.api_keys_encrypted or {})
+        for provider, cipher in updates.items():
+            if cipher is None:
+                keys.pop(provider, None)
+            else:
+                keys[provider] = cipher
+        settings.api_keys_encrypted = keys  # reassign: JSON columns don't track in-place changes
         await session.flush()
         return settings
 
     @staticmethod
-    async def clear_api_key(
+    async def update_provider(
         session: AsyncSession,
         user_id: str,
-    ) -> Optional[UserAISettings]:
-        """Clear the encrypted API key."""
-        result = await session.execute(
-            select(UserAISettings).where(UserAISettings.user_id == user_id)
-        )
-        settings = result.scalar_one_or_none()
-        if settings:
-            settings.openai_api_key_encrypted = None
-            await session.flush()
+        *,
+        provider: str,
+        base_url: Optional[str],
+    ) -> UserAISettings:
+        settings = await SettingsRepository._get_or_create(session, user_id)
+        settings.provider = provider
+        settings.base_url = base_url
+        await session.flush()
         return settings
 
     @staticmethod

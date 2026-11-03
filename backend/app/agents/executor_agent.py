@@ -1,6 +1,6 @@
 import logging
 
-from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage, HumanMessage
 
 from app.agents.business_context import with_business_context
 from app.agents.state import AgentState
@@ -73,6 +73,8 @@ async def executor_node(state: AgentState) -> dict:
     response = await llm_with_tools.ainvoke(
         [
             SystemMessage(content=with_business_context(system_content, state)),
+            # Non-OpenAI providers require a user turn before any assistant or tool messages.
+            HumanMessage(content="Carry out the plan."),
             *scratchpad,
         ]
     )

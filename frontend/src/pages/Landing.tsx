@@ -115,7 +115,7 @@ export default function Landing() {
                             </a>
                         </div>
                         <p className="rise-in mt-5 text-sm text-muted-foreground" style={{ animationDelay: '320ms' }}>
-                            Runs on your own OpenAI key · Your calendar and chats stay yours
+                            Runs on your own AI provider key · Your calendar and chats stay yours
                         </p>
                     </div>
 

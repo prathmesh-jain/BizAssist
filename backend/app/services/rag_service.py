@@ -13,7 +13,7 @@ from qdrant_client import models
 from app.config import get_settings
 from app.repositories import DocumentRepository
 from app.services.qdrant_service import ensure_qdrant_collection, get_qdrant_client, qdrant_filter, qdrant_match_filter
-from app.services.user_settings_service import require_user_openai_api_key
+from app.services.user_settings_service import require_user_embedding_key
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -80,7 +80,7 @@ async def ingest_document(
     splitter = RecursiveCharacterTextSplitter(chunk_size=settings.chunk_size, chunk_overlap=settings.chunk_overlap)
     chunks = splitter.split_text(text)
 
-    api_key = await require_user_openai_api_key(user_id, session)
+    api_key = await require_user_embedding_key(user_id, session)
     embeddings_model = _get_embeddings_model(api_key)
     embeddings = await embeddings_model.aembed_documents(chunks)
 
@@ -165,7 +165,7 @@ async def retrieve(query: str, organization_id: str, user_id: str, session: Asyn
     collection_name = get_documents_collection_name()
     _ensure_documents_collection()
     client = get_qdrant_client()
-    api_key = await require_user_openai_api_key(user_id, session)
+    api_key = await require_user_embedding_key(user_id, session)
     embeddings_model = _get_embeddings_model(api_key)
     query_embedding = await embeddings_model.aembed_query(query)
 
@@ -195,7 +195,7 @@ async def retrieve_top_filenames(query: str, organization_id: str, user_id: str,
     collection_name = get_documents_collection_name()
     _ensure_documents_collection()
     client = get_qdrant_client()
-    api_key = await require_user_openai_api_key(user_id, session)
+    api_key = await require_user_embedding_key(user_id, session)
     embeddings_model = _get_embeddings_model(api_key)
     query_embedding = await embeddings_model.aembed_query(query)
 
