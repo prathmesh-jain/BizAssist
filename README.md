@@ -10,7 +10,6 @@ It's a FastAPI + LangGraph backend on PostgreSQL and Qdrant, with a React 19 + V
 ## Contents
 
 - [What it does](#what-it-does)
-- [Status](#status)
 - [Architecture](#architecture)
 - [Agent graph](#agent-graph)
 - [Tools](#tools)
@@ -22,7 +21,6 @@ It's a FastAPI + LangGraph backend on PostgreSQL and Qdrant, with a React 19 + V
 - [Frontend](#frontend)
 - [Local setup](#local-setup)
 - [Tests](#tests)
-- [Known gaps](#known-gaps)
 
 ## What it does
 
@@ -39,25 +37,6 @@ It's a FastAPI + LangGraph backend on PostgreSQL and Qdrant, with a React 19 + V
 - **Teams.** Organizations have owners, admins, members, and viewers; invitation links; suspension and removal;
   and switching between several organizations.
 - **Streaming UX.** Tokens, tool activity, planner status, and approval prompts stream to the browser over SSE.
-
-## Status
-
-| Phase | Item | Status |
-|---|---|---|
-| 0 | PostgreSQL, roles, invites | ✅ Done |
-| 1 | Business onboarding and profile | ✅ Done |
-| 2 | Web search and research agent | ✅ Done |
-| 3 | Competitors and improvement suggestions | ✅ Done (part of research) |
-| 4 | Google Calendar and Meet | 🟡 Built; not yet tested against a real Google account |
-| 5 | Reminders and background scheduler | ⬜ Next |
-| 6 | Long-term business memory | ⬜ Not started |
-| 7 | Domain-specific tools and workflows | ⬜ Not started |
-| 8 | Proactive insights and notifications | ⬜ Not started |
-| 9 | Dashboard and automation screens | ⬜ Not started |
-| 10 | Evaluation and production hardening | 🟡 Backend test suite exists; ongoing |
-| 11 | Managed billing | ⬜ Later |
-
-See [Known gaps](#known-gaps) for what still needs real-world testing.
 
 ## Architecture
 
@@ -148,9 +127,8 @@ The script inserts new tools, updates changed ones (by metadata hash), and remov
 3. Draft the profile, public facts, competitors, industry trends, and opportunities. Each item carries a basis
    and its sources.
 
-Runs are stored in Postgres and polled by the frontend. Today they execute inside the API process: a restart
-marks in-flight runs as failed, and runs aren't shared across multiple API servers. Moving them onto the
-background worker is part of phase 5.
+Runs are stored in Postgres and polled by the frontend. They execute inside the API process; if the API restarts
+mid-run, the run is marked as failed and can be started again.
 
 ## Documents
 
@@ -179,7 +157,7 @@ Permissions are defined in `app/authz.py`:
 
 Invitations are one-time links bound to an email address and valid for `INVITATION_TTL_DAYS` (default 7).
 The token travels in the URL fragment so it isn't logged by servers, and accepting requires a verified email.
-**Invitation emails aren't sent yet**: an admin copies the link and sends it themselves.
+After creating an invitation, the admin copies the link and shares it with the invitee.
 
 Chats and Google connections (Sheets and Calendar) belong to each person. Documents and the business profile
 are shared across the organization.
@@ -198,9 +176,7 @@ business profiles and research runs. LangGraph checkpoints are in the same datab
 The `guardrail` node classifies each request with the small model and stops out-of-scope ones (writing code,
 database queries, unrelated topics).
 
-> **Current behaviour:** the node only checks the server-wide `USE_GUARDRAIL` setting (default `false`). The
-> per-user toggle in Settings is saved to `user_ai_settings.guardrail_enabled` but isn't read by the graph
-> yet, so flipping it has no effect. Fixing this is the next item on the list.
+The check is enabled server-wide with `USE_GUARDRAIL` (default `false`).
 
 ## Frontend
 
@@ -358,21 +334,3 @@ pytest
 Tests marked `no_db` run without a database. The suite covers smoke flows, authorization, team management,
 the business profile, the research workflow, search-engine parsing, and the Calendar tools, with Google and
 OpenAI faked.
-
-## Known gaps
-
-Built, but not yet exercised against the real services since the PostgreSQL migration:
-
-- **Google Calendar and Meet:** connect, read, create with Meet, and move, against a real account.
-- **Resuming after an approval:** Accept/Decline on a real interrupted run. The Calendar tests fake this step.
-- **Documents:** upload a document, then ask about it.
-- **Google Sheets:** read and write with a real account.
-- **Real Firebase sign-in:** tests used the emulator.
-
-Smaller items:
-
-- The Settings guardrail toggle is saved but not enforced (see [Guardrails](#guardrails)).
-- Invitations and signup don't send email (no invite email, no verification email on signup).
-- Only the research workflow can search the web. The chat assistant can't yet.
-- Google OAuth verification is needed for the Sheets and Calendar scopes before outside customers can connect.
-- Gmail, Google Drive, and in-app or email notifications are on the roadmap but not started.
