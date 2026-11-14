@@ -8,9 +8,15 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # Dependencies first, so code changes don't reinstall them.
+# Playwright's bundled Node.js links against libatomic and libstdc++. Slim images lack libatomic, and
+# `--with-deps` can't add it because that step itself runs on the bundled Node.js.
 COPY requirements.txt .
-RUN pip install -r requirements.txt \
-    && playwright install --with-deps chromium
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libatomic1 libstdc++6 \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install -r requirements.txt \
+    && playwright install --with-deps chromium \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY . .
 
