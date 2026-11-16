@@ -27,7 +27,6 @@ _fernet = google_oauth.fernet
 _utcnow = google_oauth.utcnow
 _hash_state = google_oauth.hash_state
 _exchange_code_for_token = google_oauth.exchange_code_for_token
-_refresh_access_token = google_oauth.refresh_access_token
 
 
 def _parse_grid_limit_error(message: str) -> tuple[int, int] | None:
@@ -259,7 +258,9 @@ async def get_valid_access_token(
     if not refresh_token:
         raise GoogleOAuthError("Access token expired and no refresh token is available. Reconnect Google Sheets.")
 
-    refreshed = await _refresh_access_token(refresh_token)
+    refreshed = await google_oauth.refresh_or_forget(
+        connection, refresh_token, reconnect_hint="Reconnect Google Sheets in Settings."
+    )
     new_access = refreshed.get("access_token")
     expires_in = int(refreshed.get("expires_in") or 0)
     if not new_access:
