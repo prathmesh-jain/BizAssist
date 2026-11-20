@@ -152,6 +152,33 @@ async def _title_event(title_task: asyncio.Task | None, chat_id: str, *, timeout
     return f"data: {json.dumps({'type': 'title_update', 'chat_id': chat_id, 'title': title})}\n\n"
 
 
+def memory_change_from_tool(tool_name: str, content) -> dict | None:
+    """A "Memory updated" change for a successful remember/forget_memory tool result."""
+    if tool_name not in ("remember", "forget_memory"):
+        return None
+    try:
+        payload = content if isinstance(content, dict) else json.loads(content)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(payload, dict) or payload.get("ok") is not True or payload.get("action") == "unchanged":
+        return None
+    memory = payload.get("memory") or {}
+    return {"action": payload.get("action"), "id": memory.get("id"), "content": memory.get("content"), "scope": memory.get("scope")}
+
+
+async def _memory_event(*, timeout: float = 4.0, **kwargs) -> str | None:
+    from app.services.memory_service import extract_memories
+
+    task = asyncio.create_task(extract_memories(**kwargs))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    done, _ = await asyncio.wait({task}, timeout=timeout)
+    if not done or task.exception() is not None:
+        return None
+    changes = task.result()
+    return f"data: {json.dumps({'type': 'memory_updated', 'changes': changes})}\n\n" if changes else None
+
+
 async def stream_agent_response(
     user_message: str | None,
     chat_id: str,
@@ -191,9 +218,14 @@ async def _stream_agent_response(
     from app.services.business_profile_service import business_context_text
     from app.services.google_calendar_service import connection_status
 
+    from app.services.memory_service import build_memory_context
+
     business_context = await business_context_text(session, organization_id)
     calendar_status = await connection_status(session, user_id=user_id, organization_id=organization_id)
     user_timezone = calendar_status.get("timezone") or ""
+    memory_context = await build_memory_context(
+        session, organization_id=organization_id, user_id=user_id, query=user_message
+    )
 
     combined_user = (user_message or "").strip()
     if user_message_context:
@@ -207,11 +239,13 @@ async def _stream_agent_response(
         "organization_id": organization_id,
         "role": role,
         "business_context": business_context,
+        "memory_context": memory_context,
         "user_timezone": user_timezone,
     }
 
     full_response = ""
     yielded_any = False
+    memory_tool_used = False
     started_at = last_step_at = time.monotonic()
     step_timings: list[str] = []
     first_token_ms: int | None = None
@@ -234,7 +268,7 @@ async def _stream_agent_response(
 
     # Use Command(resume=...) if resuming, otherwise use initial_state
     # On resume, refresh the role too so a demotion during a pending interrupt takes effect.
-    input_data = initial_state if not is_resume else Command(resume=resume_value, update={"role": role, "business_context": business_context, "user_timezone": user_timezone})
+    input_data = initial_state if not is_resume else Command(resume=resume_value, update={"role": role, "business_context": business_context, "memory_context": memory_context, "user_timezone": user_timezone})
 
     max_attempts = 1 if is_resume else max(int(getattr(settings, "agent_run_retries", 2) or 2), 1)
 
@@ -314,6 +348,10 @@ async def _stream_agent_response(
                                     change = calendar_change_event(m.name, m.content)
                                     if change:
                                         yield f"data: {json.dumps({'type': 'calendar_change', **change})}\n\n"
+                                    memory_change = memory_change_from_tool(m.name, m.content)
+                                    if memory_change:
+                                        memory_tool_used = True
+                                        yield f"data: {json.dumps({'type': 'memory_updated', 'changes': [memory_change]})}\n\n"
 
                 elif chunk_type == "messages":
                     msg, metadata = data
@@ -399,5 +437,19 @@ async def _stream_agent_response(
     title_event = await _title_event(title_task, chat_id)
     if title_event:
         yield title_event
+
+    # Learn from this exchange in the background. Wait briefly so a quick result can show as
+    # "Memory updated" under the reply; a slow one simply finishes after the response ends.
+    assistant_reply = next(
+        (text_of(m.content) for m in reversed(new_msgs or []) if m.type == "ai" and not getattr(m, "tool_calls", None)),
+        full_response,
+    )
+    if user_message and not is_resume and not memory_tool_used and assistant_reply:
+        memory_event = await _memory_event(
+            organization_id=organization_id, user_id=user_id, role=role, chat_id=chat_id,
+            user_text=user_message, assistant_text=assistant_reply,
+        )
+        if memory_event:
+            yield memory_event
 
     yield f"data: {json.dumps({'type': 'done'})}\n\n"

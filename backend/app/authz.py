@@ -29,6 +29,10 @@ ACTION_MIN_ROLE: dict[str, Role] = {
     "organization.manage": "admin",
     "business.read": "viewer",
     "business.manage": "admin",
+    # Long-term memory. Anyone keeps personal memories; shared business memories need member+,
+    # and editing or deleting someone else's shared memory needs admin.
+    "memory.write_shared": "member",
+    "memory.manage_shared": "admin",
 }
 
 

@@ -42,6 +42,12 @@ async def upload_document(user: DocumentUploader, file: UploadFile = File(...), 
         logger.exception("Document ingestion failed")
         raise HTTPException(status_code=500, detail="Internal server error during ingestion.")
 
+    from app.services.memory_service import record_activity
+
+    await record_activity(
+        organization_id=user.organization.id, user_id=user.user.id,
+        content=f"Uploaded the document “{file.filename}”.", scope="shared",
+    )
     return {"doc_id": doc_record["id"], "filename": file.filename, "chunks": doc_record["chunk_count"]}
 
 
