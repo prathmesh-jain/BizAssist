@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import apiClient, { getRequestHeaders } from '../api/client';
 import { triggerUnauthorized } from '../api/client';
-import type { Chat, Message, ToolStatus, ToolCall, CalendarChange } from '../types';
+import type { Chat, Message, ToolStatus, ToolCall, CalendarChange, MemoryChange } from '../types';
 
 interface ChatState {
     chats: Chat[];
@@ -12,6 +12,7 @@ interface ChatState {
     activeTools: ToolCall[];
     agentStatus: { message: string; steps?: string[] } | null;
     calendarChanges: CalendarChange[];
+    memoryChanges: MemoryChange[];
     hasMoreMessages: boolean;
     isLoadingMore: boolean;
 
@@ -36,7 +37,7 @@ const getApiBase = () => {
 };
 
 interface ChatStreamEvent {
-    type: 'token' | 'interrupt' | 'tool_start' | 'tool_end' | 'source' | 'title_update' | 'status' | 'calendar_change' | 'error' | 'done';
+    type: 'token' | 'interrupt' | 'tool_start' | 'tool_end' | 'source' | 'title_update' | 'status' | 'calendar_change' | 'memory_updated' | 'error' | 'done';
     content?: string | { 
         question: string; 
         interrupt_type?: 'file_upload' | 'text_input' | 'yes_no_confirmation' | 'accept_decline';
@@ -54,6 +55,7 @@ interface ChatStreamEvent {
     action?: CalendarChange['action'];
     start?: string;
     meet_link?: string;
+    changes?: MemoryChange[];
 }
 
 /** 
@@ -184,6 +186,12 @@ async function handleStream(
                     };
                     set((state: ChatState) => ({ calendarChanges: [...state.calendarChanges, change] }));
 
+                } else if (parsed.type === 'memory_updated') {
+                    const changes = Array.isArray(parsed.changes) ? parsed.changes.filter((c) => c && c.id && c.content) : [];
+                    if (changes.length) {
+                        set((state: ChatState) => ({ memoryChanges: [...state.memoryChanges, ...changes] }));
+                    }
+
                 } else if (parsed.type === 'title_update') {
                     const chatId = parsed.chat_id;
                     const newTitle = parsed.title;
@@ -277,6 +285,7 @@ const useChatStore = create<ChatState>((set, get) => ({
     activeTools: [],
     agentStatus: null,
     calendarChanges: [],
+    memoryChanges: [],
     hasMoreMessages: true,
     isLoadingMore: false,
 
@@ -290,7 +299,7 @@ const useChatStore = create<ChatState>((set, get) => ({
     },
 
     setActiveChat: async (id: string) => {
-        set({ activeChatId: id, messages: [], streamingMessage: '', activeTools: [], agentStatus: null, calendarChanges: [], hasMoreMessages: true });
+        set({ activeChatId: id, messages: [], streamingMessage: '', activeTools: [], agentStatus: null, calendarChanges: [], memoryChanges: [], hasMoreMessages: true });
         try {
             const requestHeaders = await getRequestHeaders();
             const response = await fetch(`${getApiBase()}/chat/${id}/messages?limit=10`, {
@@ -323,7 +332,7 @@ const useChatStore = create<ChatState>((set, get) => ({
         let { activeChatId } = get();
         if (!activeChatId) activeChatId = await get().createChat('New Chat');
 
-        set({ isLoading: true, streamingMessage: '', activeTools: [], agentStatus: null, calendarChanges: [] });
+        set({ isLoading: true, streamingMessage: '', activeTools: [], agentStatus: null, calendarChanges: [], memoryChanges: [] });
 
         const userMsg: Message = {
             id: Date.now().toString(),
