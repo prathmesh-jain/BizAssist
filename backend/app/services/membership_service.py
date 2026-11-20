@@ -15,6 +15,7 @@ from app.config import get_settings
 from app.db.models import OrganizationInvitation, OrganizationMember
 from app.models.user import AuthenticatedUser, CurrentUserContext
 from app.repositories import MembershipRepository, MemoryRepository, UserRepository
+from app.services import memory_index
 
 settings = get_settings()
 
@@ -139,6 +140,7 @@ async def remove_member(session: AsyncSession, actor: CurrentUserContext, user_i
     await _ensure_not_last_owner(session, member)
     await MembershipRepository.delete_member(session, actor.organization.id, user_id)
     await MemoryRepository.delete_personal_for_member(session, actor.organization.id, user_id)
+    await memory_index.delete_personal(actor.organization.id, user_id)
 
 
 async def leave_organization(session: AsyncSession, actor: CurrentUserContext) -> None:
@@ -148,6 +150,7 @@ async def leave_organization(session: AsyncSession, actor: CurrentUserContext) -
     await _ensure_not_last_owner(session, member)
     await MembershipRepository.delete_member(session, actor.organization.id, actor.user.id)
     await MemoryRepository.delete_personal_for_member(session, actor.organization.id, actor.user.id)
+    await memory_index.delete_personal(actor.organization.id, actor.user.id)
 
 
 async def rename_organization(session: AsyncSession, actor: CurrentUserContext, name: str):

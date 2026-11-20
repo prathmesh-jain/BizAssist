@@ -58,7 +58,7 @@ def get_memory_tools(*, organization_id: str, user_id: str, role: str | None, ch
                     full = [m for m, _ in matches if m.id.startswith(target_id)]
                     target_id = full[0].id if len(full) == 1 else ""
                 if not target_id:
-                    found = await MemoryRepository.search(session, organization_id, user_id, query or "", limit=5)
+                    found = [m for m, _ in await memory_service.find_relevant(session, actor, query or "", limit=5)]
                     if not found:
                         return {"ok": False, "error": "No matching memory found."}
                     if len(found) > 1:
@@ -79,21 +79,20 @@ def get_memory_tools(*, organization_id: str, user_id: str, role: str | None, ch
         """Search long-term memory (business facts, contacts, decisions, preferences) beyond what is
         already in the [Memory] section, e.g. "what did we decide about freight?"."""
         async with session_scope() as session:
-            found = await MemoryRepository.search(session, organization_id, user_id, query, limit=max(1, min(int(limit or 8), 20)))
-            activity = await MemoryRepository.recent_activity(session, organization_id, user_id, days=60, limit=10)
-            terms = set(query.lower().split())
-            related_activity = [
-                {"when": m.created_at.date().isoformat(), "by": name, "what": m.content}
-                for m, name in activity if terms & set(m.content.lower().split())
-            ]
+            n = max(1, min(int(limit or 8), 20))
+            found = await memory_service.find_relevant(session, actor, query, limit=n)
+            activity = await memory_service.find_relevant(
+                session, actor, query, limit=6, kinds=("activity",), exclude_kinds=None)
             return {
                 "ok": True,
                 "memories": [
                     {"id": m.id, "content": m.content, "kind": m.kind, "scope": m.scope,
                      "saved": m.updated_at.date().isoformat() if m.updated_at else None}
-                    for m in found
+                    for m, _ in found
                 ],
-                "activity": related_activity,
+                "activity": [
+                    {"when": m.created_at.date().isoformat(), "by": name, "what": m.content} for m, name in activity
+                ],
             }
 
     return [remember, forget_memory, recall_memory]

@@ -284,11 +284,11 @@ export default function AIProviderCard({ guardrailEnabled }: { guardrailEnabled:
 
                 <div className="flex items-start justify-between gap-4 flex-wrap">
                     <div className="min-w-0">
-                        <p className="font-medium text-foreground text-sm">Document search</p>
+                        <p className="font-medium text-foreground text-sm">Embeddings (documents and memory)</p>
                         <p className="text-xs text-muted-foreground mt-0.5 max-w-sm">
                             {providerId === 'openai'
-                                ? 'Indexes and searches your documents with your OpenAI key.'
-                                : 'Always runs on OpenAI, whichever provider you chat with. Add an OpenAI key to use documents; everything else works without one.'}
+                                ? 'Indexes your documents and lets memory search by meaning, with your OpenAI key.'
+                                : 'Always runs on OpenAI, whichever provider you chat with. Add an OpenAI key to use documents and to search memory by meaning; without one, memory search matches keywords only.'}
                         </p>
                     </div>
                     {providerId === 'openai' ? (
@@ -297,7 +297,7 @@ export default function AIProviderCard({ guardrailEnabled }: { guardrailEnabled:
                         <input
                             type="password"
                             autoComplete="off"
-                            aria-label="OpenAI key for document search"
+                            aria-label="OpenAI key for embeddings"
                             value={documentsKey}
                             onChange={(e) => setDocumentsKey(e.target.value)}
                             placeholder={aiSettings?.has_embedding_key ? 'Saved. Paste to replace' : 'sk-… (optional)'}

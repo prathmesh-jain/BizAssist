@@ -59,17 +59,26 @@ async def list_memories(
     session = Depends(get_db_session, scope="function"),
 ):
     actor = _actor(user)
-    rows, total = await MemoryRepository.list_visible(
-        session, actor.organization_id, actor.user_id,
-        scope=scope, kinds=[kind] if kind else None,
-        exclude_kinds=None if kind else ["activity"],
-        query=q, limit=limit, offset=offset,
-    )
+    if q and q.strip():
+        # Same hybrid search the assistant uses: meaning + keywords with an embedding key, keywords without.
+        matches = await memory_service.find_relevant(
+            session, actor, q, limit=100, scope=scope,
+            kinds=(kind,) if kind else None, exclude_kinds=None if kind else ("activity",),
+        )
+        rows, total = matches[offset:offset + limit], len(matches)
+    else:
+        rows, total = await MemoryRepository.list_visible(
+            session, actor.organization_id, actor.user_id,
+            scope=scope, kinds=[kind] if kind else None,
+            exclude_kinds=None if kind else ["activity"],
+            limit=limit, offset=offset,
+        )
     return {
         "memories": [serialize(m, actor, name) for m, name in rows],
         "total": total,
         "enabled": await memory_service.is_memory_enabled(session, actor.user_id),
         "can_write_shared": can_write_shared(actor.role),
+        "vector_search": bool(await memory_service.embedding_key(session, actor.user_id)),
     }
 
 
@@ -96,7 +105,8 @@ async def update_memory(memory_id: str, body: MemoryUpdate, user: ChatUser, sess
         )
     except MemoryChangeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"memory": serialize(memory, actor)}
+    # A text edit creates a new version (with a new id) that replaces this one.
+    return {"memory": serialize(memory, actor), "replaced_id": memory_id if memory.id != memory_id else None}
 
 
 @router.delete("/{memory_id}")

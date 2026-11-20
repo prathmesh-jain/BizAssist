@@ -25,6 +25,8 @@ from app.authz import can
 from app.db.models.memory import MEMORY_KINDS, Memory
 from app.db.models.user_ai_settings import UserAISettings
 from app.repositories.memory_repository import MemoryRepository
+from app.services import memory_index
+from app.services.memory_index import IndexedMemory
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +108,46 @@ def serialize(memory: Memory, actor: MemoryActor, created_by_name: str | None = 
     }
 
 
+# ---------- search index sync ----------
+
+def _indexed(memory: Memory) -> IndexedMemory:
+    return IndexedMemory(memory.id, memory.organization_id, memory.scope, memory.user_id, memory.kind, memory.content)
+
+
+async def embedding_key(session: AsyncSession, user_id: str) -> str | None:
+    """The user's OpenAI key, used only for the shared embedding model (meaning-based search)."""
+    from app.services.user_settings_service import get_user_openai_api_key
+
+    try:
+        return await get_user_openai_api_key(user_id, session) or None
+    except Exception:
+        logger.warning("memory.embedding_key_unavailable user=%s", user_id, exc_info=True)
+        return None
+
+
+async def _index(session: AsyncSession, actor: MemoryActor, memory: Memory) -> None:
+    key = await embedding_key(session, actor.user_id)
+    await memory_index.upsert([_indexed(memory)], api_key=key)
+    if key:  # someone with a key is here: give meaning vectors to memories saved without one
+        await memory_index.backfill_dense(actor.organization_id, key)
+
+
+async def find_relevant(
+    session: AsyncSession, actor: MemoryActor, text: str, *, limit: int = 8,
+    kinds: tuple[str, ...] | None = None, exclude_kinds: tuple[str, ...] | None = ("activity",),
+    scope: str | None = None,
+) -> list[tuple[Memory, str | None]]:
+    """Hybrid search (meaning + keywords with a key, keywords only without), loaded from Postgres in rank order."""
+    if not (text or "").strip():
+        return []
+    ranked = await memory_index.search(
+        text, organization_id=actor.organization_id, user_id=actor.user_id,
+        api_key=await embedding_key(session, actor.user_id),
+        limit=limit, kinds=kinds, exclude_kinds=exclude_kinds, scope=scope,
+    )
+    return await MemoryRepository.get_many_visible(session, actor.organization_id, actor.user_id, [i for i, _ in ranked])
+
+
 # ---------- settings ----------
 
 async def is_memory_enabled(session: AsyncSession, user_id: str) -> bool:
@@ -179,7 +221,10 @@ async def remember(
     if previous:
         previous.status = "superseded"
         await session.flush()
+        await memory_index.delete([previous.id])
+        await _index(session, actor, memory)
         return memory, "updated"
+    await _index(session, actor, memory)
     return memory, "added"
 
 
@@ -192,19 +237,36 @@ async def update_memory(
         raise MemoryChangeError("That memory no longer exists.")
     if not can_edit(memory, actor):
         raise MemoryChangeError("You can't change this memory. Ask an admin of your organization.")
-    if content is not None:
-        if memory.kind == "activity":
-            raise MemoryChangeError("Activity entries can't be edited.")
-        memory.content = _clean_content(content)
-        memory.source = "manual"
+    if memory.kind == "activity" and (content is not None or kind is not None):
+        raise MemoryChangeError("Activity entries can't be edited.")
+    if kind is not None and kind not in EDITABLE_KINDS:
+        raise MemoryChangeError("That kind of memory isn't supported.")
+
+    new_text = _clean_content(content) if content is not None else None
+    if new_text is not None and new_text != memory.content:
+        # Edits are versioned like automatic updates: a new memory replaces this one (undo restores it).
+        replacement = await MemoryRepository.create(
+            session,
+            organization_id=memory.organization_id, user_id=memory.user_id, created_by_user_id=actor.user_id,
+            scope=memory.scope, kind=kind or memory.kind, content=new_text,
+            topic=memory.topic, source="manual", source_chat_id=memory.source_chat_id,
+            supersedes_id=memory.id, pinned=memory.pinned if pinned is None else bool(pinned),
+        )
+        memory.status = "superseded"
+        await session.flush()
+        await memory_index.delete([memory.id])
+        await _index(session, actor, replacement)
+        return replacement
+
+    reindex = kind is not None and kind != memory.kind
     if kind is not None:
-        if kind not in EDITABLE_KINDS or memory.kind == "activity":
-            raise MemoryChangeError("That kind of memory isn't supported.")
         memory.kind = kind
     if pinned is not None:
         memory.pinned = bool(pinned)
     memory.updated_at = datetime.now(timezone.utc)
     await session.flush()
+    if reindex:
+        await _index(session, actor, memory)
     return memory
 
 
@@ -215,6 +277,7 @@ async def forget(session: AsyncSession, actor: MemoryActor, memory_id: str) -> M
     if not can_edit(memory, actor):
         raise MemoryChangeError("You can't delete this memory. Ask an admin of your organization.")
     await MemoryRepository.delete(session, memory)
+    await memory_index.delete([memory.id])
     return memory
 
 
@@ -231,6 +294,9 @@ async def undo(session: AsyncSession, actor: MemoryActor, memory_id: str) -> Mem
         if restored is not None:
             restored.status = "active"
     await MemoryRepository.delete(session, memory)
+    await memory_index.delete([memory.id])
+    if restored is not None:
+        await _index(session, actor, restored)
     return restored
 
 
@@ -246,7 +312,7 @@ async def record_activity(
         async with session_scope() as session:
             if not await is_memory_enabled(session, user_id):
                 return
-            await MemoryRepository.create(
+            memory = await MemoryRepository.create(
                 session,
                 organization_id=organization_id,
                 user_id=user_id if scope == "personal" else None,
@@ -257,6 +323,8 @@ async def record_activity(
                 source="activity",
                 source_chat_id=chat_id,
             )
+            # Indexed so "what did we do with Sharma?" can find it (recall_memory searches activity).
+            await memory_index.upsert([_indexed(memory)], api_key=await embedding_key(session, user_id))
     except Exception:
         logger.warning("memory.activity.record_failed org=%s user=%s", organization_id, user_id, exc_info=True)
 
@@ -312,12 +380,15 @@ _KIND_LABEL = {"fact": "fact", "preference": "preference", "decision": "decision
 async def build_memory_context(
     session: AsyncSession, *, organization_id: str, user_id: str, query: str | None
 ) -> str:
-    """Compact memory block for this turn: core memories, ones relevant to the message, recent activity."""
+    """Compact memory block for this turn, within CONTEXT_CHAR_BUDGET:
+    memories relevant to the message (hybrid search) first, then pinned and recently updated ones,
+    then the last two weeks of activity."""
     try:
         if not await is_memory_enabled(session, user_id):
             return ""
-        core = await MemoryRepository.core(session, organization_id, user_id, limit=12)
-        relevant = await MemoryRepository.search(session, organization_id, user_id, query or "", limit=8)
+        actor = MemoryActor(organization_id, user_id, None)
+        core = await MemoryRepository.core(session, organization_id, user_id, limit=6)
+        relevant = [m for m, _ in await find_relevant(session, actor, query or "", limit=8)]
         activity = await MemoryRepository.recent_activity(session, organization_id, user_id, days=14, limit=6)
     except Exception:
         logger.warning("memory.context.failed org=%s user=%s", organization_id, user_id, exc_info=True)
@@ -424,7 +495,7 @@ async def extract_memories(
         async with session_scope() as session:
             if not await is_memory_enabled(session, user_id):
                 return []
-            existing = await MemoryRepository.search(session, organization_id, user_id, user_text, limit=10)
+            existing = [m for m, _ in await find_relevant(session, actor, user_text, limit=10)]
             existing_text = "\n".join(
                 f"[{m.id}] ({m.scope}, {m.kind}{', topic ' + m.topic if m.topic else ''}) {m.content}" for m in existing
             ) or "(none)"

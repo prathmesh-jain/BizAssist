@@ -6,6 +6,8 @@ export interface MemoryListResponse {
     total: number;
     enabled: boolean;
     can_write_shared: boolean;
+    /** True when the user has an OpenAI key, so search also matches by meaning (not just keywords). */
+    vector_search: boolean;
 }
 
 export const memoryApi = {
@@ -14,7 +16,8 @@ export const memoryApi = {
     create: (body: { content: string; kind: Exclude<MemoryKind, 'activity'>; scope: MemoryScope }) =>
         apiClient.post<{ memory: MemoryItem; action: 'added' | 'updated' | 'unchanged' }>('/memory', body).then((r) => r.data),
     update: (id: string, body: { content?: string; kind?: Exclude<MemoryKind, 'activity'>; pinned?: boolean }) =>
-        apiClient.patch<{ memory: MemoryItem }>(`/memory/${id}`, body).then((r) => r.data.memory),
+        // A text edit returns a new version (new id) that replaces this memory.
+        apiClient.patch<{ memory: MemoryItem; replaced_id: string | null }>(`/memory/${id}`, body).then((r) => r.data.memory),
     remove: (id: string) => apiClient.delete(`/memory/${id}`),
     undo: (id: string) => apiClient.post<{ ok: boolean; restored: MemoryItem | null }>(`/memory/${id}/undo`).then((r) => r.data),
     setEnabled: (enabled: boolean) =>

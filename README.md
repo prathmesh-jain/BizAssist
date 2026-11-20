@@ -149,8 +149,10 @@ organization, so every member shares the same knowledge base. Document records l
 
 ## Long-term memory
 
-Chat history only lasts within one conversation. Long-term memory (`app/services/memory_service.py`, table
-`memories`) carries knowledge across conversations.
+Chat history only lasts within one conversation. Long-term memory carries knowledge across conversations.
+Postgres (table `memories`) is the source of truth for content, versions, and permissions; Qdrant (collection
+`QDRANT_MEMORY_COLLECTION`, default `memories`) indexes it for hybrid search. The logic lives in
+`app/services/memory_service.py`, `memory_index.py`, and `bm25.py`.
 
 | Kind | Example | Scope |
 |---|---|---|
@@ -170,13 +172,29 @@ Chat history only lasts within one conversation. Long-term memory (`app/services
 - *Activity:* successful write actions (calendar create/update/cancel, Sheets writes, document uploads, profile
   confirmation) are logged as they happen, without a model.
 
-A new memory on the same topic replaces the old one; the old one is kept as `superseded`, so Undo restores it.
-Exact duplicates aren't saved twice, and anything that looks like a password, API key, or card number is refused.
+A new memory on the same topic, or an edit on the Memory page, creates a new version and marks the old one
+`superseded` (removed from the search index, kept in Postgres), so Undo restores it. Exact duplicates aren't saved
+twice, and anything that looks like a password, API key, or card number is refused.
+
+**How memories are found: hybrid search in Qdrant.** Every memory point carries two vectors:
+- `bm25`: a sparse keyword vector computed in-process (`bm25.py`: identifiers like `INV-2024-118` or a GSTIN are
+  kept whole and also split into parts; English words are stemmed; Qdrant applies IDF). Always present, no key
+  needed.
+- `dense`: an embedding from `EMBEDDING_MODEL` (default `text-embedding-3-small`) made with the user's own OpenAI
+  key. Everyone uses the same model, so vectors from different people's keys are comparable. Memories saved
+  without a key have no dense vector until someone in the organization with a key saves a memory, which
+  backfills them.
+
+A search with an OpenAI key runs both in one Qdrant query (a dense prefetch with a minimum cosine score of 0.3,
+plus a BM25 prefetch) merged with Reciprocal Rank Fusion, so a memory found only by an exact word still comes
+back. Without a key it's BM25 only, and the Memory page says so. Every search is filtered to the organization's
+shared memories plus the user's own personal ones. If Qdrant is unreachable, search returns nothing and chat
+carries on; `python scripts/reindex_memories.py` rebuilds the index from Postgres.
 
 **How memories are used.** Every turn, `build_memory_context` adds a `[Memory]` block to the chat, planner, and
-executor prompts: pinned and frequently used memories, the ones most relevant to the message (Postgres full-text
-search, so no OpenAI key is needed), and the last two weeks of activity, within a fixed size budget. The
-`recall_memory` tool searches further back.
+executor prompts: the memories most relevant to the message (hybrid search) first, then pinned and recently
+updated ones, then the last two weeks of activity, within a fixed size budget. The `recall_memory` tool searches
+further back, including activity.
 
 **Privacy and permissions.** Every query is filtered to the current organization. Personal memories are only
 visible to and used for their owner. Members and above can save shared memories; viewers' facts are saved as
@@ -209,12 +227,12 @@ are shared across the organization.
 ## Storage
 
 **PostgreSQL** (SQLAlchemy async, migrations in `backend/alembic/versions/`) stores users and identities,
-organizations, memberships, and invitations; chats and visible message history; long-term memories (with a
-full-text index); document records; per-user
+organizations, memberships, and invitations; chats and visible message history; long-term memories and their
+versions; document records; per-user
 AI settings with the encrypted OpenAI key; OAuth connections and states with encrypted Google tokens; and
 business profiles and research runs. LangGraph checkpoints are in the same database via `AsyncPostgresSaver`.
 
-**Qdrant** stores document vectors and the tool catalog.
+**Qdrant** stores document vectors, the tool catalog, and the long-term memory index (dense and BM25 vectors).
 
 ## Guardrails
 

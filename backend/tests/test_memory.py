@@ -6,7 +6,7 @@ from app.services import memory_service
 from app.services.memory_service import (
     MemoryActor, describe_tool_activity, looks_secret, normalize_topic, worth_extracting,
 )
-from app.repositories.memory_repository import search_terms
+from app.services import bm25, memory_index
 
 
 # ---------- pure helpers ----------
@@ -42,10 +42,61 @@ def test_extraction_skips_trivial_messages_and_search_terms_drop_noise():
     assert not worth_extracting("thanks!")
     assert not worth_extracting("ok")
     assert worth_extracting("Our main packaging supplier is Sharma Packaging")
-    assert search_terms("What is the price of the Diwali hamper?") == ["price", "diwali", "hamper"]
+    assert bm25.tokenize("What is the price of the Diwali hamper?") == ["price", "diwali", "hamper"]
+    # Identifiers stay whole for exact matches, and their parts are searchable too.
+    assert bm25.tokenize("Invoice INV-2024-118") == ["invoic", "inv-2024-118", "inv", "2024", "118"]
+    assert bm25.query_vector("the and of").indices == []
 
 
 # ---------- fixtures ----------
+
+# Words a real embedding model would place close together. The fake model below maps each group to
+# one dimension, so "cartons" is near "boxes" even though they share no letters.
+_CONCEPTS = {
+    "packaging": {"box", "boxes", "carton", "cartons", "packaging", "packag", "crate", "crates"},
+    "supplier": {"supplier", "suppliers", "supplies", "vendor", "vendors", "sends", "send"},
+    "money": {"rent", "pay", "paid", "payment", "fee", "invoice", "cost", "price"},
+    "freight": {"freight", "shipping", "courier", "transport", "delivery"},
+}
+
+
+def _fake_vector(text: str) -> list[float]:
+    import math
+    import re
+    import zlib
+
+    size = memory_index._settings().embedding_vector_size
+    vec = [0.0] * size
+    for word in re.findall(r"[a-z]+", text.lower()):
+        for i, (_, words) in enumerate(_CONCEPTS.items()):
+            if word in words:
+                vec[i] += 1.0
+        vec[10 + zlib.crc32(word.encode()) % (size - 10)] += 0.15  # weak per-word signal
+    norm = math.sqrt(sum(v * v for v in vec)) or 1.0
+    return [v / norm for v in vec]
+
+
+@pytest.fixture(autouse=True)
+def qdrant(monkeypatch):
+    """A fresh in-memory Qdrant per test, and a fake embedding model used only when a key is present."""
+    from qdrant_client import QdrantClient
+
+    from app.services import qdrant_service
+
+    client = QdrantClient(":memory:")
+    monkeypatch.setattr(qdrant_service, "get_qdrant_client", lambda: client)
+    memory_index.reset_collection_cache()
+    calls: list[str] = []
+
+    async def fake_embed(texts, api_key):
+        if not api_key or not texts:
+            return None
+        calls.append(api_key)
+        return [_fake_vector(t) for t in texts]
+
+    monkeypatch.setattr(memory_index, "embed", fake_embed)
+    yield client
+    memory_index.reset_collection_cache()
 
 @pytest.fixture
 async def team(make_user):
@@ -132,8 +183,14 @@ async def test_pin_edit_search_and_settings_toggle(team, client_for):
     assert listing[0]["id"] == a["id"]  # pinned first
     found = (await o.get("/api/memory", params={"q": "sharma orders"})).json()["memories"]
     assert [m["kind"] for m in found] == ["contact"]
-    edited = (await o.patch(f"/api/memory/{a['id']}", json={"content": "Rent is due on the 7th."})).json()["memory"]
-    assert edited["content"] == "Rent is due on the 7th."
+    edited = (await o.patch(f"/api/memory/{a['id']}", json={"content": "Rent is due on the 7th."})).json()
+    # Edits are versioned: a new memory replaces the old one, keeps the pin, and undo restores it.
+    assert edited["memory"]["content"] == "Rent is due on the 7th." and edited["replaced_id"] == a["id"]
+    assert edited["memory"]["pinned"] is True and edited["memory"]["replaced"] is True
+    contents = [m["content"] for m in (await o.get("/api/memory")).json()["memories"]]
+    assert "Rent is due on the 5th." not in contents
+    await o.post(f"/api/memory/{edited['memory']['id']}/undo")
+    assert "Rent is due on the 5th." in [m["content"] for m in (await o.get("/api/memory")).json()["memories"]]
 
     assert (await o.get("/api/memory/settings")).json() == {"enabled": True}
     assert (await o.patch("/api/memory/settings", json={"enabled": False})).json() == {"enabled": False}
@@ -239,7 +296,7 @@ async def test_extraction_adds_updates_and_deletes(team, fake_model):
     assert [(c["action"], c["scope"]) for c in changes] == [("added", "shared"), ("added", "personal")]
 
     async with session_scope() as session:
-        supplier = (await MemoryRepository.search(session, owner.organization.id, owner.user.id, "packaging supplier"))[0]
+        supplier = (await memory_service.find_relevant(session, _actor(owner), "packaging supplier"))[0][0]
     fake_model.append([{"action": "update", "kind": "contact", "target_id": supplier.id,
                         "content": "Kumar Boxes is the main packaging supplier now."}])
     changes = await memory_service.extract_memories(
@@ -306,3 +363,89 @@ def test_memory_block_is_added_to_agent_prompts_and_tool_results_become_ui_event
     assert memory_change_from_tool("remember", json.dumps({"ok": True, "action": "unchanged", "memory": {}})) is None
     assert memory_change_from_tool("remember", json.dumps({"ok": False, "error": "x"})) is None
     assert memory_change_from_tool("rag_retrieve", saved) is None
+
+
+# ---------- hybrid search (Qdrant: meaning + BM25) ----------
+
+async def _set_openai_key(client, key="sk-test-key-for-embeddings"):
+    assert (await client.patch("/api/settings/ai", json={"openai_api_key": key})).status_code == 200
+
+
+async def test_meaning_based_matches_need_an_embedding_key(team, client_for):
+    owner, _, _ = team
+    o = client_for(owner)
+    await o.post("/api/memory", json={"content": "Sharma Packaging supplies our boxes.", "kind": "contact"})
+
+    # No key: keyword search only. "cartons" shares no word with the memory, so nothing comes back.
+    listing = (await o.get("/api/memory", params={"q": "who sends our cartons"})).json()
+    assert listing["vector_search"] is False and listing["memories"] == []
+    # A shared keyword is still found without a key.
+    assert len((await o.get("/api/memory", params={"q": "sharma"})).json()["memories"]) == 1
+
+    # With a key, the meaning vector is backfilled on the next save and "cartons" now finds "boxes".
+    await _set_openai_key(o)
+    await o.post("/api/memory", json={"content": "Rent is due on the 5th.", "kind": "fact"})
+    listing = (await o.get("/api/memory", params={"q": "who sends our cartons"})).json()
+    assert listing["vector_search"] is True
+    assert [m["content"] for m in listing["memories"]][0] == "Sharma Packaging supplies our boxes."
+
+
+async def test_exact_identifiers_are_found_by_bm25_even_when_meaning_misses(team, client_for):
+    owner, _, _ = team
+    o = client_for(owner)
+    await _set_openai_key(o)
+    await o.post("/api/memory", json={"content": "INV-2024-118 from Northline was disputed; hold payment."})
+    await o.post("/api/memory", json={"content": "Courier pickups happen every Tuesday."})
+    found = (await o.get("/api/memory", params={"q": "INV-2024-118"})).json()["memories"]
+    assert found and found[0]["content"].startswith("INV-2024-118")
+    gstin = await o.post("/api/memory", json={"content": "Kumar Boxes GSTIN 27AAPFU0939F1ZV.", "kind": "contact"})
+    assert gstin.status_code == 200
+    assert (await o.get("/api/memory", params={"q": "27AAPFU0939F1ZV"})).json()["memories"][0]["kind"] == "contact"
+
+
+async def test_index_follows_replace_delete_undo_and_leaving(team, client_for, qdrant):
+    owner, viewer, outsider = team
+    o, v, x = client_for(owner), client_for(viewer), client_for(outsider)
+    first = (await o.post("/api/memory", json={"content": "Freight goes with BlueDart.", "topic": "freight"})).json()["memory"]
+    second = (await o.post("/api/memory", json={"content": "Freight goes with Northline.", "topic": "freight"})).json()["memory"]
+
+    def point_ids():
+        points, _ = qdrant.scroll(memory_index.collection_name(), limit=100)
+        return {str(p.id) for p in points}
+
+    assert second["id"] in point_ids() and first["id"] not in point_ids()  # replaced version leaves the index
+    await o.post(f"/api/memory/{second['id']}/undo")
+    assert first["id"] in point_ids() and second["id"] not in point_ids()
+    await o.delete(f"/api/memory/{first['id']}")
+    assert first["id"] not in point_ids()
+
+    # Search is scoped: the outsider's organization and others' personal memories never come back.
+    await o.post("/api/memory", json={"content": "Owner prefers freight quotes in the morning.", "kind": "preference"})
+    await o.post("/api/memory", json={"content": "We switched freight partners last month."})
+    assert {m["scope"] for m in (await v.get("/api/memory", params={"q": "freight"})).json()["memories"]} == {"shared"}
+    assert (await x.get("/api/memory", params={"q": "freight"})).json()["memories"] == []
+
+    mine = (await v.post("/api/memory", json={"content": "Viewer handles freight calls.", "scope": "personal"})).json()["memory"]
+    from app.db.base import session_scope
+    from app.services import membership_service
+
+    async with session_scope() as session:
+        await membership_service.leave_organization(session, viewer)
+    assert mine["id"] not in point_ids()
+
+
+async def test_search_degrades_to_nothing_when_qdrant_is_down(team, client_for, monkeypatch):
+    from app.services import qdrant_service
+
+    owner, _, _ = team
+    o = client_for(owner)
+
+    def broken():
+        raise RuntimeError("qdrant unavailable")
+
+    monkeypatch.setattr(qdrant_service, "get_qdrant_client", broken)
+    memory_index.reset_collection_cache()
+    saved = await o.post("/api/memory", json={"content": "Rent is due on the 5th."})
+    assert saved.status_code == 200  # Postgres still records it; the index can be rebuilt later
+    assert (await o.get("/api/memory", params={"q": "rent"})).json()["memories"] == []
+    assert len((await o.get("/api/memory")).json()["memories"]) == 1

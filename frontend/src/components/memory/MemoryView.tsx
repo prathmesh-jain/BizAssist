@@ -60,6 +60,7 @@ export default function MemoryView() {
     const [total, setTotal] = React.useState(0);
     const [enabled, setEnabled] = React.useState<boolean | null>(null);
     const [canWriteShared, setCanWriteShared] = React.useState(false);
+    const [vectorSearch, setVectorSearch] = React.useState<boolean | null>(null);
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState('');
     const [toggling, setToggling] = React.useState(false);
@@ -84,6 +85,7 @@ export default function MemoryView() {
             setTotal(data.total);
             setEnabled(data.enabled);
             setCanWriteShared(data.can_write_shared);
+            setVectorSearch(data.vector_search);
         } catch (e) {
             setError(apiErrorDetail(e, 'Couldn’t load memories.'));
         } finally {
@@ -107,7 +109,9 @@ export default function MemoryView() {
         }
     };
 
-    const replaceItem = (updated: MemoryItem) => setItems((prev) => prev.map((m) => (m.id === updated.id ? { ...m, ...updated } : m)));
+    // An edit can return a new version with a new id; it takes the old item's place.
+    const replaceItem = (updated: MemoryItem, previousId: string) =>
+        setItems((prev) => prev.map((m) => (m.id === previousId ? { ...m, ...updated } : m)));
     const removeItem = (id: string) => {
         setItems((prev) => prev.filter((m) => m.id !== id));
         setTotal((t) => Math.max(0, t - 1));
@@ -141,6 +145,16 @@ export default function MemoryView() {
                     <div className="rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-foreground">
                         Memory is off for you. BizAssist won’t use or save memories in your conversations until you turn it back on.
                         What’s already saved stays here.
+                    </div>
+                )}
+
+                {vectorSearch === false && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm">
+                        <span className="text-muted-foreground">
+                            Memory search matches keywords. Add an OpenAI API key to also find memories by meaning
+                            (for example, “cartons” finding “boxes”).
+                        </span>
+                        <Link to="/app/settings" className="font-medium text-primary underline underline-offset-4">Add a key</Link>
                     </div>
                 )}
 
@@ -288,7 +302,7 @@ function AddMemory({ canWriteShared, disabled, onAdded }: { canWriteShared: bool
 
 function MemoryRow({ memory, onChanged, onRemoved }: {
     memory: MemoryItem;
-    onChanged: (m: MemoryItem) => void;
+    onChanged: (m: MemoryItem, previousId: string) => void;
     onRemoved: (id: string) => void;
 }) {
     const [editing, setEditing] = React.useState(false);
@@ -338,7 +352,7 @@ function MemoryRow({ memory, onChanged, onRemoved }: {
                             />
                             <div className="mt-2 flex gap-2">
                                 <button
-                                    onClick={() => run(async () => { onChanged(await memoryApi.update(memory.id, { content: draft })); setEditing(false); })}
+                                    onClick={() => run(async () => { onChanged(await memoryApi.update(memory.id, { content: draft }), memory.id); setEditing(false); })}
                                     disabled={busy || !draft.trim()}
                                     className="btn-glow flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50"
                                 >
@@ -384,7 +398,7 @@ function MemoryRow({ memory, onChanged, onRemoved }: {
                                     <>
                                         <IconButton
                                             label={memory.pinned ? 'Unpin' : 'Pin (always use this memory)'}
-                                            onClick={() => run(async () => onChanged(await memoryApi.update(memory.id, { pinned: !memory.pinned })))}
+                                            onClick={() => run(async () => onChanged(await memoryApi.update(memory.id, { pinned: !memory.pinned }), memory.id))}
                                         >
                                             {memory.pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
                                         </IconButton>

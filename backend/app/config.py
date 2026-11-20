@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     qdrant_port: int = 6333
     qdrant_documents_collection: str = "business_docs"
     qdrant_tool_catalog_collection: str = "tool_catalog"
+    qdrant_memory_collection: str = "memories"
     retrieval_trace_preview_chars: int = 240
 
     # CORS

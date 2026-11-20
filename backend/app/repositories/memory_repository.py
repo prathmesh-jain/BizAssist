@@ -1,9 +1,8 @@
-"""Data access for long-term memories.
+"""Data access for long-term memories (the source of truth; search lives in services/memory_index.py).
 
 Every query is scoped to one organization, and personal memories are only ever returned
 to their owner: `_visible_to` is the single place that rule lives.
 """
-import re
 from datetime import datetime, timedelta, timezone
 from typing import Iterable, Sequence
 
@@ -12,35 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.memory import Memory
 from app.db.models.user import User
-
-# Words too common to help find a memory.
-_STOPWORDS = {
-    "a", "an", "and", "are", "as", "at", "be", "but", "by", "can", "do", "does", "for", "from", "has", "have",
-    "how", "i", "if", "in", "is", "it", "its", "me", "my", "of", "on", "or", "our", "please", "so", "that",
-    "the", "their", "them", "there", "this", "to", "us", "was", "we", "what", "when", "where", "which", "who",
-    "why", "will", "with", "you", "your", "about", "any", "all", "tell", "show", "give", "get", "would", "could",
-    "should", "hi", "hello", "thanks", "thank", "ok", "okay",
-}
-
-
-def search_terms(text: str, limit: int = 12) -> list[str]:
-    """Distinct lowercase word tokens worth searching for."""
-    seen: list[str] = []
-    for token in re.findall(r"[\w@.\-]+", (text or "").lower()):
-        token = token.strip(".-")
-        if len(token) < 2 or token in _STOPWORDS or token in seen:
-            continue
-        seen.append(token)
-        if len(seen) >= limit:
-            break
-    return seen
-
-
-def _or_tsquery(terms: Sequence[str]):
-    # Quote each term so punctuation can't change the query's meaning; prefix-match for plurals/typos.
-    quoted = " | ".join("'" + t.replace("'", "") + "':*" for t in terms)
-    return func.to_tsquery("simple", quoted)
-
 
 def _visible_to(organization_id: str, user_id: str):
     return and_(
@@ -73,7 +43,6 @@ class MemoryRepository:
         scope: str | None = None,
         kinds: Iterable[str] | None = None,
         exclude_kinds: Iterable[str] | None = None,
-        query: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[tuple[Memory, str | None]], int]:
@@ -85,12 +54,6 @@ class MemoryRepository:
             conditions.append(Memory.kind.in_(list(kinds)))
         if exclude_kinds:
             conditions.append(Memory.kind.not_in(list(exclude_kinds)))
-        terms = search_terms(query or "")
-        if query and terms:
-            conditions.append(Memory.search_vector.op("@@")(_or_tsquery(terms)))
-        elif query:
-            conditions.append(Memory.content.ilike(f"%{query.strip()}%"))
-
         total = await session.scalar(select(func.count()).select_from(Memory).where(*conditions))
         stmt = (
             select(Memory, func.coalesce(User.full_name, User.email))
@@ -104,40 +67,27 @@ class MemoryRepository:
         return [(row[0], row[1]) for row in rows], int(total or 0)
 
     @staticmethod
-    async def search(
-        session: AsyncSession,
-        organization_id: str,
-        user_id: str,
-        text: str,
-        *,
-        limit: int = 8,
-        exclude_kinds: Iterable[str] = ("activity",),
-    ) -> list[Memory]:
-        """Most relevant active memories for a piece of text (full-text rank, then recency)."""
-        terms = search_terms(text)
-        if not terms:
+    async def get_many_visible(
+        session: AsyncSession, organization_id: str, user_id: str, memory_ids: Sequence[str]
+    ) -> list[tuple[Memory, str | None]]:
+        """Active, visible memories for these ids, in the given order (e.g. search ranking)."""
+        if not memory_ids:
             return []
-        tsquery = _or_tsquery(terms)
         stmt = (
-            select(Memory)
-            .where(
-                _visible_to(organization_id, user_id),
-                Memory.status == "active",
-                Memory.kind.not_in(list(exclude_kinds)),
-                Memory.search_vector.op("@@")(tsquery),
-            )
-            .order_by(func.ts_rank(Memory.search_vector, tsquery).desc(), Memory.updated_at.desc())
-            .limit(limit)
+            select(Memory, func.coalesce(User.full_name, User.email))
+            .outerjoin(User, User.id == Memory.created_by_user_id)
+            .where(Memory.id.in_(list(memory_ids)), _visible_to(organization_id, user_id), Memory.status == "active")
         )
-        return list((await session.execute(stmt)).scalars())
+        found = {row[0].id: (row[0], row[1]) for row in (await session.execute(stmt)).all()}
+        return [found[i] for i in memory_ids if i in found]
 
     @staticmethod
     async def core(session: AsyncSession, organization_id: str, user_id: str, *, limit: int = 12) -> list[Memory]:
-        """Memories worth having in every conversation: pinned, then most used, then newest."""
+        """Memories worth having in every conversation: pinned first, then the most recently updated."""
         stmt = (
             select(Memory)
             .where(_visible_to(organization_id, user_id), Memory.status == "active", Memory.kind != "activity")
-            .order_by(Memory.pinned.desc(), Memory.use_count.desc(), Memory.updated_at.desc())
+            .order_by(Memory.pinned.desc(), Memory.updated_at.desc())
             .limit(limit)
         )
         return list((await session.execute(stmt)).scalars())
