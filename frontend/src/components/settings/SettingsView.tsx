@@ -2,7 +2,8 @@ import React from 'react';
 import { XCircle, Loader2, Link2, RefreshCw } from 'lucide-react';
 import PageHeader from '../ui/PageHeader';
 import StatusChip from '../ui/StatusChip';
-import apiClient from '../../api/client';
+import apiClient, { apiErrorDetail } from '../../api/client';
+import { GoogleOAuthCancelled, runGoogleOAuthPopup } from '../../lib/googleOAuth';
 import useSettingsStore from '../../store/settingsStore';
 import AIProviderCard from './AIProviderCard';
 import GoogleCalendarCard from './GoogleCalendarCard';
@@ -17,6 +18,9 @@ export default function SettingsView() {
     const [guardrailEnabled, setGuardrailEnabled] = React.useState(true);
     const { aiSettings, fetchAISettings } = useSettingsStore();
     const [isConnecting, setIsConnecting] = React.useState(false);
+    const [waitingForGoogle, setWaitingForGoogle] = React.useState(false);
+    const [sheetsError, setSheetsError] = React.useState('');
+    const sheetsAbort = React.useRef<AbortController | null>(null);
 
     React.useEffect(() => {
         const checkStatus = async () => {
@@ -36,60 +40,39 @@ export default function SettingsView() {
         setGuardrailEnabled(aiSettings.guardrail_enabled);
     }, [aiSettings]);
 
+    const refreshSheetsStatus = React.useCallback(async () => {
+        try {
+            const r = await apiClient.get('/integrations/google-sheets/status');
+            setSheetsStatus(r.data);
+        } catch {
+            setSheetsStatus({ connected: false });
+        }
+    }, []);
+
     const handleConnectGoogleSheets = async () => {
         setIsConnecting(true);
+        setSheetsError('');
+        const abort = new AbortController();
+        sheetsAbort.current = abort;
         try {
             const res = await apiClient.post('/integrations/google-sheets/connect', {});
-            if (res.data.auth_url) {
-                const popup = window.open(res.data.auth_url, 'google-sheets-oauth', 'width=600,height=700,left=200,top=100');
-
-                // Listen for the popup to signal completion
-                const handleMessage = async (event: MessageEvent) => {
-                    if (event.origin !== window.location.origin) return;
-                    if (event.data?.type === 'OAUTH_COMPLETE' && ['google', 'google_sheets'].includes(event.data?.provider)) {
-                        window.removeEventListener('message', handleMessage);
-
-                        const code = event.data?.code || '';
-                        const state = event.data?.state || '';
-                        const error = event.data?.error || '';
-                        const errorDescription = event.data?.error_description || '';
-
-                        try {
-                            if (error) {
-                                console.error('Google OAuth error', { error, errorDescription });
-                            } else if (code && state) {
-                                await apiClient.post('/integrations/google-sheets/callback', { code, state });
-                            } else {
-                                console.error('OAuth callback missing code/state');
-                            }
-                        } catch (e) {
-                            console.error('OAuth callback exchange failed', e);
-                        }
-
-                        apiClient.get('/integrations/google-sheets/status')
-                            .then(r => setSheetsStatus(r.data))
-                            .catch(() => setSheetsStatus({ connected: false }));
-                    }
-                };
-                window.addEventListener('message', handleMessage);
-
-                // Fallback: poll every 2s while popup is open
-                const poll = setInterval(() => {
-                    if (!popup || popup.closed) {
-                        clearInterval(poll);
-                        window.removeEventListener('message', handleMessage);
-                        apiClient.get('/integrations/google-sheets/status')
-                            .then(r => setSheetsStatus(r.data))
-                            .catch(() => setSheetsStatus({ connected: false }));
-                    }
-                }, 2000);
-            }
+            setWaitingForGoogle(true);
+            const { code, state } = await runGoogleOAuthPopup(res.data.auth_url, { signal: abort.signal });
+            setWaitingForGoogle(false);
+            await apiClient.post('/integrations/google-sheets/callback', { code, state });
         } catch (e) {
-            console.error('Failed to initiate Google Sheets connection', e);
+            if (!(e instanceof GoogleOAuthCancelled)) {
+                setSheetsError(e instanceof Error && !('isAxiosError' in e) ? e.message : apiErrorDetail(e, 'Could not connect Google Sheets.'));
+            }
         } finally {
+            sheetsAbort.current = null;
+            setWaitingForGoogle(false);
             setIsConnecting(false);
+            refreshSheetsStatus();
         }
     };
+
+    React.useEffect(() => () => sheetsAbort.current?.abort(), []);
 
     return (
         <div className="flex-1 overflow-y-auto px-4 py-8 sm:px-8 lg:py-12">
@@ -135,23 +118,36 @@ export default function SettingsView() {
 
                             {!sheetsStatus?.connected && (
                                 <div className="mt-5 space-y-3">
-                                    <button
-                                        onClick={handleConnectGoogleSheets}
-                                        disabled={isConnecting}
-                                        className="flex items-center gap-2 px-4 py-2 btn-glow rounded-xl font-semibold text-sm disabled:opacity-60"
-                                    >
-                                        {isConnecting ? (
-                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                        ) : (
-                                            <Link2 className="w-4 h-4" />
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <button
+                                            onClick={handleConnectGoogleSheets}
+                                            disabled={isConnecting}
+                                            className="flex items-center gap-2 px-4 py-2 btn-glow rounded-xl font-semibold text-sm disabled:opacity-60"
+                                        >
+                                            {isConnecting ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <Link2 className="w-4 h-4" />
+                                            )}
+                                            {waitingForGoogle ? 'Finish signing in with Google…' : isConnecting ? 'Connecting…' : 'Connect Google Sheets'}
+                                        </button>
+                                        {waitingForGoogle && (
+                                            <button
+                                                type="button"
+                                                onClick={() => sheetsAbort.current?.abort()}
+                                                className="px-3 py-2 rounded-xl text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                                            >
+                                                Cancel
+                                            </button>
                                         )}
-                                        {isConnecting ? 'Opening Google…' : 'Connect Google Sheets'}
-                                    </button>
+                                    </div>
                                     <p className="text-xs text-muted-foreground">
                                         A Google window opens. Sign in, allow access, and you’ll come straight back here.
                                     </p>
                                 </div>
                             )}
+
+                            {sheetsError && <p className="mt-3 text-sm text-destructive" role="alert">{sheetsError}</p>}
 
                             {sheetsStatus?.connected && (
                                 <div className="mt-5 space-y-3">
@@ -160,7 +156,8 @@ export default function SettingsView() {
                                     </p>
                                     <button
                                         onClick={handleConnectGoogleSheets}
-                                        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+                                        disabled={isConnecting}
+                                        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
                                     >
                                         <RefreshCw className="w-3.5 h-3.5" />
                                         Reconnect or switch account

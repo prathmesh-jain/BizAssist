@@ -19,9 +19,12 @@ def _now_line(user_timezone: str | None) -> str:
 
 
 def with_business_context(system_prompt: str, state: AgentState) -> str:
-    """Append today's date and the organization's confirmed business profile (if any) to a prompt."""
+    """Append today's date, the confirmed business profile, and relevant long-term memories to a prompt."""
     prompt = f"{system_prompt}\n\n{_now_line(state.get('user_timezone'))}"
     context = (state.get("business_context") or "").strip()
-    if not context:
-        return prompt
-    return f"{prompt}\n\n[Business Context]\n{context}"
+    if context:
+        prompt = f"{prompt}\n\n[Business Context]\n{context}"
+    memory = (state.get("memory_context") or "").strip()
+    if memory:
+        prompt = f"{prompt}\n\n[Memory]\n{memory}"
+    return prompt

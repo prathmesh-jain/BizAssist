@@ -22,6 +22,8 @@ class UserAISettings(Base, TimestampMixin):
     # Only for the "custom" provider: the OpenAI-compatible endpoint to call.
     base_url: Mapped[str | None] = mapped_column(String, nullable=True)
     guardrail_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Long-term memory across conversations (saving and using memories). On unless the user turns it off.
+    memory_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
     primary_model: Mapped[str] = mapped_column(String, nullable=False, default="gpt-4.1-mini")
     fast_model: Mapped[str] = mapped_column(String, nullable=False, default="gpt-4.1-mini")
     nano_model: Mapped[str] = mapped_column(String, nullable=False, default="gpt-4.1-mini")

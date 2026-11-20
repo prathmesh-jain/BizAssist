@@ -27,6 +27,7 @@ playwright
 
 # Vector Store
 qdrant-client
+snowballstemmer
 
 # Document parsing
 pypdf

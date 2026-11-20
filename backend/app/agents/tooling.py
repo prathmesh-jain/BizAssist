@@ -398,8 +398,18 @@ def get_chat_local_tools(state: AgentState) -> list:
     tools.extend(get_rag_tools(state))
     tools.extend(get_document_listing_tools(state))
     tools.extend(get_chat_attachment_read_tools(user_id=user_id, chat_id=chat_id))
+    tools.extend(get_memory_tools_for(state))
     tools.extend(get_tool_registry().load(state.get("chat_tool_ids") or [], state))
     return tools
+
+
+def get_memory_tools_for(state: AgentState) -> list:
+    from app.tools.memory_tools import get_memory_tools
+
+    user_id, chat_id = _state_ids(state)
+    return get_memory_tools(
+        organization_id=state.get("organization_id", ""), user_id=user_id, role=state.get("role"), chat_id=chat_id
+    )
 
 
 def get_planner_tools(state: AgentState) -> list:
@@ -411,6 +421,7 @@ def get_planner_tools(state: AgentState) -> list:
     tools.extend(get_document_listing_tools(state))
     tools.extend(get_registry_control_tools(state))
     tools.extend(get_chat_attachment_read_tools(user_id=user_id, chat_id=chat_id))
+    tools.extend(t for t in get_memory_tools_for(state) if t.name == "recall_memory")
     return tools
 
 
@@ -475,6 +486,33 @@ def _parse_tool_message_content(content: Any) -> dict[str, Any] | None:
     return None
 
 
+def _tool_call_args(state: AgentState) -> dict[str, dict]:
+    """Arguments of the tool calls just executed, by tool_call_id."""
+    for message in reversed(state.get("messages") or []):
+        calls = getattr(message, "tool_calls", None)
+        if calls:
+            return {call.get("id"): call.get("args") or {} for call in calls}
+    return {}
+
+
+async def _log_activity(state: AgentState, tool_name: str, args: dict, payload: dict) -> None:
+    """Remember successful actions (meeting booked, rows added…) as activity. Never raises."""
+    from app.services.memory_service import describe_tool_activity, record_activity
+
+    try:
+        described = describe_tool_activity(tool_name, args, payload)
+        if not described:
+            return
+        content, scope = described
+        user_id, chat_id = _state_ids(state)
+        await record_activity(
+            organization_id=state.get("organization_id", ""), user_id=user_id,
+            content=content, scope=scope, chat_id=chat_id,
+        )
+    except Exception:
+        logger.warning("memory.activity.hook_failed tool=%s", tool_name, exc_info=True)
+
+
 async def common_tool_node(state: AgentState) -> dict:
     """Execute the latest AIMessage tool calls."""
     active_agent = state.get("active_agent") or "executor"
@@ -492,6 +530,7 @@ async def common_tool_node(state: AgentState) -> dict:
     tool_calls_made = list(state.get("tool_calls_made") or [])
     result.setdefault("active_agent", active_agent)
 
+    call_args = _tool_call_args(state)
     for message in result.get("messages") or []:
         if not isinstance(message, ToolMessage):
             continue
@@ -500,6 +539,7 @@ async def common_tool_node(state: AgentState) -> dict:
             tool_calls_made.append(message.name)
 
         payload = _parse_tool_message_content(message.content) or {}
+        await _log_activity(state, message.name or "", call_args.get(message.tool_call_id, {}), payload)
 
         if message.name == "delegate_to_planner":
             execution_brief = str(payload.get("execution_brief") or "").strip()

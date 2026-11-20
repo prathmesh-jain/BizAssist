@@ -15,6 +15,7 @@ It's a FastAPI + LangGraph backend on PostgreSQL and Qdrant, with a React 19 + V
 - [Tools](#tools)
 - [Business onboarding and research](#business-onboarding-and-research)
 - [Documents](#documents)
+- [Long-term memory](#long-term-memory)
 - [Organizations, roles, and invitations](#organizations-roles-and-invitations)
 - [Storage](#storage)
 - [Guardrails](#guardrails)
@@ -34,6 +35,9 @@ It's a FastAPI + LangGraph backend on PostgreSQL and Qdrant, with a React 19 + V
 - **Google Calendar and Meet.** Each user connects their own calendar. The assistant can check the schedule,
   find free time, and create, move, or cancel events with Meet links. Every change requires an explicit
   Accept/Decline approval in the chat.
+- **Long-term memory.** BizAssist remembers business facts, contacts, decisions, personal preferences, and recent
+  activity across conversations, and shows what it learned with an Undo. Everything is visible and editable on
+  the Memory page.
 - **Teams.** Organizations have owners, admins, members, and viewers; invitation links; suspension and removal;
   and switching between several organizations.
 - **Streaming UX.** Tokens, tool activity, planner status, and approval prompts stream to the browser over SSE.
@@ -143,6 +147,64 @@ multimodal OCR call. The text is stored per chat under `backend/tmp/chats/{chat_
 and stored in Qdrant (`QDRANT_DOCUMENTS_COLLECTION`, default `business_docs`). Retrieval is filtered by
 organization, so every member shares the same knowledge base. Document records live in Postgres.
 
+## Long-term memory
+
+Chat history only lasts within one conversation. Long-term memory carries knowledge across conversations.
+Postgres (table `memories`) is the source of truth for content, versions, and permissions; Qdrant (collection
+`QDRANT_MEMORY_COLLECTION`, default `memories`) indexes it for hybrid search. The logic lives in
+`app/services/memory_service.py`, `memory_index.py`, and `bm25.py`.
+
+| Kind | Example | Scope |
+|---|---|---|
+| fact | "We pay suppliers net-30; late fee 2% after 7 days" | shared with the organization |
+| contact | "Sharma Packaging is the main box supplier; ask for Meera" | shared |
+| decision | "Switching freight to Northline from December" | shared |
+| preference | "Show amounts in lakhs and keep answers short" | personal (only that user) |
+| activity | "Scheduled “Sharma catch-up” for Thu 26 Nov, 15:00 with a Meet link" | personal for calendar, shared otherwise |
+
+**How memories are saved**
+- *On request:* the chat agent's `remember` and `forget_memory` tools ("remember that…", "forget…").
+- *Automatically:* after each reply, a background task asks the user's fast model which lasting facts the
+  **user** stated, compares them with similar saved memories, and adds, updates, or deletes. It skips trivial
+  messages and turns where the agent already saved something, never learns from the assistant's own words, and
+  never blocks or breaks the reply. Results that finish within a few seconds appear under the reply as
+  "Memory updated" with Undo.
+- *Activity:* successful write actions (calendar create/update/cancel, Sheets writes, document uploads, profile
+  confirmation) are logged as they happen, without a model.
+
+A new memory on the same topic, or an edit on the Memory page, creates a new version and marks the old one
+`superseded` (removed from the search index, kept in Postgres), so Undo restores it. Exact duplicates aren't saved
+twice, and anything that looks like a password, API key, or card number is refused.
+
+**How memories are found: hybrid search in Qdrant.** Every memory point carries two vectors:
+- `bm25`: a sparse keyword vector computed in-process (`bm25.py`: identifiers like `INV-2024-118` or a GSTIN are
+  kept whole and also split into parts; English words are stemmed; Qdrant applies IDF). Always present, no key
+  needed.
+- `dense`: an embedding from `EMBEDDING_MODEL` (default `text-embedding-3-small`) made with the user's own OpenAI
+  key. Everyone uses the same model, so vectors from different people's keys are comparable. Memories saved
+  without a key have no dense vector until someone in the organization with a key saves a memory, which
+  backfills them.
+
+A search with an OpenAI key runs both in one Qdrant query (a dense prefetch with a minimum cosine score of 0.3,
+plus a BM25 prefetch) merged with Reciprocal Rank Fusion, so a memory found only by an exact word still comes
+back. Without a key it's BM25 only, and the Memory page says so. Every search is filtered to the organization's
+shared memories plus the user's own personal ones. If Qdrant is unreachable, search returns nothing and chat
+carries on; `python scripts/reindex_memories.py` rebuilds the index from Postgres.
+
+**How memories are used.** Every turn, `build_memory_context` adds a `[Memory]` block to the chat, planner, and
+executor prompts: the memories most relevant to the message (hybrid search) first, then pinned and recently
+updated ones, then the last two weeks of activity, within a fixed size budget. The `recall_memory` tool searches
+further back, including activity.
+
+**Privacy and permissions.** Every query is filtered to the current organization. Personal memories are only
+visible to and used for their owner. Members and above can save shared memories; viewers' facts are saved as
+personal. Admins can edit or delete any shared memory (`memory.write_shared` and `memory.manage_shared` in
+`app/authz.py`). Leaving or being removed from an organization deletes your personal memories there. Each user
+can turn memory off on the Memory page, which stops both using and saving memories.
+
+API: `GET/POST /api/memory`, `PATCH/DELETE /api/memory/{id}`, `POST /api/memory/{id}/undo`,
+`GET/PATCH /api/memory/settings`.
+
 ## Organizations, roles, and invitations
 
 Every user belongs to one or more organizations. The frontend sends the active one as `X-Organization-Id`.
@@ -165,11 +227,12 @@ are shared across the organization.
 ## Storage
 
 **PostgreSQL** (SQLAlchemy async, migrations in `backend/alembic/versions/`) stores users and identities,
-organizations, memberships, and invitations; chats and visible message history; document records; per-user
+organizations, memberships, and invitations; chats and visible message history; long-term memories and their
+versions; document records; per-user
 AI settings with the encrypted OpenAI key; OAuth connections and states with encrypted Google tokens; and
 business profiles and research runs. LangGraph checkpoints are in the same database via `AsyncPostgresSaver`.
 
-**Qdrant** stores document vectors and the tool catalog.
+**Qdrant** stores document vectors, the tool catalog, and the long-term memory index (dense and BM25 vectors).
 
 ## Guardrails
 
@@ -190,6 +253,7 @@ React 19 + Vite + TypeScript, Tailwind CSS v4, Zustand, and React Router. Routes
 | `/app/chat/:chatId?` | Assistant |
 | `/app/onboarding`, `/app/business` | Business onboarding, research review, and the confirmed profile |
 | `/app/documents` | Organization documents |
+| `/app/memory` | Long-term memory: business, personal, and activity |
 | `/app/team` | Members and invitations |
 | `/app/settings` | Google Calendar and Sheets, OpenAI key and models, guardrail |
 | `/oauth-callback` | Google OAuth popup landing |

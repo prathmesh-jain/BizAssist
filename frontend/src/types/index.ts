@@ -11,6 +11,34 @@ export interface AISettings {
     nano_model: string;
 }
 
+export type MemoryKind = 'fact' | 'preference' | 'decision' | 'contact' | 'activity';
+export type MemoryScope = 'shared' | 'personal';
+
+/** Something BizAssist remembers across conversations. */
+export interface MemoryItem {
+    id: string;
+    content: string;
+    kind: MemoryKind;
+    scope: MemoryScope;
+    topic: string | null;
+    source: 'chat' | 'auto' | 'activity' | 'manual';
+    source_chat_id: string | null;
+    pinned: boolean;
+    created_at: string | null;
+    updated_at: string | null;
+    created_by: { id: string; name: string | null } | null;
+    can_edit: boolean;
+    replaced: boolean;
+}
+
+/** A memory change made during a chat turn ("Memory updated"). */
+export interface MemoryChange {
+    action: 'added' | 'updated' | 'deleted';
+    id: string;
+    content: string;
+    scope: MemoryScope;
+}
+
 export interface CalendarChange {
     action: 'created' | 'updated' | 'deleted';
     title: string;

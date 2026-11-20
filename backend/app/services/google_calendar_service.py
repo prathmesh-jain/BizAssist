@@ -268,9 +268,15 @@ class GoogleCalendar:
         )
         if connection is None:
             raise CalendarError(NOT_CONNECTED)
-        return await google_oauth.valid_access_token(
-            self._session, connection, reconnect_hint="Reconnect Google Calendar in Settings."
-        )
+        try:
+            return await google_oauth.valid_access_token(
+                self._session, connection, reconnect_hint="Reconnect Google Calendar in Settings."
+            )
+        except CalendarError:
+            raise
+        except GoogleOAuthError as exc:
+            # Token problems (expired, revoked, Google unreachable) reach the user as a normal tool error.
+            raise CalendarError(str(exc)) from exc
 
     async def _request(self, method: str, path: str, *, params: dict | None = None, json_body: dict | None = None) -> dict:
         headers = {"Authorization": f"Bearer {await self._token()}"}

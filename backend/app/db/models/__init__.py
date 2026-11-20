@@ -10,6 +10,7 @@ from app.db.models.document import Document
 from app.db.models.oauth_connection import OAuthConnection
 from app.db.models.oauth_state import OAuthState
 from app.db.models.business_profile import BusinessProfile, BusinessResearchRun
+from app.db.models.memory import Memory
 
 __all__ = [
     "User",
@@ -25,4 +26,5 @@ __all__ = [
     "OAuthState",
     "BusinessProfile",
     "BusinessResearchRun",
+    "Memory",
 ]

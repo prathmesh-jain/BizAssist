@@ -112,6 +112,12 @@ async def confirm_profile(body: ConfirmProfileRequest, user: BusinessManager, se
         profile = await svc.confirm_profile(session, user, data)
     except (svc.BusinessProfileError, AnswerError) as exc:
         raise _http(exc) from exc
+    from app.services.memory_service import record_activity
+
+    await record_activity(
+        organization_id=user.organization.id, user_id=user.user.id,
+        content="Confirmed the business profile.", scope="shared",
+    )
     return {"profile": svc.serialize_profile(profile)}
 
 

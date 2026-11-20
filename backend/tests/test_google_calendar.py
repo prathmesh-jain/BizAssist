@@ -301,3 +301,63 @@ async def test_free_slots_update_and_delete(make_user, client_for, google, appro
     assert kept["cancelled"] and event_id in google.events
     gone = await tools["calendar_delete_event"].ainvoke({"event_id": event_id})
     assert gone["deleted"] and event_id not in google.events
+
+
+# ---------- revoked access ----------
+
+async def test_revoked_google_access_removes_the_connection_and_explains(make_user, client_for, google, monkeypatch):
+    """Google answers invalid_grant once a refresh token is dead (e.g. consent screen in Testing mode
+    expires tokens after 7 days). The connection must not linger as "Connected" while every call fails."""
+    from app.db.base import session_scope
+    from app.repositories import OAuthConnectionRepository
+    from app.services import google_oauth
+
+    ctx = await make_user("uid-o", "owner@acme.com")
+    client = client_for(ctx)
+    await _connect(client)
+    assert (await client.get("/api/integrations/google-calendar/status")).json()["connected"] is True
+
+    # Force the stored access token to look expired so the next call refreshes.
+    async with session_scope() as session:
+        conn = await OAuthConnectionRepository.get_user_connection(session, ctx.organization.id, ctx.user.id, "google_calendar")
+        conn.token_expires_at = google_oauth.utcnow() - __import__("datetime").timedelta(minutes=5)
+
+    calendar_api = google.handler
+
+    def handler(request):  # Google's token endpoint now refuses the stored refresh token
+        if request.url.host == "oauth2.googleapis.com":
+            return httpx.Response(400, json={"error": "invalid_grant", "error_description": "Token has been expired or revoked."})
+        return calendar_api(request)
+
+    monkeypatch.setattr(google, "handler", handler)
+
+    out = await _tools(ctx)["calendar_list_events"].ainvoke({})
+    assert out["ok"] is False
+    assert "expired or was revoked" in out["error"]
+    assert (await client.get("/api/integrations/google-calendar/status")).json() == {"connected": False}
+
+
+async def test_temporary_refresh_errors_keep_the_connection(make_user, client_for, google, monkeypatch):
+    from app.db.base import session_scope
+    from app.repositories import OAuthConnectionRepository
+    from app.services import google_oauth
+
+    ctx = await make_user("uid-o", "owner@acme.com")
+    client = client_for(ctx)
+    await _connect(client)
+    async with session_scope() as session:
+        conn = await OAuthConnectionRepository.get_user_connection(session, ctx.organization.id, ctx.user.id, "google_calendar")
+        conn.token_expires_at = google_oauth.utcnow() - __import__("datetime").timedelta(minutes=5)
+
+    calendar_api = google.handler
+
+    def handler(request):  # a temporary outage at Google's token endpoint
+        if request.url.host == "oauth2.googleapis.com":
+            return httpx.Response(503, text="backend error")
+        return calendar_api(request)
+
+    monkeypatch.setattr(google, "handler", handler)
+
+    out = await _tools(ctx)["calendar_list_events"].ainvoke({})
+    assert out["ok"] is False
+    assert (await client.get("/api/integrations/google-calendar/status")).json()["connected"] is True

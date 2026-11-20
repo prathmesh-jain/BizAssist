@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import connect_db, close_db
 from app.utils.logger import setup_logging
-from app.routers import account, business, chat, documents, integrations, organization, settings as settings_router
+from app.routers import account, business, chat, documents, integrations, memory, organization, settings as settings_router
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -76,6 +76,7 @@ app.include_router(chat.router)
 app.include_router(documents.router)
 app.include_router(integrations.router)
 app.include_router(settings_router.router)
+app.include_router(memory.router)
 
 
 @app.get("/health")

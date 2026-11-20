@@ -5,6 +5,7 @@ OAuth state is persisted. Integrations differ in scopes and in who owns the
 connection: Sheets is shared by the organization, Calendar belongs to one user.
 """
 import base64
+import logging
 import hashlib
 import hmac
 import json
@@ -20,6 +21,7 @@ from app.db.models import OAuthConnection
 from app.repositories import OAuthConnectionRepository, OAuthStateRepository
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 GOOGLE_OAUTH_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -27,6 +29,15 @@ GOOGLE_OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token"
 
 class GoogleOAuthError(RuntimeError):
     pass
+
+
+class GoogleAccessRevoked(GoogleOAuthError):
+    """Google permanently rejected a refresh token (revoked, expired, or the password changed).
+
+    Google answers ``invalid_grant``. Common causes: the user removed BizAssist from their Google
+    account, or the OAuth consent screen is in "Testing" mode, where refresh tokens expire after
+    7 days. Retrying can't help; the user has to connect again.
+    """
 
 
 def fernet() -> Fernet:
@@ -109,8 +120,35 @@ async def refresh_access_token(refresh_token: str) -> dict:
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(GOOGLE_OAUTH_TOKEN_URL, data=data)
         if resp.status_code != 200:
+            if resp.status_code in (400, 401) and "invalid_grant" in resp.text:
+                raise GoogleAccessRevoked(f"Token refresh rejected: {resp.text[:200]}")
             raise GoogleOAuthError(f"Token refresh failed: {resp.status_code} {resp.text}")
         return resp.json()
+
+
+async def forget_connection(connection: OAuthConnection) -> None:
+    """Delete a connection whose access Google revoked, in its own transaction.
+
+    The caller is about to raise, which rolls back its session, so the delete must not ride on it.
+    Afterwards the app shows "Not connected" instead of a connection that silently fails.
+    """
+    from app.db.base import session_scope
+
+    async with session_scope() as session:
+        await OAuthConnectionRepository.delete(session, connection.id, connection.organization_id)
+    logger.warning(
+        "google_oauth.access_revoked provider=%s organization_id=%s user_id=%s: connection removed",
+        connection.provider, connection.organization_id, connection.user_id,
+    )
+
+
+async def refresh_or_forget(connection: OAuthConnection, refresh_token: str, *, reconnect_hint: str) -> dict:
+    """Refresh an access token; if Google revoked access, remove the connection and say how to fix it."""
+    try:
+        return await refresh_access_token(refresh_token)
+    except GoogleAccessRevoked as exc:
+        await forget_connection(connection)
+        raise GoogleAccessRevoked(f"Google access has expired or was revoked. {reconnect_hint}") from exc
 
 
 def encrypt_payload(payload: dict) -> str:
@@ -140,7 +178,7 @@ async def valid_access_token(session: AsyncSession, connection: OAuthConnection,
     if not refresh_token:
         raise GoogleOAuthError(f"Access token expired and no refresh token is available. {reconnect_hint}")
 
-    refreshed = await refresh_access_token(refresh_token)
+    refreshed = await refresh_or_forget(connection, refresh_token, reconnect_hint=reconnect_hint)
     if not refreshed.get("access_token"):
         raise GoogleOAuthError("Refresh did not return an access_token")
     payload.update(refreshed)

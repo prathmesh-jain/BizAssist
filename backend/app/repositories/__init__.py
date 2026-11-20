@@ -4,6 +4,7 @@ from app.repositories.document_repository import DocumentRepository
 from app.repositories.integration_repository import OAuthConnectionRepository, OAuthStateRepository
 from app.repositories.settings_repository import SettingsRepository
 from app.repositories.membership_repository import MembershipRepository
+from app.repositories.memory_repository import MemoryRepository
 
 __all__ = [
     "UserRepository",
@@ -14,4 +15,5 @@ __all__ = [
     "OAuthStateRepository",
     "SettingsRepository",
     "MembershipRepository",
+    "MemoryRepository",
 ]

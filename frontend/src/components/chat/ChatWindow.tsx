@@ -3,6 +3,7 @@ import type { Message, ToolStatus } from '../../types';
 import MessageBubble from './MessageBubble';
 import InterruptBubble from './InterruptBubble';
 import CalendarChangeCard from './CalendarChangeCard';
+import MemoryUpdatedCard from './MemoryUpdatedCard';
 import useChatStore from '../../store/chatStore';
 import { ArrowUpRight, CalendarDays, FileSpreadsheet, FileText, Loader2, TrendingUp } from 'lucide-react';
 import SpotlightCard from '../fx/SpotlightCard';
@@ -77,7 +78,7 @@ function AgentActivity({
 
 export default function ChatWindow({ messages, streamingMessage, activeTools, isLoading }: ChatWindowProps) {
     const scrollRef = React.useRef<HTMLDivElement>(null);
-    const { hasMoreMessages, isLoadingMore, loadMoreMessages, sendMessage, agentStatus, calendarChanges } = useChatStore();
+    const { hasMoreMessages, isLoadingMore, loadMoreMessages, sendMessage, agentStatus, calendarChanges, memoryChanges } = useChatStore();
     const { user } = useAuth();
     const { me } = useOrgStore();
     const isAutoScrollEnabled = React.useRef(true);
@@ -191,6 +192,8 @@ export default function ChatWindow({ messages, streamingMessage, activeTools, is
                 {calendarChanges.map((change, index) => (
                     <CalendarChangeCard key={`${change.title}-${index}`} change={change} />
                 ))}
+
+                {!isLoading && memoryChanges.length > 0 && <MemoryUpdatedCard changes={memoryChanges} />}
 
                 {isLoading && !streamingMessage && (
                     <AgentActivity activeTools={activeTools} agentStatus={agentStatus} />

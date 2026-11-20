@@ -2,7 +2,7 @@ import React from 'react';
 import { CalendarDays, Loader2, Unplug } from 'lucide-react';
 import StatusChip from '../ui/StatusChip';
 import apiClient, { apiErrorDetail } from '../../api/client';
-import { runGoogleOAuthPopup } from '../../lib/googleOAuth';
+import { GoogleOAuthCancelled, runGoogleOAuthPopup } from '../../lib/googleOAuth';
 
 interface CalendarStatus {
     connected: boolean;
@@ -22,6 +22,8 @@ export default function GoogleCalendarCard() {
     const [status, setStatus] = React.useState<CalendarStatus | null>(null);
     const [busy, setBusy] = React.useState(false);
     const [error, setError] = React.useState('');
+    const [waitingForGoogle, setWaitingForGoogle] = React.useState(false);
+    const signInAbort = React.useRef<AbortController | null>(null);
 
     const refresh = React.useCallback(async () => {
         try {
@@ -39,17 +41,27 @@ export default function GoogleCalendarCard() {
     const connect = async () => {
         setBusy(true);
         setError('');
+        const abort = new AbortController();
+        signInAbort.current = abort;
         try {
             const { data } = await apiClient.post<{ auth_url: string }>('/integrations/google-calendar/connect');
-            const { code, state } = await runGoogleOAuthPopup(data.auth_url);
+            setWaitingForGoogle(true);
+            const { code, state } = await runGoogleOAuthPopup(data.auth_url, { signal: abort.signal });
+            setWaitingForGoogle(false);
             await apiClient.post('/integrations/google/callback', { code, state });
             await refresh();
         } catch (e) {
-            setError(e instanceof Error && !('isAxiosError' in e) ? e.message : apiErrorDetail(e, 'Could not connect Google Calendar.'));
+            if (!(e instanceof GoogleOAuthCancelled)) {
+                setError(e instanceof Error && !('isAxiosError' in e) ? e.message : apiErrorDetail(e, 'Could not connect Google Calendar.'));
+            }
         } finally {
+            signInAbort.current = null;
+            setWaitingForGoogle(false);
             setBusy(false);
         }
     };
+
+    React.useEffect(() => () => signInAbort.current?.abort(), []);
 
     const disconnect = async () => {
         setBusy(true);
@@ -103,7 +115,7 @@ export default function GoogleCalendarCard() {
 
                     {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
 
-                    <div className="mt-5">
+                    <div className="mt-5 flex flex-wrap items-center gap-2">
                         {status?.connected ? (
                             <button
                                 onClick={disconnect}
@@ -119,7 +131,16 @@ export default function GoogleCalendarCard() {
                                 className="flex items-center gap-2 px-4 py-2 btn-glow rounded-xl font-semibold text-sm disabled:opacity-60"
                             >
                                 {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarDays className="w-4 h-4" />}
-                                {busy ? 'Waiting for Google…' : 'Connect Google Calendar'}
+                                {waitingForGoogle ? 'Finish signing in with Google…' : busy ? 'Connecting…' : 'Connect Google Calendar'}
+                            </button>
+                        )}
+                        {waitingForGoogle && (
+                            <button
+                                type="button"
+                                onClick={() => signInAbort.current?.abort()}
+                                className="px-3 py-2 rounded-xl text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                            >
+                                Cancel
                             </button>
                         )}
                     </div>
