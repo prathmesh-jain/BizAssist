@@ -132,18 +132,43 @@ async def _index(session: AsyncSession, actor: MemoryActor, memory: Memory) -> N
         await memory_index.backfill_dense(actor.organization_id, key)
 
 
+RECENT_TURNS = 3  # user/assistant exchanges before the current message used to inform search
+_CONTEXT_USER_CHARS = 400
+_CONTEXT_ASSISTANT_CHARS = 300
+_CONTEXT_MAX_CHARS = 1200
+
+
+def recent_turns_text(messages: list[tuple[str, str]], *, current: str | None = None, turns: int = RECENT_TURNS) -> str:
+    """Text of the last few turns before the current message, newest first, for search context.
+
+    `messages` are (role, content) pairs oldest→newest from the visible chat history. The current
+    message (already saved when the turn starts) is skipped. Assistant replies are trimmed harder
+    than user messages: they help resolve "it"/"him", but what the user said matters most.
+    """
+    history = [(role, (content or "").strip()) for role, content in messages if role in ("user", "assistant")]
+    history = [(role, content) for role, content in history if content]
+    if current and history and history[-1][0] == "user" and history[-1][1] == current.strip():
+        history = history[:-1]
+    parts: list[str] = []
+    for role, content in reversed(history[-turns * 2:]):
+        limit = _CONTEXT_USER_CHARS if role == "user" else _CONTEXT_ASSISTANT_CHARS
+        parts.append(content[:limit])
+    return "\n".join(parts)[:_CONTEXT_MAX_CHARS]
+
+
 async def find_relevant(
     session: AsyncSession, actor: MemoryActor, text: str, *, limit: int = 8,
     kinds: tuple[str, ...] | None = None, exclude_kinds: tuple[str, ...] | None = ("activity",),
-    scope: str | None = None,
+    scope: str | None = None, context: str | None = None,
 ) -> list[tuple[Memory, str | None]]:
-    """Hybrid search (meaning + keywords with a key, keywords only without), loaded from Postgres in rank order."""
-    if not (text or "").strip():
+    """Hybrid search (meaning + keywords with a key, keywords only without), loaded from Postgres in rank order.
+    `context` is recent conversation text that helps resolve follow-up questions."""
+    if not (text or "").strip() and not (context or "").strip():
         return []
     ranked = await memory_index.search(
         text, organization_id=actor.organization_id, user_id=actor.user_id,
         api_key=await embedding_key(session, actor.user_id),
-        limit=limit, kinds=kinds, exclude_kinds=exclude_kinds, scope=scope,
+        limit=limit, kinds=kinds, exclude_kinds=exclude_kinds, scope=scope, context=context,
     )
     return await MemoryRepository.get_many_visible(session, actor.organization_id, actor.user_id, [i for i, _ in ranked])
 
@@ -378,7 +403,7 @@ _KIND_LABEL = {"fact": "fact", "preference": "preference", "decision": "decision
 
 
 async def build_memory_context(
-    session: AsyncSession, *, organization_id: str, user_id: str, query: str | None
+    session: AsyncSession, *, organization_id: str, user_id: str, query: str | None, context: str | None = None
 ) -> str:
     """Compact memory block for this turn, within CONTEXT_CHAR_BUDGET:
     memories relevant to the message (hybrid search) first, then pinned and recently updated ones,
@@ -388,7 +413,7 @@ async def build_memory_context(
             return ""
         actor = MemoryActor(organization_id, user_id, None)
         core = await MemoryRepository.core(session, organization_id, user_id, limit=6)
-        relevant = [m for m, _ in await find_relevant(session, actor, query or "", limit=8)]
+        relevant = [m for m, _ in await find_relevant(session, actor, query or "", limit=8, context=context)]
         activity = await MemoryRepository.recent_activity(session, organization_id, user_id, days=14, limit=6)
     except Exception:
         logger.warning("memory.context.failed org=%s user=%s", organization_id, user_id, exc_info=True)
@@ -468,6 +493,8 @@ data that lives in documents/spreadsheets/calendar, passwords/keys/card numbers,
 Compare with EXISTING memories: use "update" (with target_id) when the user changes something
 already remembered, "delete" when they say it's no longer true, and nothing when it's already known.
 Most exchanges need no change: return an empty list. At most 3 ops.
+RECENT conversation is only there to resolve references like "her" or "that supplier"; record
+nothing from it that the latest exchange doesn't state or confirm.
 Write content as a self-contained sentence (e.g. "Sharma Packaging is the main packaging supplier; contact Meera.").
 Preferences are always scope "personal"; business facts, contacts and decisions are "business"."""
 
@@ -481,7 +508,7 @@ def worth_extracting(user_text: str) -> bool:
 
 async def extract_memories(
     *, organization_id: str, user_id: str, role: str | None, chat_id: str | None,
-    user_text: str, assistant_text: str,
+    user_text: str, assistant_text: str, context_text: str | None = None,
 ) -> list[dict]:
     """Learn from one exchange. Returns the changes made (for the "Memory updated" note). Never raises."""
     from app.db.base import session_scope
@@ -495,7 +522,7 @@ async def extract_memories(
         async with session_scope() as session:
             if not await is_memory_enabled(session, user_id):
                 return []
-            existing = [m for m, _ in await find_relevant(session, actor, user_text, limit=10)]
+            existing = [m for m, _ in await find_relevant(session, actor, user_text, limit=10, context=context_text)]
             existing_text = "\n".join(
                 f"[{m.id}] ({m.scope}, {m.kind}{', topic ' + m.topic if m.topic else ''}) {m.content}" for m in existing
             ) or "(none)"
@@ -503,7 +530,9 @@ async def extract_memories(
 
         result = await structured(llm, _MemoryOps).ainvoke([
             ("system", _EXTRACT_SYSTEM),
-            ("human", f"EXISTING memories:\n{existing_text}\n\nUSER said:\n{user_text[:2000]}\n\n"
+            ("human", f"EXISTING memories:\n{existing_text}\n\n"
+                      + (f"RECENT conversation (newest first):\n{context_text}\n\n" if context_text else "")
+                      + f"USER said:\n{user_text[:2000]}\n\n"
                       f"ASSISTANT replied:\n{(assistant_text or '')[:1500]}"),
         ])
         ops = (result.ops if isinstance(result, _MemoryOps) else _MemoryOps.model_validate(result).ops)[:3]

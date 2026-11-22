@@ -11,7 +11,8 @@ Each point has:
 
 Search fuses both with Reciprocal Rank Fusion when the searcher has an embedding key, so a memory
 found only by an exact word (an invoice number, a GSTIN, a rare name) still comes back; without a
-key it is BM25 only. All Qdrant calls run in a worker thread, and every function here degrades to
+key it is BM25 only. Queries can include the last few conversation turns (see `search`).
+All Qdrant calls run in a worker thread, and every function here degrades to
 "no results" rather than raising, so memory problems never break a chat.
 """
 from __future__ import annotations
@@ -240,26 +241,37 @@ async def search(
     kinds: Sequence[str] | None = None,
     exclude_kinds: Sequence[str] | None = ("activity",),
     scope: str | None = None,
+    context: str | None = None,
 ) -> list[tuple[str, float]]:
-    """Memory ids ranked for `text`: hybrid (RRF over dense + BM25) with a key, BM25 only without."""
-    sparse = bm25.query_vector(text)
-    dense = await embed([text], api_key) if (text or "").strip() else None
-    if not sparse.indices and not dense:
+    """Memory ids ranked for `text`, optionally informed by recent conversation `context`.
+
+    Up to four candidate lists are fused with Reciprocal Rank Fusion in one Qdrant query:
+    BM25 for the current message and for message + context, and (with an embedding key) dense
+    for the same two. The current-message lists keep a self-contained question from being
+    diluted; the context lists resolve follow-ups like "what about him?" or "change it to Kumar".
+    """
+    current = (text or "").strip()
+    recent = (context or "").strip()
+    combined = f"{current}\n{recent}".strip() if recent else current
+    if not combined:
+        return []
+
+    queries = [q for q in dict.fromkeys([current, combined]) if q]  # distinct, current first
+    sparse = [v for v in (bm25.query_vector(q) for q in queries) if v.indices]
+    dense = await embed(queries, api_key)
+    if not sparse and not dense:
         return []
     flt = visibility_filter(organization_id, user_id, kinds=kinds, exclude_kinds=exclude_kinds, scope=scope)
+    prefetch = [
+        models.Prefetch(query=vector, using=DENSE, limit=PREFETCH_LIMIT, score_threshold=DENSE_MIN_SCORE, filter=flt)
+        for vector in (dense or [])
+    ] + [models.Prefetch(query=vector, using=SPARSE, limit=PREFETCH_LIMIT, filter=flt) for vector in sparse]
     try:
         await _run(_ensure_collection_sync)
-        client, name = _client(), collection_name()
-        if dense:
-            prefetch = [models.Prefetch(query=dense[0], using=DENSE, limit=PREFETCH_LIMIT,
-                                        score_threshold=DENSE_MIN_SCORE, filter=flt)]
-            if sparse.indices:
-                prefetch.append(models.Prefetch(query=sparse, using=SPARSE, limit=PREFETCH_LIMIT, filter=flt))
-            result = await _run(client.query_points, collection_name=name, prefetch=prefetch,
-                                query=models.FusionQuery(fusion=models.Fusion.RRF), query_filter=flt, limit=limit)
-        else:
-            result = await _run(client.query_points, collection_name=name, query=sparse, using=SPARSE,
-                                query_filter=flt, limit=limit)
+        result = await _run(
+            _client().query_points, collection_name=collection_name(), prefetch=prefetch,
+            query=models.FusionQuery(fusion=models.Fusion.RRF), query_filter=flt, limit=limit,
+        )
         return [(str(p.id), float(p.score)) for p in result.points]
     except Exception:
         logger.warning("memory_index.search_failed org=%s", organization_id, exc_info=True)

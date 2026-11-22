@@ -218,13 +218,18 @@ async def _stream_agent_response(
     from app.services.business_profile_service import business_context_text
     from app.services.google_calendar_service import connection_status
 
-    from app.services.memory_service import build_memory_context
+    from app.services.memory_service import build_memory_context, recent_turns_text
 
     business_context = await business_context_text(session, organization_id)
     calendar_status = await connection_status(session, user_id=user_id, organization_id=organization_id)
     user_timezone = calendar_status.get("timezone") or ""
+    # The last few turns help memory search with follow-ups ("what's her number?").
+    recent = await MessageRepository.list_by_chat(session, chat_id, limit=8)
+    recent_context = recent_turns_text(
+        [(m.role, m.content) for m in reversed(recent)], current=user_message
+    ) if user_message else ""
     memory_context = await build_memory_context(
-        session, organization_id=organization_id, user_id=user_id, query=user_message
+        session, organization_id=organization_id, user_id=user_id, query=user_message, context=recent_context
     )
 
     combined_user = (user_message or "").strip()
@@ -447,7 +452,7 @@ async def _stream_agent_response(
     if user_message and not is_resume and not memory_tool_used and assistant_reply:
         memory_event = await _memory_event(
             organization_id=organization_id, user_id=user_id, role=role, chat_id=chat_id,
-            user_text=user_message, assistant_text=assistant_reply,
+            user_text=user_message, assistant_text=assistant_reply, context_text=recent_context,
         )
         if memory_event:
             yield memory_event

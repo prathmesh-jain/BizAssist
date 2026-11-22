@@ -188,7 +188,14 @@ twice, and anything that looks like a password, API key, or card number is refus
 A search with an OpenAI key runs both in one Qdrant query (a dense prefetch with a minimum cosine score of 0.3,
 plus a BM25 prefetch) merged with Reciprocal Rank Fusion, so a memory found only by an exact word still comes
 back. Without a key it's BM25 only, and the Memory page says so. Every search is filtered to the organization's
-shared memories plus the user's own personal ones. If Qdrant is unreachable, search returns nothing and chat
+shared memories plus the user's own personal ones.
+
+In chat, the search also uses the last three exchanges, so follow-ups like "what's her number?" find the right
+contact. Each search runs the current message alone and the message plus recent turns (BM25, and dense with a
+key) and fuses all lists, so a self-contained question isn't pulled off course by earlier topics. Automatic
+saving gets the same recent turns to resolve references, but only records what the latest exchange states.
+
+If Qdrant is unreachable, search returns nothing and chat
 carries on; `python scripts/reindex_memories.py` rebuilds the index from Postgres.
 
 **How memories are used.** Every turn, `build_memory_context` adds a `[Memory]` block to the chat, planner, and
