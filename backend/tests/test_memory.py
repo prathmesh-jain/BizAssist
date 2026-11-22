@@ -434,6 +434,46 @@ async def test_index_follows_replace_delete_undo_and_leaving(team, client_for, q
     assert mine["id"] not in point_ids()
 
 
+@pytest.mark.no_db
+def test_recent_turns_text_skips_the_current_message_and_trims():
+    history = [
+        ("user", "old question one"), ("assistant", "old answer"),
+        ("user", "Who handles orders at Sharma Packaging?"), ("assistant", "Meera handles them." + " x" * 400),
+        ("tool", "ignored"), ("assistant", ""),
+        ("user", "what's her number?"),
+    ]
+    text = memory_service.recent_turns_text(history, current="what's her number?", turns=1)
+    lines = text.split("\n")
+    assert "what's her number?" not in text and "old question one" not in text
+    assert lines[0].startswith("Meera handles them.") and len(lines[0]) == 300  # newest first, assistant trimmed
+    assert lines[1] == "Who handles orders at Sharma Packaging?"
+    assert memory_service.recent_turns_text([], current="hi") == ""
+
+
+async def test_follow_up_questions_find_memories_through_recent_turns(team, client_for):
+    from app.db.base import session_scope
+
+    owner, _, _ = team
+    o = client_for(owner)
+    await o.post("/api/memory", json={"content": "Meera at Sharma Packaging handles our orders; phone 98200 11223.", "kind": "contact"})
+    await o.post("/api/memory", json={"content": "Rent is due on the 5th.", "kind": "fact"})
+    context = "Meera handles orders for Sharma Packaging.\nWho handles orders at Sharma Packaging?"
+
+    for with_key in (False, True):
+        if with_key:
+            await _set_openai_key(o)
+        async with session_scope() as session:
+            alone = await memory_service.find_relevant(session, _actor(owner), "what's her number?")
+            followed = await memory_service.find_relevant(session, _actor(owner), "what's her number?", context=context)
+        assert not any("Meera" in m.content for m, _ in alone)
+        assert followed and followed[0][0].content.startswith("Meera at Sharma Packaging")
+
+    # A self-contained question still wins over unrelated context.
+    async with session_scope() as session:
+        ranked = await memory_service.find_relevant(session, _actor(owner), "when is rent due?", context=context)
+    assert ranked[0][0].content == "Rent is due on the 5th."
+
+
 async def test_search_degrades_to_nothing_when_qdrant_is_down(team, client_for, monkeypatch):
     from app.services import qdrant_service
 
