@@ -91,7 +91,7 @@ def _normalize_unsafe_reason(reason: str) -> str:
 
 async def guardrail_node(state: AgentState) -> dict:
     """Check if the user's request is in-scope before routing to any agent."""
-    if not settings.use_guardrail:
+    if not (settings.use_guardrail or state.get("strict_guardrail")):
         return {"is_safe": True, "guardrail_reason": ""}
 
     last_user_msg = next(

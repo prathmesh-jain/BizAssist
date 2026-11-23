@@ -33,6 +33,9 @@ ACTION_MIN_ROLE: dict[str, Role] = {
     # and editing or deleting someone else's shared memory needs admin.
     "memory.write_shared": "member",
     "memory.manage_shared": "admin",
+    # WhatsApp/Telegram bots. Viewing includes customer conversations, so it needs member+.
+    "bots.view": "member",
+    "bots.manage": "admin",
 }
 
 

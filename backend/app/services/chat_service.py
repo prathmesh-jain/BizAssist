@@ -206,10 +206,16 @@ async def _stream_agent_response(
     user_message_context: str | None = None,
     is_resume: bool = False,
     resume_value: str | bool | dict | None = None,
+    channel: dict | None = None,
 ) -> AsyncGenerator[str, None]:
     """
     Pre-processes memory, builds LangGraph state, and streams SSE events.
+
+    `channel` comes from messaging bots: {"tool_policy": [...], "channel_note": "...",
+    "strict_guardrail": True}. It is applied on every run, resumes included.
     """
+    channel = dict(channel or {})
+    memory_allowed = channel.get("tool_policy") is None or "recall_memory" in channel["tool_policy"]
     from app.agents.graph import get_compiled_graph
     from langchain_core.messages import HumanMessage
 
@@ -230,7 +236,7 @@ async def _stream_agent_response(
     ) if user_message else ""
     memory_context = await build_memory_context(
         session, organization_id=organization_id, user_id=user_id, query=user_message, context=recent_context
-    )
+    ) if memory_allowed else ""
 
     combined_user = (user_message or "").strip()
     if user_message_context:
@@ -246,6 +252,9 @@ async def _stream_agent_response(
         "business_context": business_context,
         "memory_context": memory_context,
         "user_timezone": user_timezone,
+        "tool_policy": channel.get("tool_policy"),
+        "channel_note": channel.get("channel_note", ""),
+        "strict_guardrail": bool(channel.get("strict_guardrail")),
     }
 
     full_response = ""
@@ -273,7 +282,11 @@ async def _stream_agent_response(
 
     # Use Command(resume=...) if resuming, otherwise use initial_state
     # On resume, refresh the role too so a demotion during a pending interrupt takes effect.
-    input_data = initial_state if not is_resume else Command(resume=resume_value, update={"role": role, "business_context": business_context, "memory_context": memory_context, "user_timezone": user_timezone})
+    input_data = initial_state if not is_resume else Command(resume=resume_value, update={
+        "role": role, "business_context": business_context, "memory_context": memory_context, "user_timezone": user_timezone,
+        "tool_policy": channel.get("tool_policy"), "channel_note": channel.get("channel_note", ""),
+        "strict_guardrail": bool(channel.get("strict_guardrail")),
+    })
 
     max_attempts = 1 if is_resume else max(int(getattr(settings, "agent_run_retries", 2) or 2), 1)
 
@@ -449,7 +462,7 @@ async def _stream_agent_response(
         (text_of(m.content) for m in reversed(new_msgs or []) if m.type == "ai" and not getattr(m, "tool_calls", None)),
         full_response,
     )
-    if user_message and not is_resume and not memory_tool_used and assistant_reply:
+    if user_message and not is_resume and not memory_tool_used and assistant_reply and memory_allowed:
         memory_event = await _memory_event(
             organization_id=organization_id, user_id=user_id, role=role, chat_id=chat_id,
             user_text=user_message, assistant_text=assistant_reply, context_text=recent_context,

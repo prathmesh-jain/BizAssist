@@ -27,4 +27,7 @@ def with_business_context(system_prompt: str, state: AgentState) -> str:
     memory = (state.get("memory_context") or "").strip()
     if memory:
         prompt = f"{prompt}\n\n[Memory]\n{memory}"
+    channel = (state.get("channel_note") or "").strip()
+    if channel:
+        prompt = f"{prompt}\n\n[Channel]\n{channel}"
     return prompt

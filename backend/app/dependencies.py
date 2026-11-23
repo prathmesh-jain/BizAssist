@@ -258,3 +258,5 @@ MemberManager = Annotated[CurrentUserContext, Depends(require_action("member.man
 OrganizationManager = Annotated[CurrentUserContext, Depends(require_action("organization.manage"))]
 BusinessReader = Annotated[CurrentUserContext, Depends(require_action("business.read"))]
 BusinessManager = Annotated[CurrentUserContext, Depends(require_action("business.manage"))]
+BotViewer = Annotated[CurrentUserContext, Depends(require_action("bots.view"))]
+BotManager = Annotated[CurrentUserContext, Depends(require_action("bots.manage"))]

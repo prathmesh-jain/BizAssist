@@ -11,6 +11,7 @@ from app.db.models.oauth_connection import OAuthConnection
 from app.db.models.oauth_state import OAuthState
 from app.db.models.business_profile import BusinessProfile, BusinessResearchRun
 from app.db.models.memory import Memory
+from app.db.models.bot import Bot, BotConversation, BotIdentity, BotLinkCode, BotMessage, Job
 
 __all__ = [
     "User",
@@ -27,4 +28,10 @@ __all__ = [
     "BusinessProfile",
     "BusinessResearchRun",
     "Memory",
+    "Bot",
+    "BotConversation",
+    "BotIdentity",
+    "BotLinkCode",
+    "BotMessage",
+    "Job",
 ]
