@@ -70,6 +70,15 @@ class Settings(BaseSettings):
     # Guardrails
     use_guardrail: bool = False
 
+    # WhatsApp and Telegram bots
+    # Public HTTPS address of this API (e.g. https://api.example.com). WhatsApp and Telegram send
+    # messages to webhooks under it, so bots can't receive anything until it is set.
+    public_api_url: str = ""
+    whatsapp_graph_version: str = "v23.0"
+    bot_daily_message_cap: int = 500  # replies per bot per day (UTC); a bot's settings can lower or raise it
+    bot_messages_per_minute: int = 8  # per person; more than this and the bot pauses for them briefly
+    bot_message_retention_days: int = 90
+
     # Agent runtime
     agent_run_retries: int = 2
     planner_max_iterations: int = 4

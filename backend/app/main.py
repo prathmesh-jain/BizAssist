@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import connect_db, close_db
 from app.utils.logger import setup_logging
-from app.routers import account, business, chat, documents, integrations, memory, organization, settings as settings_router
+from app.routers import account, bots, business, chat, documents, integrations, memory, organization, settings as settings_router, webhooks
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -36,6 +36,10 @@ async def lifespan(app: FastAPI):
     from app.services.tmp_cleanup_service import run_tmp_sweeper
     stop_event = asyncio.Event()
     sweeper_task = asyncio.create_task(run_tmp_sweeper(stop_event))
+    # Durable background jobs (bot messages). Importing bot_service registers its job handlers.
+    from app.services import bot_service  # noqa: F401
+    from app.services.jobs import run_worker
+    worker_task = asyncio.create_task(run_worker(stop_event))
     logger.info("Application ready ✓")
     yield
     # Shutdown
@@ -44,6 +48,10 @@ async def lifespan(app: FastAPI):
         await sweeper_task
     except Exception:
         logger.exception("Error stopping tmp sweeper")
+    try:
+        await asyncio.wait_for(worker_task, timeout=30)
+    except Exception:
+        logger.exception("Error stopping the job worker")
     await close_checkpointer()
     from app.research.browser import browser_service
     browser_service.shutdown()
@@ -77,6 +85,8 @@ app.include_router(documents.router)
 app.include_router(integrations.router)
 app.include_router(settings_router.router)
 app.include_router(memory.router)
+app.include_router(bots.router)
+app.include_router(webhooks.router)
 
 
 @app.get("/health")

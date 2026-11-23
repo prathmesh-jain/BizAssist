@@ -12,6 +12,7 @@ from langgraph.types import interrupt
 from pydantic import BaseModel, Field
 
 from app.agents.state import AgentState
+from app.agents.tool_policy import restrict, restrict_ids
 
 logger = logging.getLogger(__name__)
 
@@ -299,12 +300,15 @@ def get_registry_control_tools(state: AgentState) -> list:
     async def search_available_tools(query: str, limit: int = 5) -> dict:
         """Search for additional tools semantically when the current selection is insufficient."""
         active_tool_ids = state.get("active_tool_ids") or []
+        from app.agents.tool_policy import is_allowed
+
         results = await registry.search(
             query,
             state,
             limit=max(1, min(int(limit or 5), 8)),
             exclude_ids=active_tool_ids,
         )
+        results = [r for r in results if is_allowed(state, r.metadata.name)]
         matches = registry.describe([result.metadata.id for result in results])
         tool_ids = [result["id"] for result in matches]
         search_category = _infer_search_category(query, matches)
@@ -373,9 +377,12 @@ def select_chat_tool_ids(state: AgentState) -> list[str]:
     """
     from app.agents.tool_registry import get_tool_registry
 
+    from app.agents.tool_policy import restrict_ids
+
     candidates = list(CHAT_FAST_TOOL_IDS)
     if not state.get("user_timezone"):
         candidates.append("calendar_now")  # otherwise local time is already in the prompt
+    candidates = restrict_ids(state, candidates)
 
     registry = get_tool_registry()
     human_messages = [
@@ -400,7 +407,7 @@ def get_chat_local_tools(state: AgentState) -> list:
     tools.extend(get_chat_attachment_read_tools(user_id=user_id, chat_id=chat_id))
     tools.extend(get_memory_tools_for(state))
     tools.extend(get_tool_registry().load(state.get("chat_tool_ids") or [], state))
-    return tools
+    return restrict(state, tools)
 
 
 def get_memory_tools_for(state: AgentState) -> list:
@@ -422,7 +429,7 @@ def get_planner_tools(state: AgentState) -> list:
     tools.extend(get_registry_control_tools(state))
     tools.extend(get_chat_attachment_read_tools(user_id=user_id, chat_id=chat_id))
     tools.extend(t for t in get_memory_tools_for(state) if t.name == "recall_memory")
-    return tools
+    return restrict(state, tools)
 
 
 async def select_initial_tool_ids(state: AgentState) -> list[str]:
@@ -434,7 +441,7 @@ async def select_initial_tool_ids(state: AgentState) -> list[str]:
         return []
 
     results = await registry.search(execution_query, state, limit=6)
-    return [result.metadata.id for result in results]
+    return restrict_ids(state, [result.metadata.id for result in results])
 
 
 async def build_tools_for_agent(state: AgentState) -> list:
@@ -452,7 +459,7 @@ async def build_tools_for_agent(state: AgentState) -> list:
             tools.append(core_tool)
             loaded_names.add(core_tool.name)
 
-    return tools
+    return restrict(state, tools)
 
 
 def _parse_tool_message_content(content: Any) -> dict[str, Any] | None:

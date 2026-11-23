@@ -13,6 +13,8 @@ const Sidebar = React.lazy(() => import('../components/layout/Sidebar'));
 const ChatWindow = React.lazy(() => import('../components/chat/ChatWindow'));
 const DocumentView = React.lazy(() => import('../components/documents/DocumentView'));
 const MemoryView = React.lazy(() => import('../components/memory/MemoryView'));
+const BotsView = React.lazy(() => import('../components/bots/BotsView'));
+const BotDetail = React.lazy(() => import('../components/bots/BotDetail'));
 const CalendarView = React.lazy(() => import('../components/calendar/CalendarView'));
 const SettingsView = React.lazy(() => import('../components/settings/SettingsView'));
 const TeamView = React.lazy(() => import('../components/team/TeamView'));
@@ -54,6 +56,7 @@ export default function Dashboard() {
         if (location.pathname.startsWith('/app/business') || location.pathname.startsWith('/app/onboarding')) return 'business';
         if (location.pathname.startsWith('/app/documents')) return 'documents';
         if (location.pathname.startsWith('/app/memory')) return 'memory';
+        if (location.pathname.startsWith('/app/bots')) return 'bots';
         if (location.pathname.startsWith('/app/calendar')) return 'calendar';
         return 'chat';
     }, [location.pathname]);
@@ -112,6 +115,8 @@ export default function Dashboard() {
                     <Route path="calendar" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><CalendarView /></FeatureView>} />
                     <Route path="documents" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><DocumentView /></FeatureView>} />
                     <Route path="memory" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><MemoryView /></FeatureView>} />
+                    <Route path="bots" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><BotsView /></FeatureView>} />
+                    <Route path="bots/:botId" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><BotDetail /></FeatureView>} />
                     <Route path="settings" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><SettingsView /></FeatureView>} />
                     <Route path="team" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><TeamView /></FeatureView>} />
                     <Route path="business" element={<FeatureView onMenuClick={() => setIsSidebarOpen(true)}><BusinessProfileView /></FeatureView>} />

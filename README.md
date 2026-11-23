@@ -16,6 +16,7 @@ It's a FastAPI + LangGraph backend on PostgreSQL and Qdrant, with a React 19 + V
 - [Business onboarding and research](#business-onboarding-and-research)
 - [Documents](#documents)
 - [Long-term memory](#long-term-memory)
+- [WhatsApp and Telegram bots](#whatsapp-and-telegram-bots)
 - [Organizations, roles, and invitations](#organizations-roles-and-invitations)
 - [Storage](#storage)
 - [Guardrails](#guardrails)
@@ -38,6 +39,10 @@ It's a FastAPI + LangGraph backend on PostgreSQL and Qdrant, with a React 19 + V
 - **Long-term memory.** BizAssist remembers business facts, contacts, decisions, personal preferences, and recent
   activity across conversations, and shows what it learned with an Undo. Everything is visible and editable on
   the Memory page.
+- **WhatsApp and Telegram bots.** Connect a WhatsApp number or a Telegram bot either for customers (answers
+  about the business, books meetings in free slots, saves enquiries to a sheet, hands over to a person) or for
+  the team (the full assistant from their phone, limited to the tools an admin allows). Every message is kept
+  with a step-by-step trace of what the bot did.
 - **Teams.** Organizations have owners, admins, members, and viewers; invitation links; suspension and removal;
   and switching between several organizations.
 - **Streaming UX.** Tokens, tool activity, planner status, and approval prompts stream to the browser over SSE.
@@ -212,6 +217,51 @@ can turn memory off on the Memory page, which stops both using and saving memori
 API: `GET/POST /api/memory`, `PATCH/DELETE /api/memory/{id}`, `POST /api/memory/{id}/undo`,
 `GET/PATCH /api/memory/settings`.
 
+## WhatsApp and Telegram bots
+
+The **Bots** page connects messaging bots with a guided setup. Each bot serves one audience, so what it can do
+stays clear and gated:
+
+| | Customer bot | Team bot |
+|---|---|---|
+| Who can use it | Anyone who messages it | Members who linked their account with a one-time code (`link 482913`, or a deep link) |
+| What it can do | Fixed capabilities the admin switches on: answer from the public business profile, an "information for customers" text and up to three chosen documents; offer and book free times on the connecting admin's calendar inside booking hours; save enquiries as rows in a sheet; hand the chat to a person | The regular assistant as that member, with their role, limited to the tool groups the admin enables (documents, memory, calendar read/write, sheets read/write). Calendar changes ask for approval with buttons |
+| Off-topic messages | A business-only check runs first; anything else gets a fixed reply and the main model never runs | The guardrail always runs, whatever `USE_GUARDRAIL` says |
+| AI key | The connecting admin's | The member's own |
+
+Customer bots never see internal profile fields (goals, challenges, tools in use), memories, or other documents.
+Their tools are separate from the assistant's (`app/agents/customer_agent.py`); bookings are only accepted for a
+time the free-slot search offered, and each customer can hold a limited number of upcoming bookings. Team bots
+pass a tool allowlist into the agent state (`app/agents/tool_policy.py`) that every tool builder filters through,
+so tools that aren't enabled are never offered to the model and can't run.
+
+**Setup.**
+- *Telegram:* create a bot with @BotFather and paste the token. BizAssist checks it and registers its webhook
+  with a secret header.
+- *WhatsApp (Cloud API):* the business uses its own Meta app and pastes a permanent system-user token, the phone
+  number ID, the WhatsApp Business Account ID, and the app secret. BizAssist checks them with the Graph API and
+  subscribes the app to the account; the setup screen then shows the callback URL and verify token to paste into
+  the app's webhook settings. Every webhook is checked against the app's `X-Hub-Signature-256`.
+
+Both need `PUBLIC_API_URL`, the public https address of the API.
+
+**Message flow.** Webhooks (`app/routers/webhooks.py`) verify the request, store each message once (platform
+retries are ignored), queue a job and answer at once. A small Postgres-backed job queue (`app/services/jobs.py`,
+`FOR UPDATE SKIP LOCKED`, retries with backoff) runs the bot in the API process; jobs for the same conversation
+run one at a time and in order. `app/services/bot_service.py` applies the checks (paused bot, chat handed to a
+person, per-person rate limit, daily reply cap), runs the customer or team flow, sends the reply, and records
+WhatsApp's sent/delivered/read/failed statuses as they arrive.
+
+**Inbox and troubleshooting.** Each bot has a conversation list with the customer's message next to the bot's
+reply and a "What happened" trace (business-only check, tools used, timings). Failures show a plain explanation
+and fix (for example WhatsApp's 24-hour reply window, or a test number's recipient list). A health tab checks
+the token, webhook registration, app subscription, and recent errors, and a test box runs a message through the
+bot without sending anything. Staff can take over a customer chat and reply from the inbox; WhatsApp allows this
+within 24 hours of the customer's last message. Messages are kept for `BOT_MESSAGE_RETENTION_DAYS` (default 90).
+
+Permissions: `bots.view` (member) for conversations, `bots.manage` (admin) to connect and configure bots. Any
+member can link their own account to a team bot.
+
 ## Organizations, roles, and invitations
 
 Every user belongs to one or more organizations. The frontend sends the active one as `X-Organization-Id`.
@@ -239,6 +289,9 @@ versions; document records; per-user
 AI settings with the encrypted OpenAI key; OAuth connections and states with encrypted Google tokens; and
 business profiles and research runs. LangGraph checkpoints are in the same database via `AsyncPostgresSaver`.
 
+Bots, linked accounts, bot conversations and messages (with traces), and the job queue are in PostgreSQL too;
+bot credentials are encrypted.
+
 **Qdrant** stores document vectors, the tool catalog, and the long-term memory index (dense and BM25 vectors).
 
 ## Guardrails
@@ -246,7 +299,8 @@ business profiles and research runs. LangGraph checkpoints are in the same datab
 The `guardrail` node classifies each request with the small model and stops out-of-scope ones (writing code,
 database queries, unrelated topics).
 
-The check is enabled server-wide with `USE_GUARDRAIL` (default `false`).
+The check is enabled server-wide with `USE_GUARDRAIL` (default `false`). Team bots always run it; customer bots
+have their own business-only check (see [WhatsApp and Telegram bots](#whatsapp-and-telegram-bots)).
 
 ## Frontend
 

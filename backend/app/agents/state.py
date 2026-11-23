@@ -19,6 +19,11 @@ class AgentState(TypedDict, total=False):
     memory_context: str  # long-term memories relevant to this turn (see services/memory_service.py)
     user_timezone: str  # IANA zone from the user's connected calendar, when known
 
+    # Messaging bots (see agents/tool_policy.py and services/bot_service.py). Absent in the web app.
+    tool_policy: list[str] | None  # allowed tool names; None means no restriction
+    channel_note: str  # how to reply on this channel and what this bot may do
+    strict_guardrail: bool  # always run the business-only check, whatever the server setting
+
     # Tools chat may call directly this turn, chosen from the user's message
     chat_tool_ids: list[str]
 
